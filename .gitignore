@@ -1,0 +1,21 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors — keep shared .vscode if added later
+*.code-workspace
+.idea/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Temporary
+*.tmp
+*.temp
+*.log
+
+# Local caches
+.cache/
