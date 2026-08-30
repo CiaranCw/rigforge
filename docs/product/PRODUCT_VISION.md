@@ -44,6 +44,8 @@ Workbench UI / CLI / Automation
 
 Adapters, interchange formats, and DCC/engine representations are derived or boundary layers. They are not the Canonical Domain.
 
+Unreal, Unity, Blender, Maya, MotionBuilder, and other tools are **reference systems**, **adapter targets**, and **optional integrations**. They are not Canonical authority and not a required runtime, preview engine, ingest host, or Workbench host.
+
 ## Long-Term Canonical Objects
 
 Expected / subject to W1 freeze:
@@ -60,3 +62,14 @@ Expected / subject to W1 freeze:
 - Asset Reference / Provenance
 
 V1 working boundary: [V1_SCOPE.md](V1_SCOPE.md).
+
+## Engine-Independent Preview
+
+RigForge must ultimately provide a standalone, engine-independent way to
+inspect and preview Character, Skeleton, and Motion assets.
+
+A browser-like viewer is a preferred product direction, but the rendering
+technology is not yet selected.
+
+The preview path must not require Unreal Engine, Unity, Blender, Maya, or
+another specific DCC/game engine to render Canonical RigForge assets.

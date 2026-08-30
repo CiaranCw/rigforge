@@ -8,7 +8,31 @@ Rev1 closed F1–F7.
 Rev2 closed F8–F10.
 Final closeout corrected bookkeeping / wording only.
 
-W0.1 is now the accepted research baseline feeding later W0 stages. Status: **COMPLETE**. Other R1 tracks are not started. W0 is not complete. Gate A / IA-1 / W1 are not claimed.
+W0.1 is now the accepted research baseline feeding later W0 stages. Status: **COMPLETE**.
+
+W0.2 executed a **mapping / compatibility / deterministic retarget slice** of R1-G, R1-H, R1-I, and R1-O (retarget pair prep only). Findings live in [retargeting/](retargeting/W0_2_MAPPING_COMPAT_RETARGET.md).
+
+W0.2 completed external focused review.
+
+Initial review produced:
+
+```text
+R1-MAJOR-001
+R1-MAJOR-002
+R1-MAJOR-003
+R1-REQ-004
+```
+
+Rev1 closed those findings.
+
+Final closeout separated:
+
+- root/pelvis pair compatibility from Motion trajectory suitability
+- target asset capability from method/execution capability
+
+W0.2 is now the accepted Mapping / Compatibility / Deterministic Retarget research baseline. Status: **COMPLETE**. Other R1 tracks remain not started. W0 is not complete. Gate A / IA-1 / W1 are not claimed. No retarget algorithm and no IK placement are selected.
+
+From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers remain references / adapters / optional integrations — not Canonical authority.
 
 Goal: independently review the product space, standards, formats, skeleton/motion semantics, retarget, validation, publish, adapters, language/GUI options, and license risk before any implementation freeze.
 
@@ -31,7 +55,7 @@ Do not start implementation from this document. Decision gates come after eviden
 | R1-K | Asset Identity / Publish | Identity, provenance, derived vs authoritative publish. |
 | R1-L | DCC Integration | Blender / Maya (and peers) as optional adapters, not ingest prerequisites. |
 | R1-M | Engine Integration | Unreal / Unity (and peers) as publish/adapter targets. |
-| R1-N | UI Strategy | Workbench UI options after Domain API, without locking a stack. |
+| R1-N | UI Strategy | Workbench UI options after Domain API, without locking a stack; includes engine-independent preview (see below). |
 | R1-O | Golden Fixtures | What minimal, legal fixtures R1 should reserve for later tests. |
 | R1-P | License / Dependency Risk | License, maintenance, and lock-in of every candidate. |
 
@@ -110,5 +134,23 @@ For each candidate and each track finding, answer:
 - Official claim vs source-confirmed fact?
 - V1 relevance?
 - Lock-in / semantic-loss / maintenance risks?
+
+## Preview / UI research routing (W0.2 Rev1)
+
+Long-term product requirement: Canonical Character / Skeleton / Motion must be inspectable without Unreal, Unity, or another specific engine. A browser-like viewer is a **preferred direction**, not a technology decision.
+
+R1-N and later **W0.3 / W0.4** must include, without assuming a particular engine:
+
+- engine-independent preview strategy
+- browser-like preview feasibility
+- standalone renderer boundary
+- Canonical → Preview representation / data flow
+- preview adapter / renderer boundary
+- headless / domain separation
+- standalone rendering constraints
+
+W0.3 is the natural home for adapter / preview-data-flow, renderer **boundary**, headless/domain separation, and standalone rendering constraints. W0.4 later compares technologies. No renderer is selected in W0.2.
+
+Whether a full viewer ships in V1 remains a later scope gate. Minimal Workbench must not create a mandatory Unreal/Unity dependency.
 
 Evidence tags: [README.md](README.md). Citation records: [sources/README.md](sources/README.md).

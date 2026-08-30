@@ -40,3 +40,10 @@ Not V1 foundation. Do not treat as mandatory dependencies:
 - Blender/Maya as mandatory ingest path
 - complete DCC replacement
 - complete engine asset pipeline replacement
+
+## Engine-independent preview (scope note)
+
+Engine-independent preview is a long-term product requirement.
+Whether the full viewer ships in V1 is subject to W0 technology and
+scope gates; Minimal Workbench must not create a mandatory Unreal/Unity
+dependency.
