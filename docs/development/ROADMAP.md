@@ -7,7 +7,12 @@ Phase list and status only. Design details live in product, research, and archit
 | Phase | Name | Status |
 | --- | --- | --- |
 | — | Repository Initialization | COMPLETE |
-| W0 | Research Baseline | READY |
+| W0 | Research Baseline | ACTIVE |
+| W0.1 | Canonical Foundations | COMPLETE |
+| W0.2 | Mapping / Compatibility / Retarget | READY |
+| W0.3 | Adapter / Infrastructure | NOT STARTED |
+| W0.4 | Product / Tech-stack / Frontier | NOT STARTED |
+| W0-P | Research Validation PoCs | NOT STARTED |
 | W1 | Canonical Domain Contract | NOT STARTED |
 | W2 | I/O Adapter Contract | NOT STARTED |
 | W3 | Canonical I/O MVP | NOT STARTED |
@@ -21,6 +26,6 @@ Phase list and status only. Design details live in product, research, and archit
 
 ## Immediate next
 
-W0 — execute [Research Baseline R1](../research/R1_RESEARCH_BASELINE.md).
+W0.1 is the accepted Canonical Foundations baseline: [docs/research/foundations/W0_1_CANONICAL_FOUNDATIONS.md](../research/foundations/W0_1_CANONICAL_FOUNDATIONS.md).
 
-W1–W10 stay closed until R1 decision gates complete.
+Next: W0.2 — Mapping / Compatibility / Deterministic Retarget Research. W0 remains ACTIVE. W0.3, W0.4, W0-P, and W1–W10 stay NOT STARTED. Gate A / IA-1 are not claimed.

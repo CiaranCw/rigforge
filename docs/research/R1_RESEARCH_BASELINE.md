@@ -1,6 +1,14 @@
 # R1 — Research Baseline
 
-Research plan only. No findings are recorded yet.
+Plan document. W0.1 executed a **foundations slice** of R1-C, R1-D, R1-E, R1-F, and R1-O (corpus prep only). Findings live in [foundations/](foundations/W0_1_CANONICAL_FOUNDATIONS.md). This file is not a second copy of those findings.
+
+W0.1 Canonical Foundations completed external focused review.
+
+Rev1 closed F1–F7.
+Rev2 closed F8–F10.
+Final closeout corrected bookkeeping / wording only.
+
+W0.1 is now the accepted research baseline feeding later W0 stages. Status: **COMPLETE**. Other R1 tracks are not started. W0 is not complete. Gate A / IA-1 / W1 are not claimed.
 
 Goal: independently review the product space, standards, formats, skeleton/motion semantics, retarget, validation, publish, adapters, language/GUI options, and license risk before any implementation freeze.
 
@@ -74,6 +82,10 @@ Research candidates. None of these is selected.
 | Unreal | Engine adapter reference |
 | Unity | Engine adapter reference |
 | Godot / O3DE | Architecture-boundary references, not default targets |
+| ISO/IEC 19774 HAnim | **NEW DISCOVERY (W0.1)** — semantic humanoid reference; not a V1 ingest target |
+| COLLADA 1.4/1.5 skin | **NEW DISCOVERY (W0.1)** — historical interchange / geom-bind analogue |
+| BVH | **NEW DISCOVERY (W0.1)** — motion-only historical reference |
+| ASF / AMC | **NEW DISCOVERY (W0.1)** — historical mocap split |
 
 ## Required answers per item
 
