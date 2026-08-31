@@ -60,7 +60,37 @@ Accepted W0.3 baseline establishes:
 
 No format library, language, process topology, Preview path, renderer, or engine is selected.
 
-W0.3 status: **COMPLETE**. Other R1 tracks remain incomplete. W0 is not complete. W0.4 is **READY**, not started. W0-P / Gate A / IA-1 / W1 are not claimed.
+W0.3 status: **COMPLETE**.
+
+W0.4 executed a **product / tech-stack / frontier / engineering-decision slice** of R1-A, R1-J (cook placement only), R1-K (storage placement only), R1-L / R1-M (priority, not authority), R1-N (host / renderer / Preview path ranking), and R1-P (dependency governance). Recommendations live in [decisions/](decisions/W0_4_PRODUCT_TECH_DECISIONS.md).
+
+W0.4 completed external focused review.
+
+Initial review produced decision critical-path / experiment-quality / freshness corrections.
+
+Rev1 minimized W0-P and deconfounded Core/Preview decisions.
+
+Rev2 made Mandatory PoCs execution-ready, asset-ready, version-controlled, and generic-engine-validating.
+
+Rev3 corrected named real-asset pack license authority.
+
+Accepted W0.4 baseline now provides:
+
+- product necessity verdict
+- ranked technology recommendations
+- explicit `DECIDE_NOW` vs `PROVISIONAL_W0P_GATED` decisions
+- V1 scope recommendation
+- dependency/license risk matrix
+- frontier/AI classification
+- six Mandatory W0-P experiment contracts
+- one Conditional and three Optional PoCs
+- named license-cleared Level-3 asset pools
+
+Preferred candidates remain `PROVISIONAL_W0P_GATED` unless the row is an architectural role marked `DECIDE_NOW`. No Core language, format library, Preview renderer, Preview data path, or GUI stack is selected as implementation authority.
+
+No product implementation has started. W0-P has not executed. No W0-P results are claimed.
+
+W0.4 status: **COMPLETE**. W0 remains ACTIVE. W0-P is **READY**. Gate A / IA-1 / W1 are not claimed. W0 is not complete until W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes.
 
 From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers remain references / adapters / optional integrations — not Canonical authority.
 
@@ -179,7 +209,7 @@ R1-N and later **W0.3 / W0.4** must include, without assuming a particular engin
 - headless / domain separation
 - standalone rendering constraints
 
-W0.3 recorded Preview **data and authority** requirements (derived, engine-free, path A/B/C/D not selected). W0.4 later compares technologies. No renderer is selected.
+W0.3 recorded Preview **data and authority** requirements (derived, engine-free, path A/B/C/D not selected). W0.4 compared host / renderer / data-path / bridge candidates and recorded preferred directions. No renderer or Preview data path is selected as implementation authority.
 
 Whether a full viewer ships in V1 remains a later scope gate. Minimal Workbench must not create a mandatory Unreal/Unity dependency.
 
