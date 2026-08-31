@@ -68,8 +68,11 @@ Formats are transport / boundary concerns.
 ```
 
 Unreal, Unity, Blender, Maya, and peers are not Canonical authority. Blender
-may be a hidden V1 execution backend (`PROVISIONAL_POC_GATED`). Preview must
-not require Unreal, Unity, or Blender as the user-facing viewer.
+is a hidden V1 execution backend (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`,
+validated by POC-BLENDER-E2E-01). It is not product authority and is not
+permanently final. Preview must not require Unreal, Unity, or Blender as the
+user-facing viewer. Product implementation remains unauthorized until
+POC-PREVIEW-01R, W0-RS, and IA-1 complete the remaining required gates.
 
 ## What survives from earlier research
 

@@ -42,19 +42,21 @@ Decision: [ADR-0001](docs/architecture/decisions/ADR-0001-v1-scope-and-blender-b
 
 ```text
 W0: ACTIVE
-W0-SR: COMPLETE / ADOPTED
+W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS / BASELINED
 POC-FBX-01: COMPLETE / PASS / BASELINED
-POC-BLENDER-E2E-01: READY / NOT STARTED
-POC-PREVIEW-01R: NOT STARTED
+POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
+POC-PREVIEW-01R: READY / NOT STARTED
 W0-RS: NOT STARTED
 IA-1: NOT STARTED
 product implementation: NOT STARTED
 ```
 
-W0-SR is **COMPLETE / ADOPTED**. No product implementation has started. The
-next experiment is **POC-BLENDER-E2E-01**. Execute it only under its dedicated
-experiment prompt / contract. Do not execute it from this README.
+W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
+**COMPLETE / PASS / BASELINED** (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`).
+No product implementation has started. The next experiment is
+**POC-PREVIEW-01R**. Execute it only under its dedicated experiment prompt /
+contract. Do not execute it from this README.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
 evidence. They are not a mandate to ship a heavy Canonical runtime or a
@@ -71,13 +73,15 @@ backend-neutral Job Spec
         ↓
 Worker Boundary
         ↓
-Blender Worker   (PROVISIONAL_POC_GATED)
+Blender Worker   (ACCEPT_BLENDER_BACKEND_WITH_GUARDS)
 ```
 
 RigForge owns product semantics: assets, Mapping, Compatibility, Retarget
 Policy, jobs, Derived Variant, QC meaning, Preview orchestration, and
-versioning. Blender is a **provisional hidden execution backend**, replaceable
-behind the worker boundary. It is not product authority.
+versioning. Blender is a **hidden execution backend**, validated by
+POC-BLENDER-E2E-01 with guards. It is not product authority. Product
+implementation remains unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1
+complete the remaining required gates.
 
 ## Roadmap
 

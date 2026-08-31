@@ -10,24 +10,25 @@ Replan authority: [W0P_REPLAN_PROPOSAL.md](W0P_REPLAN_PROPOSAL.md).
 
 ```text
 W0-P: REPLANNED
-W0-SR: COMPLETE / ADOPTED
+W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS
 POC-FBX-01: COMPLETE / PASS
-POC-BLENDER-E2E-01: READY / NOT STARTED
-POC-PREVIEW-01R: NOT STARTED
+POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
+POC-PREVIEW-01R: READY / NOT STARTED
 old original PoCs: PAUSED / REPLANNED
 ```
 
-POC-BLENDER-E2E-01 must be executed only under its dedicated experiment
-prompt / contract. Do not execute it from this file.
+POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision impact:
+`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. Do not start product implementation.
+POC-PREVIEW-01R is next; execute it only under its dedicated PoC prompt.
 
 | ID | Class | Status |
 | --- | --- | --- |
 | W0-P | — | **REPLANNED** |
 | POC-CORE-01 | Mandatory (executed) | **COMPLETE / PASS** |
 | POC-FBX-01 | Mandatory (executed) | **COMPLETE / PASS** |
-| POC-BLENDER-E2E-01 | Mandatory (current next) | **READY / NOT STARTED** |
-| POC-PREVIEW-01R | Mandatory (after E2E) | **NOT STARTED** |
+| POC-BLENDER-E2E-01 | Mandatory (executed) | **COMPLETE / PASS / BASELINED** |
+| POC-PREVIEW-01R | Mandatory (after E2E) | **READY / NOT STARTED** |
 | POC-GLTF-01 | original Mandatory | PAUSED / REPLANNED (`MERGE`) |
 | POC-RETARGET-01 | original Mandatory | REDEFINED / REPLANNED (`MERGE`) |
 | POC-PREVIEW-01 | original Mandatory | REDEFINED (`REDEFINE` → POC-PREVIEW-01R) |
@@ -67,47 +68,26 @@ That choice is **not decided**. Do not delete or rewrite POC-FBX evidence.
 W0.4 C++ preference remains historical/provisional and coexists with
 POC-CORE-01 `INCONCLUSIVE` evidence. Core language is not selected.
 
-## Next: POC-BLENDER-E2E-01
+## POC-BLENDER-E2E-01 (COMPLETE / PASS / BASELINED)
 
-Primary question:
-
-> Can Blender serve as a hidden execution backend for the real RigForge
-> Character + Motion → Derived Variant workflow without forcing Blender
-> semantics into RigForge's durable product model?
-
-Minimal path (not executed here):
+Report: [POC_BLENDER_E2E_01.md](POC_BLENDER_E2E_01.md).
 
 ```text
-one rigged Character A
-+ one Motion B with a genuinely different Source Skeleton
-        ↓
-thin Skeleton Summaries
-        ↓
-reviewed / frozen Mapping
-        ↓
-basic Compatibility
-        ↓
-frozen Retarget Policy
-        ↓
-backend-neutral Job Spec
-        ↓
-isolated Blender worker
-        ↓
-import / retarget / bake
-        ↓
-basic structural QC
-        ↓
-Derived Variant
-        ↓
-candidate Preview / Persistence Artifact
-        ↓
-fresh-process reopen
-+ clean-process consistency
+POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
+Decision Impact: ACCEPT_BLENDER_BACKEND_WITH_GUARDS
+Core language: NOT SELECTED
+POC-PREVIEW-01R: READY / NOT STARTED
 ```
 
-This is a minimal architecture slice. Auto-Mapping quality, full
-non-humanoid E2E, identity/negative-pair suites, crash/timeout campaigns,
-worker pools, advanced contact QC, Blender upgrade qualification, complete
-shipping qualification, and multiple export profiles are **out of this PoC**.
+Harness: [experiments/w0p/poc_blender_e2e_01/](../../experiments/w0p/poc_blender_e2e_01/).
+
+This is a W0 research/architecture validation result. It does not authorize
+product implementation. Blender is not product authority.
+
+## Next: POC-PREVIEW-01R
+
+POC-PREVIEW-01R tests engine-independent click-to-preview from derived
+Preview Artifacts. Execute only under its dedicated PoC prompt. This E2E
+only produced a candidate artifact; it does not freeze GLB or a viewer.
 
 Contract: [W0P_REPLAN_PROPOSAL.md](W0P_REPLAN_PROPOSAL.md).

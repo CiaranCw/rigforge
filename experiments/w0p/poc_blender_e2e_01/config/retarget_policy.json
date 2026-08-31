@@ -1,0 +1,63 @@
+{
+  "policy_id": "poc-blender-e2e-01.knight-ual2.walk-carry.v1-rev2",
+  "classification": "RESEARCH_ONLY / FROZEN / BACKEND_NEUTRAL",
+  "not": "universal retarget formula; not Blender constraint names; not production policy schema",
+  "pair_specific": true,
+  "rest_alignment": {
+    "mode": "REST_RELATIVE_WORLD_DELTA",
+    "source_rest": "UAL2 A_TPose action, first source frame",
+    "target_rest": "imported Knight rest pose after pose-clear; not treated as bind/IBM",
+    "note": "rest, bind, inverse-bind, geometry-bind remain distinct; bind/IBM UNKNOWN/NOT_OBSERVED"
+  },
+  "root_trajectory": {
+    "source_root": "root",
+    "target_root": "Bone",
+    "copy": "world_translation_delta_from_source_rest",
+    "axes": "XYZ",
+    "ual2_standard_clip": "non-root-motion library file; delta may be small"
+  },
+  "translation": {
+    "mapped_non_root": "ROTATION_ONLY",
+    "root": "as root_trajectory"
+  },
+  "rotation": {
+    "mapped_bones": "copy rest-relative world rotation delta",
+    "space": "world"
+  },
+  "scale_proportion": {
+    "mode": "KEEP_TARGET_REST_SCALE",
+    "do_not_copy_source_scale": true
+  },
+  "twist_helper": {
+    "mode": "IGNORE_UNMAPPED",
+    "ik_pole_targets": "leave at target rest"
+  },
+  "ik": {
+    "use": false,
+    "reason": "frozen pair uses rest-relative pose copy + bake; no IK solve"
+  },
+  "bake_sample": {
+    "mode": "EVERY_SOURCE_FRAME",
+    "frame_start": 1,
+    "frame_end": 61,
+    "fps": 30,
+    "key_location_root": true,
+    "key_rotation_mapped": true,
+    "rotation_mode": "QUATERNION"
+  },
+  "time_domain": {
+    "authority": "source_clip",
+    "source_fps": 30,
+    "no_silent_FbxTime_equals_seconds_conversion": true
+  },
+  "missing_channels": {
+    "unmapped_target_bones": "remain at target rest",
+    "missing_source_joint": "FAIL / REPORT; do not invent mapping"
+  },
+  "quaternion": {
+    "normalization": "NORMALIZE_BEFORE_KEY",
+    "continuity": "CONSECUTIVE_HEMISPHERE",
+    "continuity_rule": "for consecutive samples of the same mapped target joint, choose the equivalent quaternion sign whose dot product with the previous keyed quaternion is non-negative",
+    "interpolation": "backend interpolation after normalized hemisphere-consistent key values"
+  }
+}

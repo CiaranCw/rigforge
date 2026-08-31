@@ -9,8 +9,10 @@ remains intact; it is not a V1 implementation mandate.
 Decision: [ADR-0001](../architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Architecture: [../architecture/README.md](../architecture/README.md).
 
-Blender as execution backend is **`PROVISIONAL_POC_GATED`** until
-POC-BLENDER-E2E-01.
+Blender as execution backend is **`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`**,
+validated by POC-BLENDER-E2E-01. This is a W0 research/architecture
+validation result. Product implementation remains unauthorized until
+POC-PREVIEW-01R, W0-RS, and IA-1 complete the remaining required gates.
 
 ## In scope
 
@@ -26,7 +28,7 @@ POC-BLENDER-E2E-01.
 | Mapping | First-class; automatic preflight; editor only when needed |
 | Compatibility | First-class gate; not a single boolean |
 | Retarget Policy | Product-owned intent; worker may execute |
-| Blender-backed transfer | Hidden worker **if** POC-BLENDER-E2E-01 passes |
+| Blender-backed transfer | Hidden worker: **IN V1 DIRECTION / ACCEPTED WITH GUARDS**; subject to remaining W0-RS / IA-1 gates before implementation |
 | Derived Variant | First-class result with versions and provenance |
 | Version / provenance | Inputs, Mapping, policy, backend, QC, artifacts |
 | Basic structural QC | First-class; must not silently mutate the subject |
@@ -61,8 +63,8 @@ remain implementation work.
 | Raw mesh topology repair for rig generation | `DROP_FROM_V1` |
 | Full DCC editing environment | `DROP_FROM_V1` |
 | Heavy Canonical asset runtime (complete mesh/skin/curve/evaluator copies) | not V1 critical path |
-| Custom animation evaluator | `DROP_FROM_V1` if E2E passes |
-| Custom retarget solver / runtime | `DROP_FROM_V1` if E2E passes |
+| Custom animation evaluator | `DROP_FROM_V1` |
+| Custom retarget solver / runtime | `DROP_FROM_V1` |
 | Mandatory native FBX stack | `DEFER` (POC-FBX-01 remains valid evidence) |
 | Mandatory native glTF stack | `DEFER` |
 | Mandatory OpenUSD stack | `DEFER` |

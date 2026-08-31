@@ -7,7 +7,8 @@ RigForge — Character Animation Asset Workbench
 ## Current Phase
 
 ```text
-W0 — ACTIVE; W0-SR COMPLETE / ADOPTED
+W0 — ACTIVE; W0-SR COMPLETE / ADOPTED / BASELINED
+POC-BLENDER-E2E-01 COMPLETE / PASS / BASELINED
 ```
 
 Do not implement product code, workers, CLI, GUI, parsers, or CI in this phase.
@@ -33,11 +34,11 @@ product/architecture/roadmap files are current project truth.
 ## Hard Rules
 
 1. Do not treat a third-party format as product authority.
-2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`PROVISIONAL_POC_GATED`, ADR-0001). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
+2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, ADR-0001, validated by POC-BLENDER-E2E-01). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
 3. Do not lock an implementation language before research decision gates. Core language remains not selected (POC-CORE-01 `INCONCLUSIVE`).
 4. Do not lock a GUI framework before research decision gates.
 5. Do not create a complex source-tree layout before those gates.
-6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution remains `PROVISIONAL_POC_GATED` until POC-BLENDER-E2E-01.
+6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). That is not product authority, not permanently final, and not coverage of all Characters/Motions.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
 9. A derived representation must not become product authority.
@@ -89,10 +90,9 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-POC-BLENDER-E2E-01 — minimal Blender-backed architecture validation.
+POC-PREVIEW-01R — engine-independent click-to-preview validation.
+Execute only under its dedicated PoC prompt.
 Do not begin product implementation.
-POC-BLENDER-E2E-01 must be executed only under its dedicated
-experiment prompt / contract.
 ```
 
 Roadmap: [docs/development/ROADMAP.md](docs/development/ROADMAP.md).

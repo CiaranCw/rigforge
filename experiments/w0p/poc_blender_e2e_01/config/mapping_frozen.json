@@ -1,0 +1,55 @@
+{
+  "mapping_id": "poc-blender-e2e-01.knight-ual2.walk-carry.v1",
+  "classification": "RESEARCH_ONLY / FROZEN / BACKEND_NEUTRAL",
+  "not": "production Mapping schema; not Auto-Mapping; not Blender constraint graph",
+  "pair": {
+    "target_character_id": "QCHAR_Knight_Male",
+    "source_motion_id": "UAL2_Standard_Walk_Carry_Loop",
+    "source_skeleton_id": "UAL2_Standard_Armature"
+  },
+  "review": {
+    "reviewed": true,
+    "date": "2026-08-31",
+    "method": "independent FBX name/hierarchy scan plus Blender 5.2 inspect; frozen before worker execution",
+    "root_choice": "UAL2 root -> Knight Bone; UAL2 pelvis -> Knight Body",
+    "ambiguities": [
+      "Knight Foot.* parents to Bone (IK-style), not LowerLeg; mapped as foot role anyway",
+      "UAL2 spine_01/02/03 (3) onto Knight Hips/Abdomen/Torso (3) by chain order, not name equality",
+      "Knight Body vs Hips both sit near pelvis; Body is parent of legs so pelvis maps to Body",
+      "Standard UAL2 pack has no plain Walk take; frozen clip is Walk_Carry_Loop"
+    ]
+  },
+  "entries": [
+    {"source": "root", "target": "Bone", "role": "root", "required": true, "evidence": "hierarchy roots; trajectory carrier"},
+    {"source": "pelvis", "target": "Body", "role": "pelvis_central", "required": true, "evidence": "UAL2 pelvis parents legs+spine; Knight Body parents legs+Hips"},
+    {"source": "spine_01", "target": "Hips", "role": "spine", "required": true, "evidence": "first torso joint after pelvis/Body"},
+    {"source": "spine_02", "target": "Abdomen", "role": "spine", "required": true, "evidence": "mid torso chain order"},
+    {"source": "spine_03", "target": "Torso", "role": "spine", "required": true, "evidence": "upper torso / clavicle parent analogue"},
+    {"source": "neck_01", "target": "Neck", "role": "neck", "required": true, "evidence": "name+hierarchy neck"},
+    {"source": "Head", "target": "Head", "role": "head", "required": true, "evidence": "only overlapping display name; hierarchy still head after neck"},
+    {"source": "clavicle_l", "target": "Shoulder.L", "role": "clavicle", "required": true, "evidence": "shoulder girdle L"},
+    {"source": "upperarm_l", "target": "UpperArm.L", "role": "upper_arm", "required": true, "evidence": "upper arm L"},
+    {"source": "lowerarm_l", "target": "LowerArm.L", "role": "lower_arm", "required": true, "evidence": "lower arm L"},
+    {"source": "hand_l", "target": "Fist.L", "role": "hand", "required": true, "evidence": "hand/fist L; Knight has no fingers"},
+    {"source": "clavicle_r", "target": "Shoulder.R", "role": "clavicle", "required": true, "evidence": "shoulder girdle R"},
+    {"source": "upperarm_r", "target": "UpperArm.R", "role": "upper_arm", "required": true, "evidence": "upper arm R"},
+    {"source": "lowerarm_r", "target": "LowerArm.R", "role": "lower_arm", "required": true, "evidence": "lower arm R"},
+    {"source": "hand_r", "target": "Fist.R", "role": "hand", "required": true, "evidence": "hand/fist R"},
+    {"source": "thigh_l", "target": "UpperLeg.L", "role": "thigh", "required": true, "evidence": "upper leg L"},
+    {"source": "calf_l", "target": "LowerLeg.L", "role": "shin", "required": true, "evidence": "lower leg L"},
+    {"source": "foot_l", "target": "Foot.L", "role": "foot", "required": true, "evidence": "foot L (Knight Foot is root-child IK-style bone)"},
+    {"source": "thigh_r", "target": "UpperLeg.R", "role": "thigh", "required": true, "evidence": "upper leg R"},
+    {"source": "calf_r", "target": "LowerLeg.R", "role": "shin", "required": true, "evidence": "lower leg R"},
+    {"source": "foot_r", "target": "Foot.R", "role": "foot", "required": true, "evidence": "foot R"},
+    {"source": "ball_l", "target": "Foot.L_end", "role": "ball", "required": false, "evidence": "optional toe/end"},
+    {"source": "ball_r", "target": "Foot.R_end", "role": "ball", "required": false, "evidence": "optional toe/end"}
+  ],
+  "unmapped_source": {
+    "fingers_and_leaves": "index_*/middle_*/ring_*/pinky_*/thumb_* and *_leaf_* ignored; Knight has no finger joints",
+    "ball_leaf": "ball_leaf_l/r ignored"
+  },
+  "unmapped_target": {
+    "helpers": ["PoleTarget.L", "PoleTarget.R", "PoleTarget.L_end", "PoleTarget.R_end"],
+    "ends": ["Head_end", "Fist.L_end", "Fist.R_end", "LowerLeg.L_end", "LowerLeg.R_end"]
+  }
+}

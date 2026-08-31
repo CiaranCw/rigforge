@@ -45,7 +45,8 @@ Adopt:
 ```text
 thin Workflow Domain
 
-Blender as PROVISIONAL V1 execution backend
+Blender as V1 execution backend
+ACCEPT_BLENDER_BACKEND_WITH_GUARDS
 behind replaceable worker boundary
 ```
 
@@ -131,27 +132,39 @@ Risks:
   format/Core/runtime rankings no longer determine V1 critical path.
 - POC-CORE-01 — `COMPLETE / PASS`; impact `INCONCLUSIVE`.
 - POC-FBX-01 — `COMPLETE / PASS`; impact `KEEP_UFBX_WITH_GUARDS`.
+- POC-BLENDER-E2E-01 — `COMPLETE / PASS`; impact
+  `ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. Demonstrated, for one real
+  different-Skeleton pair: backend-neutral Job Spec, backend-neutral Policy,
+  QC-gated publication, fresh-process persistence, and no large custom
+  RigForge retarget runtime.
 - Accepted W0-SR proposal package under `*_PROPOSAL.md` and
   [W0P_REPLAN_PROPOSAL.md](../../research/poc/W0P_REPLAN_PROPOSAL.md).
 
-This ADR does **not** claim the Blender architecture is finally proven.
+This is a W0 research/architecture validation result. Product implementation
+remains unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1 complete the
+remaining required gates. Blender is not product authority and is not
+permanently final.
 
 ```text
-PROVISIONAL_POC_GATED
-pending POC-BLENDER-E2E-01
+POC-BLENDER-E2E-01:
+COMPLETE / PASS
+
+Decision Impact:
+ACCEPT_BLENDER_BACKEND_WITH_GUARDS
 ```
 
 ## Open questions
 
-1. Can Blender execute the complete workflow reliably on a real
-   different-Skeleton Character/Motion pair behind a backend-neutral Job Spec?
-2. Is the thin Skeleton Summary sufficient for Mapping, Compatibility, QC,
-   Preview, and backend replacement?
-3. Is a generated Preview Artifact sufficient for click-to-preview, or is
-   another payload required?
-4. Does Asset Browser latency later justify a native ufbx inspector?
-5. Can Blender packaging and worker-script licensing be cleared?
-6. Does a concrete downstream consumer require Export Artifacts or versioned
+1. Preview Artifact / viewer path: is a generated Preview Artifact
+   sufficient for click-to-preview, or is another payload required?
+   (POC-PREVIEW-01R)
+2. Is the thin Skeleton Summary sufficient beyond the tested humanoid pair
+   for Mapping, Compatibility, QC, Preview, and backend replacement?
+3. Non-humanoid hardening: real E2E remains later mandatory validation.
+4. Auto-Mapping quality remains later validation.
+5. Worker reliability hardening (crash/timeout/cancel/pools) remains later.
+6. Can Blender packaging and worker-script licensing be cleared?
+7. Does a concrete downstream consumer require Export Artifacts or versioned
    Export Profiles in V1?
 
 Viewer technology, Core language, database, and exact schemas remain `OPEN`

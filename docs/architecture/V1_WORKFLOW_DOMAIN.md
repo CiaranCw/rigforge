@@ -2,9 +2,13 @@
 
 Current V1 conceptual model. Not a production schema or API.
 
-The domain is **thin** and **`PROVISIONAL_POC_GATED`**: it becomes the V1
-architecture only if POC-BLENDER-E2E-01 shows the worker contract can run
-the product path without leaking Blender semantics into durable state.
+The domain is **thin** and **`VALIDATED_WITH_GUARDS` by POC-BLENDER-E2E-01**:
+the tested vertical slice ran the product path without leaking Blender
+semantics into durable Job / Mapping / Policy / QC / Derived Variant state.
+
+Exact production schema remains **OPEN**. Future worker replaceability is
+architecturally preserved but not multi-backend-demonstrated. Non-humanoid
+coverage is not yet real-E2E validated.
 
 Decision: [ADR-0001](decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Worker: [V1_BLENDER_BACKED_ARCHITECTURE.md](V1_BLENDER_BACKED_ARCHITECTURE.md).

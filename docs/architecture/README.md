@@ -31,9 +31,10 @@ remains accepted evidence: [../research/R1_RESEARCH_BASELINE.md](../research/R1_
   not retarget compatibility and not production acceptability.
 - **Worker execution does not authorize product truth.** Worker success is
   not structural validity, not QC quality, and not publication.
-- **Blender is provisional / replaceable.** V1 may use a pinned, isolated
-  Blender worker (`PROVISIONAL_POC_GATED`). Blender is not product authority.
-  A future worker must implement the Job Spec without pretending to be Blender.
+- **Blender is replaceable, not product authority.** V1 may use a pinned, isolated
+  Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, validated by
+  POC-BLENDER-E2E-01). Blender is not product authority and is not permanently
+  final. A future worker must implement the Job Spec without pretending to be Blender.
 - **Engine independence.** Unreal and Unity are not required for Preview,
   Transfer, or V1 identity. Direct engine integrations are out of V1.
 - **Preview is derived / non-authoritative.** Engine-independent click-to-preview
@@ -60,11 +61,13 @@ backend-neutral Job Spec
         ↓
 Worker Boundary
         ↓
-Blender Worker   (PROVISIONAL_POC_GATED)
+Blender Worker   (ACCEPT_BLENDER_BACKEND_WITH_GUARDS)
 ```
 
-This placement is not finally proven. POC-BLENDER-E2E-01 must confirm that
-the worker boundary holds on a real cross-Skeleton Character + Motion pair.
+This placement was validated by POC-BLENDER-E2E-01 for one real
+cross-Skeleton Character + Motion pair, with guards. Product implementation
+remains unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1 complete the
+remaining required gates.
 
 ## Decisions
 
