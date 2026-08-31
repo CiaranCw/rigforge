@@ -1,0 +1,26 @@
+POC-CORE-01 environment
+Recorded: 2026-08-31
+Host: Windows 10.0.26100 (win32)
+CPU: Intel(R) Core(TM) Ultra 9 285K
+Repo: F:\NewResearch\rigforge
+Work: F:\NewResearch\rigforge_w0p_work\poc_core_01
+Evidence: F:\NewResearch\rigforge_w0p_evidence\poc_core_01
+
+Toolchain isolation:
+  RUSTUP_HOME=F:\NewResearch\rigforge_w0p_work\toolchains\rustup
+  CARGO_HOME=F:\NewResearch\rigforge_w0p_work\toolchains\cargo
+  rustup-init: downloaded to work tree; --no-modify-path; default toolchain 1.98.0
+  Machine-global rustc/cargo were not present before this install.
+
+MSVC:
+  vswhere latest install: C:\Program Files\Microsoft Visual Studio\2022\Professional
+  vcvars64.bat used for all C++/Rust link sessions
+  CMake detected CXX: MSVC 19.36.32548.0
+  MSVC toolset dir also present: 14.36.32532 and 14.43.34808
+  This experiment used the vcvars64 default (14.36 / 19.36.32548), not 14.43.
+
+CMake: 4.4.0 (C:\Program Files\CMake\bin\cmake.exe)
+Generator: NMake Makefiles
+Python: 3.13.12 (F:\miniconda\python.exe) — ctypes stdlib only
+
+No machine-global PATH mutation for Rust. No production src/ created.

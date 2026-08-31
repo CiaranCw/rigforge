@@ -1,0 +1,50 @@
+component              exact version / identity
+---------------------  ----------------------------------------------------------
+ufbx                   v0.23.0
+                       git tag v0.23.0
+                       commit fcc5d6ba444cfd3eb80677dba5e37e493941abe5
+                       header UFBX_HEADER_VERSION = ufbx_pack_version(0, 23, 0)
+                       source https://github.com/ufbx/ufbx
+                       zip    https://github.com/ufbx/ufbx/archive/refs/tags/v0.23.0.zip
+                       zip SHA-256 0436D21A0E4AD9B983E36D4CCD3F781C907F6A87514A18DDAA6FFA54E0A10CCE
+                       license MIT / Unlicense (dual, LICENSE in tag tree)
+                       retrieval date 2026-08-31
+                       GitHub Releases page for this tag: not published (404);
+                       tag+commit used as immutable pin [SOURCE_CONFIRMED]
+
+MSVC C/C++             19.36.32548.0 (toolset 14.36.32532) via vcvars64
+                       VS 2022 Professional 17.13.7
+CMake                  4.4.0
+NMake                  Visual Studio 2022 Developer Command Prompt
+rustc                  1.98.0 (88d9e12ae 2026-08-18)
+                       target x86_64-pc-windows-msvc
+cargo                  1.98.0 (797e8a9bc 2026-08-05)
+Rust edition           2021
+Python                 3.13.12
+OS                     Microsoft Windows NT 10.0.26100.0
+CPU                    Intel(R) Core(TM) Ultra 9 285K
+
+C++ config             CMAKE_BUILD_TYPE=RelWithDebInfo (/O2 + debug info, NDEBUG)
+Rust config            profile.release opt-level=2 debug=1 lto=false
+                       (RelWithDebInfo analogue; not a throughput contest)
+
+No floating "latest" / "master" / "dev" pins in this record.
+ufbx C library was not changed between C++ and Rust raw-C primary runs.
+
+---
+
+POC-CORE-01S sensitivity dependency (official Rust binding)
+
+component:             ufbx Rust crate
+version:               0.11.2
+registry:              crates.io
+Cargo.lock checksum:   163c9b35d1322b7bab8f5eeda14428ad1b139cbcf5f1e04f659a2469378b66f2
+project:               ufbx/ufbx-rust
+underlying pairing:    ufbx v0.23.0
+retrieval/access date: 2026-08-31
+published license:     MIT OR PDDL-1.0
+                       (exact crate metadata: Cargo.toml / Cargo.toml.orig
+                        field `license = "MIT OR PDDL-1.0"`)
+homepage:              https://github.com/ufbx/ufbx-rust
+pin:                   crates.io `ufbx = "=0.11.2"` (not floating 0.11.3)
+classification:        [OFFICIAL_DOC] crate metadata + ufbx v0.23.0 changelog

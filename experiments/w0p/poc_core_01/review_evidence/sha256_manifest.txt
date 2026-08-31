@@ -1,0 +1,84 @@
+# POC-CORE-01 SHA-256 manifest
+# Hashes bind accepted evidence to exact implementation sources.
+# RESEARCH ONLY / W0-P / NON-PRODUCTION
+# Closeout 2026-08-31: COMPLETE / PASS, Decision Impact INCONCLUSIVE
+
+## Repository sources
+
+d463bcac54d89aea00e25887fa20909b43466377fc5f15f275107af96f36ca34  experiments/w0p/poc_core_01/ALGORITHM.md
+02adcf0f4fb12ad21fa7d5696c9be139f01c8faeb931da21ec87369f19ab13b6  experiments/w0p/poc_core_01/abi/rigforge_poc_core.h
+2c8d5d0a6b9a5202f3412fdcec84f8efd5c7beeb01ab9542d50af878a036110b  experiments/w0p/poc_core_01/cpp/poc_core.cpp
+145460748042ad9946cdeca9696e950719434b46767985a7ffcd1bb729264106  experiments/w0p/poc_core_01/cpp/worker_main.cpp
+6ce96371931487f6319dd35be365cd2944e97d531caf9105157371ff3eaa7e7e  experiments/w0p/poc_core_01/cpp/CMakeLists.txt
+e9cb89e6f6015cea4bc0dbfa9f9f718755d79e9779b0587f34cfe0480efed3ef  experiments/w0p/poc_core_01/rust/src/lib.rs
+570ebbe41a56d4301a480d551b7893e1f6c382d9010f41e5a3dcb309f8453842  experiments/w0p/poc_core_01/rust/src/worker_main.rs
+b709a4f518a9b95adca7547c0c2366629c0606457438a606f30c818cbb3cc0b0  experiments/w0p/poc_core_01/rust/ufbx_access.c
+16a67eec9cdf7df1cbc195f884ec2e2c55ade3a90885d48a1e82ee3b04487d54  experiments/w0p/poc_core_01/rust/ufbx_access.h
+8b8f96a5921c524c2449288a68cee1f82728c4ec625c5aa072d2e020e7d31c79  experiments/w0p/poc_core_01/rust/build.rs
+57ec22d2c573ac1ebbeb42390d63fca720d6104c0ce82b497cdda8c808fa5f30  experiments/w0p/poc_core_01/rust/Cargo.toml
+95d3dff38802aa02854328685a1f465eeeee52b0ef3304b15282ffd21d06635e  experiments/w0p/poc_core_01/rust/Cargo.lock
+24f1c46c3b145e511fd5d6bad4bb97b33ec3cce56813886e1df61f685b9592c1  experiments/w0p/poc_core_01/rust_s/src/lib.rs
+7986ca5f9d3ab4aa271c3195835430edbb256d821ab18e269d17d3149511a54c  experiments/w0p/poc_core_01/rust_s/src/worker_main.rs
+4bb211aa266be7924edc8b20714fcee9630c026bb202fa4c1b25c467ab5c626c  experiments/w0p/poc_core_01/rust_s/Cargo.toml
+77f1749b26e413a871e00da621f9ce1c72f5bdf3142f7e1ec996db8ba0a56102  experiments/w0p/poc_core_01/rust_s/Cargo.lock
+400708fefa9c9b35e89b6373c092aa1bc728aec4fff5d0121d446ac7ad25bc7d  experiments/w0p/poc_core_01/python/run_poc.py
+7024038ac143c73b1bdfff01d9ea95577542ca348f80fb01c9e6f3c112381978  experiments/w0p/poc_core_01/worker/protocol.md
+1322c82e850a6d1a34e144f9b5b9d0b7942a52f8d29d734482d4b4fdbd3efc9e  experiments/w0p/poc_core_01/fixture/minimal_chain.fbx
+c9bb8c8d4bfac1df21832c1a65e9aa06bae4dd1e294e28e0cad71bc19a1df581  experiments/w0p/poc_core_01/fixture/long_name.fbx
+0dd93d93439c5e043a07ad15c78c91797929eb299eeef26de14b37ae03d75f48  experiments/w0p/poc_core_01/fixture/long_name.expected.txt
+ac5c3851bff3a2c0dc482a8425b995c0feb329043b0707172c74331e3e396f76  experiments/w0p/poc_core_01/fixture/README.md
+bf10462421287458c6ceb2757847dcc3ed92c0a3bdf6170ce3d78f926466700f  experiments/w0p/poc_core_01/README.md
+e35648ff9270385e21baf0d282bca8a4939bb7dd6f60f443949f13918159426f  experiments/w0p/poc_core_01/review_evidence/environment.txt
+142624e9d1fbf80d2e55f0839255b2941bc376ba3dfe3ff56bbfed87e3c06e5d  experiments/w0p/poc_core_01/review_evidence/versions.txt
+df3105ef0ff68ae8173ca327ed697ab18ec7f112e9eceb213b11c89ae6305ad1  experiments/w0p/poc_core_01/review_evidence/observations_rev1.md
+4e0a42faa5b7ad5eff315bbfea5a409bd4e57c9251dcd66697ffe304aae8ff03  docs/research/poc/POC_CORE_01.md
+5a3629705abc45995501b9fc1f3f257081760a4446a3a062dc8a101fde00ef7a  docs/research/poc/README.md
+59ac0d3d8198d784d2113695f7c922642fc41b3a02c8900b2d4cc60d41fa4071  docs/research/R1_RESEARCH_BASELINE.md
+4c18a7c63209b08f695e29de307b7987ebdd9f6ca593c84b6011071d4cad777b  docs/development/ROADMAP.md
+
+## External evidence (F:/NewResearch/rigforge_w0p_evidence/poc_core_01)
+
+fb3902c4653a03d9fbab26f6a30865d10b3060d9d2e7baf526816728fdbb9622  evidence/rev1_build_ufbx_access_cl.txt
+658f4684889e83d9f1caac363c071beb2ef8914b15ce2eeca837f7d9eff1d2fd  evidence/rev1_build_ufbx_access_lib.txt
+e237dfdd15936bb84004335ff16115998bc5537d324e28e82aca6b9a109e5f37  evidence/rev1_build_cpp.txt
+c6f4c80d3b1ae4312e0dd47bb0fe261495a4fe2fc806007b8aac1be07b3e6cba  evidence/rev1_build_rust.txt
+aaac024f27da6e539d48cb43e9c9103b125a00101bacca2d50d1bea18c3364d0  evidence/rev1_build_rust_s.txt
+45eae4ef2354e956ae8e135cba5b397d4e5715a0ae18232a823ae2eeb8bf9520  evidence/rev1_run_cpp.txt
+c59c45ddc837fec227720435d00dd0318cd210438f47a78a13b7c153de0ea100  evidence/rev1_run_rust.txt
+bac143c2770c05aad7bb990a9080e0b928f58b44b8acd21d956d865b8f901717  evidence/rev1_run_rust_s.txt
+b12a73fcbe1a23764875920520b531c4d4d8552cd232a43e414b5eb61161f72a  evidence/rev1_worker_cpp.txt
+74aa6ed6b9b1860132f118b66938d61e020e6ff44f577046d16707bc920f8e9d  evidence/rev1_worker_rust.txt
+f454404da69b90468136869a96f4b3ff5189ae0799e376d6550f533fda90c4d7  evidence/rev1_worker_rust_s.txt
+7be2e7c0792ff11107d5912b18d72b058b043454a61b6dac8f54064f9c1e3159  evidence/run_cpp.txt
+7be2e7c0792ff11107d5912b18d72b058b043454a61b6dac8f54064f9c1e3159  evidence/run_rust.txt
+43b5b377d19ce67cf616d70dbb5c43a6f72810f04d2d21072cfb35953047e786  evidence/worker_cpp.txt
+43b5b377d19ce67cf616d70dbb5c43a6f72810f04d2d21072cfb35953047e786  evidence/worker_rust.txt
+8ee6635288561f60dd5e79f00849c12df1d385513307accf7c2b3492e0f94082  evidence/observations.md
+fade1f1cfa7e3530623863c3d61e969f44ba7afa530e6df7a92680984110cc4a  evidence/observations_rev1.md
+e35648ff9270385e21baf0d282bca8a4939bb7dd6f60f443949f13918159426f  evidence/environment.txt
+142624e9d1fbf80d2e55f0839255b2941bc376ba3dfe3ff56bbfed87e3c06e5d  evidence/versions.txt
+
+## Hand-written LOC (physical lines)
+
+   720  cpp/poc_core.cpp
+   231  cpp/worker_main.cpp
+    35  cpp/CMakeLists.txt
+   810  rust/src/lib.rs
+   278  rust/src/worker_main.rs
+   163  rust/ufbx_access.c
+    35  rust/ufbx_access.h
+     8  rust/build.rs
+    24  rust/Cargo.toml
+   788  rust_s/src/lib.rs
+   279  rust_s/src/worker_main.rs
+    28  rust_s/Cargo.toml
+   370  python/run_poc.py
+   109  abi/rigforge_poc_core.h
+
+Rust raw-C handwritten FFI glue (ufbx_access.c + .h): 198
+POC-CORE-01S handwritten C shim: 0
+ufbx crate generated.rs / bundled ufbx.c are upstream, not RigForge LOC.
+
+## RigForge-written `unsafe` tokens (code lines, // comments stripped)
+rust/src/lib.rs     55
+rust_s/src/lib.rs   48

@@ -1,0 +1,28 @@
+# RESEARCH ONLY / W0-P / NON-PRODUCTION
+# POC-CORE-01S — official ufbx Rust binding sensitivity crate.
+# SENSITIVITY ANALYSIS (not the primary language-only controlled run).
+
+[package]
+name = "rigforge_poc_core_rs_s"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "POC-CORE-01S research-only official ufbx-binding sensitivity"
+
+[lib]
+name = "rigforge_poc_core_rs_s"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "poc_core_worker_rs_s"
+path = "src/worker_main.rs"
+
+[dependencies]
+ufbx = "=0.11.2"
+
+[profile.release]
+opt-level = 2
+debug = 1
+lto = false
+incremental = false

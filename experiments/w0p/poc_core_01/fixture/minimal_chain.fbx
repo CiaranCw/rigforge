@@ -1,0 +1,89 @@
+; FBX 7.5.0 project file
+; RigForge POC-CORE-01 research-only fixture. NOT Canonical. NOT production.
+; Project-authored ASCII FBX for ufbx load/hierarchy/name extraction only.
+
+FBXHeaderExtension:  {
+	FBXHeaderVersion: 1003
+	FBXVersion: 7500
+	Creator: "RigForge POC-CORE-01 research fixture"
+}
+GlobalSettings:  {
+	Version: 1000
+	Properties70:  {
+		P: "UpAxis", "int", "Integer", "",1
+		P: "UpAxisSign", "int", "Integer", "",1
+		P: "FrontAxis", "int", "Integer", "",2
+		P: "FrontAxisSign", "int", "Integer", "",1
+		P: "CoordAxis", "int", "Integer", "",0
+		P: "CoordAxisSign", "int", "Integer", "",1
+		P: "UnitScaleFactor", "double", "Number", "",1
+		P: "OriginalUnitScaleFactor", "double", "Number", "",1
+	}
+}
+Documents:  {
+	Count: 1
+	Document: 1, "", "Scene" {
+		RootNode: 0
+	}
+}
+References:  {
+}
+Definitions:  {
+	Version: 100
+	Count: 2
+	ObjectType: "GlobalSettings" {
+		Count: 1
+	}
+	ObjectType: "Model" {
+		Count: 5
+	}
+}
+Objects:  {
+	Model: 1001, "Model::Root", "Null" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,0,0
+			P: "Lcl Rotation", "Lcl Rotation", "", "A",0,0,0
+			P: "Lcl Scaling", "Lcl Scaling", "", "A",1,1,1
+		}
+	}
+	Model: 1002, "Model::Hips", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,100,0
+			P: "Lcl Rotation", "Lcl Rotation", "", "A",0,0,0
+			P: "Lcl Scaling", "Lcl Scaling", "", "A",1,1,1
+		}
+	}
+	Model: 1003, "Model::Spine", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,20,0
+			P: "Lcl Rotation", "Lcl Rotation", "", "A",0,0,0
+			P: "Lcl Scaling", "Lcl Scaling", "", "A",1,1,1
+		}
+	}
+	Model: 1004, "Model::Head", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,30,0
+			P: "Lcl Rotation", "Lcl Rotation", "", "A",0,0,0
+			P: "Lcl Scaling", "Lcl Scaling", "", "A",1,1,1
+		}
+	}
+	Model: 1005, "Model::LeftShoulder_helper_POC", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",15,10,0
+			P: "Lcl Rotation", "Lcl Rotation", "", "A",0,0,0
+			P: "Lcl Scaling", "Lcl Scaling", "", "A",1,1,1
+		}
+	}
+}
+Connections:  {
+	C: "OO",1001,0
+	C: "OO",1002,1001
+	C: "OO",1003,1002
+	C: "OO",1004,1003
+	C: "OO",1005,1003
+}

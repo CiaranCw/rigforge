@@ -88,9 +88,11 @@ Accepted W0.4 baseline now provides:
 
 Preferred candidates remain `PROVISIONAL_W0P_GATED` unless the row is an architectural role marked `DECIDE_NOW`. No Core language, format library, Preview renderer, Preview data path, or GUI stack is selected as implementation authority.
 
-No product implementation has started. W0-P has not executed. No W0-P results are claimed.
+No product implementation has started. W0.4 recommendations under `docs/research/decisions/` are unchanged.
 
-W0.4 status: **COMPLETE**. W0 remains ACTIVE. W0-P is **READY**. Gate A / IA-1 / W1 are not claimed. W0 is not complete until W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes.
+W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS**: [poc/POC_CORE_01.md](poc/POC_CORE_01.md). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **READY / NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**. Conditional POC-USD-01 is **NOT STARTED**. No other W0-P results are claimed.
+
+W0.4 status: **COMPLETE**. W0 remains ACTIVE. Gate A / IA-1 / W1 are not claimed. W0 is not complete until remaining W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes.
 
 From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers remain references / adapters / optional integrations — not Canonical authority.
 

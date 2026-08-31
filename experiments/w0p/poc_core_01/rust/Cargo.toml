@@ -1,0 +1,24 @@
+# RESEARCH ONLY / W0-P / NON-PRODUCTION
+# POC-CORE-01 Rust research crate. Not a production package.
+
+[package]
+name = "rigforge_poc_core_rs"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "POC-CORE-01 research-only Core language slice"
+
+[lib]
+name = "rigforge_poc_core_rs"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "poc_core_worker_rs"
+path = "src/worker_main.rs"
+
+[profile.release]
+opt-level = 2
+debug = 1
+lto = false
+incremental = false
