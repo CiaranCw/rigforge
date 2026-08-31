@@ -30,9 +30,39 @@ Final closeout separated:
 - root/pelvis pair compatibility from Motion trajectory suitability
 - target asset capability from method/execution capability
 
-W0.2 is now the accepted Mapping / Compatibility / Deterministic Retarget research baseline. Status: **COMPLETE**. Other R1 tracks remain not started. W0 is not complete. Gate A / IA-1 / W1 are not claimed. No retarget algorithm and no IK placement are selected.
+W0.2 is now the accepted Mapping / Compatibility / Deterministic Retarget research baseline. Status: **COMPLETE**. No retarget algorithm and no IK placement are selected.
 
-From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers remain references / adapters / optional integrations — not Canonical authority.
+W0.3 executed an **adapter / infrastructure / preview-boundary slice** of R1-J, R1-K, R1-L, R1-M, R1-N (preview data/authority only), and R1-P (dependency facts only). Findings live in [infrastructure/](infrastructure/W0_3_ADAPTER_INFRASTRUCTURE.md).
+
+W0.3 completed external focused review.
+
+Initial focused review produced:
+
+```text
+R1-MAJOR-001
+R1-MAJOR-002
+R1-MAJOR-003
+R1-MODERATE-004
+R1-MODERATE-005
+```
+
+Rev1 closed all findings.
+
+Accepted W0.3 baseline establishes:
+
+- generic Adapter authority / capability / loss boundaries
+- explicit determinism-context requirements
+- Domain Semantic Mapping vs host-binding separation
+- optional DCC / Engine boundaries
+- storage / runtime-cook separation
+- engine-independent Preview authority / data boundary
+- real W0-P Adapter / Preview evidence plan
+
+No format library, language, process topology, Preview path, renderer, or engine is selected.
+
+W0.3 status: **COMPLETE**. Other R1 tracks remain incomplete. W0 is not complete. W0.4 is **READY**, not started. W0-P / Gate A / IA-1 / W1 are not claimed.
+
+From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers remain references / adapters / optional integrations — not Canonical authority.
 
 Goal: independently review the product space, standards, formats, skeleton/motion semantics, retarget, validation, publish, adapters, language/GUI options, and license risk before any implementation freeze.
 
@@ -149,7 +179,7 @@ R1-N and later **W0.3 / W0.4** must include, without assuming a particular engin
 - headless / domain separation
 - standalone rendering constraints
 
-W0.3 is the natural home for adapter / preview-data-flow, renderer **boundary**, headless/domain separation, and standalone rendering constraints. W0.4 later compares technologies. No renderer is selected in W0.2.
+W0.3 recorded Preview **data and authority** requirements (derived, engine-free, path A/B/C/D not selected). W0.4 later compares technologies. No renderer is selected.
 
 Whether a full viewer ships in V1 remains a later scope gate. Minimal Workbench must not create a mandatory Unreal/Unity dependency.
 
