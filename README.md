@@ -1,54 +1,83 @@
 # RigForge
 
-RigForge — Character / Motion Asset Workbench
+RigForge is a **Character Animation Asset Workbench**.
+
+Users browse rigged Character and Motion assets, select one of each, run
+animation transfer, and receive a previewable, versioned Derived Variant.
 
 ## What RigForge Is
 
-A planned workbench for Character / Skeleton / Motion assets across file formats, DCCs, and game engines.
+A workbench for Character animation assets:
 
-Intended work:
+- browse and preview Character, Motion, and Derived Variant assets
+- select one already-rigged Character and one Motion
+- run automatic Mapping / Compatibility preflight
+- Transfer on the Ready path without opening a Mapping editor
+- receive a Derived Variant with QC, Preview, Version, and provenance
 
-- Ingest
-- Normalize
-- Canonical representation
-- Inspect
-- Validation / QC
-- Semantic Skeleton Mapping
-- Compatibility
-- Deterministic Retarget
-- Publish
-- DCC / Engine integration
-- Automation
+Character input is already rigged:
 
-Product definition: [docs/product/PRODUCT_VISION.md](docs/product/PRODUCT_VISION.md).
+```text
+Character Asset = mesh + skeleton / armature + skin weights
+```
+
+Motion carries animation data plus source Skeleton context. Multiple Motions
+may share one Source Skeleton. The result is a first-class Derived Variant,
+not a copied FBX character for every clip.
+
+Product: [docs/product/PRODUCT_VISION.md](docs/product/PRODUCT_VISION.md).
+Scope: [docs/product/V1_SCOPE.md](docs/product/V1_SCOPE.md).
+Architecture: [docs/architecture/README.md](docs/architecture/README.md).
+Decision: [ADR-0001](docs/architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 
 ## What RigForge Is Not
 
-- Not a full DCC
-- Not a replacement for Blender or Maya
-- Not a replacement for Unreal or Unity
-- Not a system that treats FBX, glTF, or USD as Canonical Authority
+- Not a full DCC, and not a replacement for Blender or Maya
+- Not an Auto-Rig product; raw unrigged mesh is not a V1 transfer target
+- Not a replacement for Unreal or Unity; no V1 engine integration
+- Not a system that treats FBX, glTF, USD, or Blender as product authority
 - Not a product whose V1 depends on AI Retarget
 
 ## Current Status
 
 ```text
-Status: Repository Initialization / W0 Research Baseline
+W0: ACTIVE
+W0-SR: COMPLETE / ADOPTED
+POC-CORE-01: COMPLETE / PASS / BASELINED
+POC-FBX-01: COMPLETE / PASS / BASELINED
+POC-BLENDER-E2E-01: READY / NOT STARTED
+POC-PREVIEW-01R: NOT STARTED
+W0-RS: NOT STARTED
+IA-1: NOT STARTED
+product implementation: NOT STARTED
 ```
 
-The repository is initialized. Research Baseline R1 has not started. No ingest, inspect, mapping, retarget, or publish capability exists. Implementation language and GUI stack are not chosen.
+W0-SR is **COMPLETE / ADOPTED**. No product implementation has started. The
+next experiment is **POC-BLENDER-E2E-01**. Execute it only under its dedicated
+experiment prompt / contract. Do not execute it from this README.
 
-## Core Principles
+Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
+evidence. They are not a mandate to ship a heavy Canonical runtime or a
+native FBX/glTF stack in V1.
 
-- Canonical-first
-- Authoritative vs Derived separation
-- Canonical vs Runtime separation
-- Deterministic-first
-- DCC-independent ingest
-- Domain API before UI
-- Adapters around the Canonical Core
+## V1 execution shape
 
-Frozen-so-far architecture notes: [docs/architecture/README.md](docs/architecture/README.md).
+```text
+RigForge Workbench
+        ↓
+Application / Workflow Domain
+        ↓
+backend-neutral Job Spec
+        ↓
+Worker Boundary
+        ↓
+Blender Worker   (PROVISIONAL_POC_GATED)
+```
+
+RigForge owns product semantics: assets, Mapping, Compatibility, Retarget
+Policy, jobs, Derived Variant, QC meaning, Preview orchestration, and
+versioning. Blender is a **provisional hidden execution backend**, replaceable
+behind the worker boundary. It is not product authority.
 
 ## Roadmap
 

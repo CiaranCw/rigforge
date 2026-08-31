@@ -1,46 +1,129 @@
 # Roadmap
 
-Phase list and status only. Design details live in product, research, and architecture docs.
+Phase status and the **current** V1 sequence. Design details live in product,
+research, and architecture docs.
 
-## Status
+Decision: [ADR-0001](../architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
+Replan authority: [../research/poc/W0P_REPLAN_PROPOSAL.md](../research/poc/W0P_REPLAN_PROPOSAL.md).
 
-| Phase | Name | Status |
+## Current lifecycle
+
+```text
+W0: ACTIVE
+W0-SR: COMPLETE / ADOPTED
+POC-CORE-01: COMPLETE / PASS / BASELINED
+POC-FBX-01: COMPLETE / PASS / BASELINED
+POC-BLENDER-E2E-01: READY / NOT STARTED
+POC-PREVIEW-01R: NOT STARTED
+W0-RS: NOT STARTED
+old original PoCs: PAUSED / REPLANNED
+IA-1: NOT STARTED
+product implementation: NOT STARTED
+```
+
+POC-BLENDER-E2E-01 must be executed only under its dedicated experiment
+prompt / contract. Do not begin product implementation.
+
+## Immediate sequence
+
+```text
+W0-SR
+COMPLETE / ADOPTED
+        ↓
+POC-BLENDER-E2E-01
+        ↓
+POC-PREVIEW-01R
+        ↓
+Revised W0 Synthesis (W0-RS)
+        ↓
+IA-1
+        ↓
+V1 implementation
+        ↓
+Mapping / Compatibility validation
+        ↓
+Worker reliability
+        ↓
+Transfer / QC validation
+        ↓
+Real-asset + non-humanoid hardening
+        ↓
+Release qualification
+```
+
+## Historical research — COMPLETE
+
+| Stage | Name | Status |
 | --- | --- | --- |
 | — | Repository Initialization | COMPLETE |
-| W0 | Research Baseline | ACTIVE |
 | W0.1 | Canonical Foundations | COMPLETE |
 | W0.2 | Mapping / Compatibility / Retarget | COMPLETE |
 | W0.3 | Adapter / Infrastructure | COMPLETE |
 | W0.4 | Product / Tech-stack / Frontier | COMPLETE |
-| W0-P | Research Validation PoCs | ACTIVE |
-| W1 | Canonical Domain Contract | NOT STARTED |
-| W2 | I/O Adapter Contract | NOT STARTED |
-| W3 | Canonical I/O MVP | NOT STARTED |
-| W4 | Validation + Semantic Mapping | NOT STARTED |
-| W5 | Compatibility + Deterministic Retarget | NOT STARTED |
-| W6 | Domain API + CLI | NOT STARTED |
-| W7 | Minimal Workbench | NOT STARTED |
-| W8 | DCC / Engine Adapters | NOT STARTED |
-| W9 | Automation / MCP-ready API | NOT STARTED |
-| W10 | CI / Structural Validation / Final Audit | NOT STARTED |
+| POC-CORE-01 | Equivalent language slice | COMPLETE / PASS; impact `INCONCLUSIVE` |
+| POC-FBX-01 | ufbx real-asset validation | COMPLETE / PASS; impact `KEEP_UFBX_WITH_GUARDS` |
 
-## Immediate next
+These remain accepted history. They may be still applicable, partially
+applicable, risk knowledge, superseded for V1 scope, or deferred. Original
+findings are not rewritten.
 
-W0.1 remains the accepted Canonical Foundations baseline.
+## Current scope revision — COMPLETE / ADOPTED
 
-W0.2 is the accepted Mapping / Compatibility / Deterministic Retarget research baseline: [docs/research/retargeting/W0_2_MAPPING_COMPAT_RETARGET.md](../research/retargeting/W0_2_MAPPING_COMPAT_RETARGET.md). Status: **COMPLETE**.
+| Stage | Purpose | Status |
+| --- | --- | --- |
+| W0-SR | Reconcile clarified workflow with W0 evidence | `COMPLETE / ADOPTED` |
+| W0 | Research Baseline (open until revised synthesis + IA-1) | ACTIVE |
 
-W0.3 is the accepted Adapter / Infrastructure / Preview Boundary research baseline: [docs/research/infrastructure/W0_3_ADAPTER_INFRASTRUCTURE.md](../research/infrastructure/W0_3_ADAPTER_INFRASTRUCTURE.md). Status: **COMPLETE**.
+## New validation path
 
-W0.4 is the accepted Product / Tech-stack / Frontier / Engineering **decision-research** baseline: [docs/research/decisions/W0_4_PRODUCT_TECH_DECISIONS.md](../research/decisions/W0_4_PRODUCT_TECH_DECISIONS.md). Status: **COMPLETE**.
+| Stage | Purpose | Status |
+| --- | --- | --- |
+| POC-BLENDER-E2E-01 | Minimal architecture slice: hidden Blender worker, thin domain, real cross-Skeleton pair | READY / NOT STARTED |
+| POC-PREVIEW-01R | Click-to-preview from derived Preview Artifacts | NOT STARTED |
+| W0-RS | Revised W0 synthesis | NOT STARTED |
+| IA-1 | Independent architecture / research audit | NOT STARTED |
 
-It is not an implementation freeze. `DECIDE_NOW` is architectural/product rule. `PROVISIONAL_W0P_GATED` remains reversible by W0-P.
+POC-BLENDER-E2E-01 tests execution architecture only. Auto-Mapping quality,
+full non-humanoid E2E, crash/timeout campaigns, worker pools, advanced
+contact QC, packaging qualification, and multiple export profiles belong to
+later V1 hardening. See [../research/poc/README.md](../research/poc/README.md).
 
-W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS** ([docs/research/poc/POC_CORE_01.md](../research/poc/POC_CORE_01.md)). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **COMPLETE / PASS** ([docs/research/poc/POC_FBX_01.md](../research/poc/POC_FBX_01.md)). Decision impact: `KEEP_UFBX_WITH_GUARDS`. POC-GLTF-01 is **NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**.
+## Future V1 implementation
 
-W0 remains ACTIVE until remaining W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes. IA-1 is **NOT STARTED**. Gate A is **NOT PASSED**. W1 is **NOT STARTED**. Preferred candidates are not implementation selections unless a row is `DECIDE_NOW` (architectural role). No Core language, GUI, Preview renderer, process topology, Preview data path, or format library is selected as authority. POC-CORE-01 is **COMPLETE / PASS** with decision impact `INCONCLUSIVE`; that result coexists with the W0.4 C++ preference (`PROVISIONAL_W0P_GATED`) until W0 Final Synthesis. It is not an implementation freeze.
+Start only after IA-1 acceptance. Names are planning labels, not frozen
+lifecycle IDs.
 
-## Stage invariants (from W0.2 Rev1)
+| Stage | Purpose |
+| --- | --- |
+| V1-1 | Workflow Domain and version/provenance contract |
+| V1-2 | Local-first Asset Catalog and job orchestration |
+| V1-3 | Pinned isolated Blender worker integration |
+| V1-4 | Skeleton Mapping and compatibility workflow |
+| V1-5 | Transfer, QC, and Derived Variant lifecycle |
+| V1-6 | Engine-independent Preview |
+| V1-7 | Optional artifact/output support (only if a concrete consumer requires it) |
+| V1-8 | Real-asset hardening and release audit |
+
+## Historical planned phases (superseded as the active plan)
+
+The previous W1–W10 sequence assumed a heavy Canonical Domain Contract, I/O
+Adapter Contract, Canonical I/O MVP, and engine adapters as the
+implementation path. That is **not** the current V1 plan.
+
+| Former phase | Former name | Current reading |
+| --- | --- | --- |
+| W1 | Canonical Domain Contract | superseded as active plan; thin Workflow Domain instead |
+| W2 | I/O Adapter Contract | superseded as active plan; worker import path first |
+| W3 | Canonical I/O MVP | superseded as active plan |
+| W4 | Validation + Semantic Mapping | retained as capability; sequenced under V1-4 / V1-5 |
+| W5 | Compatibility + Deterministic Retarget | retained as policy/UX; execution is worker-backed |
+| W6 | Domain API + CLI | later implementation, after IA-1 |
+| W7 | Minimal Workbench | becomes Asset Browser / Transfer Tray after IA-1 |
+| W8 | DCC / Engine Adapters | multiple DCC backends and direct engine integrations are out of V1 |
+| W9 | Automation / MCP-ready API | MCP deferred |
+| W10 | CI / Structural Validation / Final Audit | absorbed into V1-8 release qualification |
+
+## Stage invariants (from W0.2 Rev1; still in force)
 
 Every later stage must explicitly check:
 
@@ -53,4 +136,7 @@ DCC INDEPENDENCE
 REAL-ASSET EVIDENCE
 ```
 
-Reference formats, DCCs, engines, runtimes, and renderers are not Canonical authority and not required hosts.
+DCC independence is a **product-semantics and replaceability** property.
+V1 may still have one managed Blender operational dependency
+(`PROVISIONAL_POC_GATED`). Reference formats, DCCs, engines, runtimes, and
+renderers are not product authority.

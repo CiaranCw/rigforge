@@ -1,6 +1,41 @@
 # R1 — Research Baseline
 
-Plan document. W0.1 executed a **foundations slice** of R1-C, R1-D, R1-E, R1-F, and R1-O (corpus prep only). Findings live in [foundations/](foundations/W0_1_CANONICAL_FOUNDATIONS.md). This file is not a second copy of those findings.
+Plan document and historical W0 research index. Findings live in the linked
+stage documents. This file is not a second copy of those findings.
+
+## Current V1 product truth (W0-SR)
+
+Distinguish **historical research truth** (the rest of this file) from
+**current V1 product truth**.
+
+```text
+W0.1–W0.4     historical accepted research (findings intact)
+POC-CORE-01   COMPLETE / PASS / BASELINED
+              Decision Impact: INCONCLUSIVE
+              Core language: NOT SELECTED
+POC-FBX-01    COMPLETE / PASS / BASELINED
+              Decision Impact: KEEP_UFBX_WITH_GUARDS
+W0-SR         COMPLETE / ADOPTED
+              accepted product / architecture scope revision
+```
+
+Reports: [poc/POC_CORE_01.md](poc/POC_CORE_01.md), [poc/POC_FBX_01.md](poc/POC_FBX_01.md).
+
+V1 is a Character Animation Asset Workbench with a thin Workflow Domain and
+a provisional Blender execution backend. Historical conclusions may remain
+valid as risk/semantic knowledge without remaining V1 implementation
+requirements. Native FBX/glTF/USD stacks, a heavy Canonical runtime, and a
+custom retarget runtime are not V1 critical-path mandates.
+
+Current contracts: [../product/V1_SCOPE.md](../product/V1_SCOPE.md),
+[ADR-0001](../architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
+Active PoC path: [poc/README.md](poc/README.md).
+
+---
+
+## Historical research record
+
+W0.1 executed a **foundations slice** of R1-C, R1-D, R1-E, R1-F, and R1-O (corpus prep only). Findings live in [foundations/](foundations/W0_1_CANONICAL_FOUNDATIONS.md).
 
 W0.1 Canonical Foundations completed external focused review.
 
@@ -90,11 +125,11 @@ Preferred candidates remain `PROVISIONAL_W0P_GATED` unless the row is an archite
 
 No product implementation has started. W0.4 recommendations under `docs/research/decisions/` are unchanged.
 
-W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS**: [poc/POC_CORE_01.md](poc/POC_CORE_01.md). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **COMPLETE / PASS**: [poc/POC_FBX_01.md](poc/POC_FBX_01.md). Decision impact: `KEEP_UFBX_WITH_GUARDS`. That result does not freeze FBX as Canonical and does not select a Core language. POC-GLTF-01 is **NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**. Conditional POC-USD-01 is **NOT STARTED**. No other W0-P results are claimed.
+W0.4 status: **COMPLETE**. W0 remains ACTIVE. Gate A / IA-1 are not claimed.
 
-W0.4 status: **COMPLETE**. W0 remains ACTIVE. Gate A / IA-1 / W1 are not claimed. W0 is not complete until remaining W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes.
+W0-P original remaining sequence is **PAUSED / REPLANNED**. Current next experiment is POC-BLENDER-E2E-01 (`READY / NOT STARTED`), then POC-PREVIEW-01R, revised W0 synthesis, then IA-1. See [poc/README.md](poc/README.md). POC-CORE-01 and POC-FBX-01 results above are unchanged. Core language is still not selected. POC-FBX-01 does not freeze FBX as product authority and does not make a native ufbx importer a V1 mandate.
 
-From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers remain references / adapters / optional integrations — not Canonical authority.
+From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers are not product authority. V1 may use a hidden Blender worker (`PROVISIONAL_POC_GATED`) without making Blender Canonical.
 
 Goal: independently review the product space, standards, formats, skeleton/motion semantics, retarget, validation, publish, adapters, language/GUI options, and license risk before any implementation freeze.
 
@@ -198,6 +233,10 @@ For each candidate and each track finding, answer:
 - Lock-in / semantic-loss / maintenance risks?
 
 ## Preview / UI research routing (W0.2 Rev1)
+
+Historical W0.2 routing (findings intact). Current V1 Preview is a derived,
+rebuildable, non-authoritative artifact plus an engine-independent viewer;
+see [../product/V1_SCOPE.md](../product/V1_SCOPE.md).
 
 Long-term product requirement: Canonical Character / Skeleton / Motion must be inspectable without Unreal, Unity, or another specific engine. A browser-like viewer is a **preferred direction**, not a technology decision.
 

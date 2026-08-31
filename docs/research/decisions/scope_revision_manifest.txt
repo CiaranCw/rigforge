@@ -1,0 +1,34 @@
+RigForge W0-SR Rev1 proposal manifest
+Stage: W0-SR / REVIEW_PENDING
+Generated: 2026-08-31
+Hash: SHA-256 of exact file bytes
+
+path: docs/research/decisions/W0_SCOPE_REVISION_PROPOSAL.md
+sha256: 71ec82a7de92ed70e8969c0f5798bd4da25b0dbf11cb4ecb73040f76156332e5
+size: 20732
+purpose: Main review entry; accepted reduced scope, one-click UX, minimal Blender architecture PoC, optional export, decisions, and recommendation.
+
+path: docs/product/V1_PRODUCT_SCOPE_REVISION_PROPOSAL.md
+sha256: 8ee1fa24ba1ee76052abcc7bb2bf86c78edf9cb1b4bff82b3deea9675b1a8784
+size: 11742
+purpose: Character/Motion/Derived Variant product scope, automatic happy-path preflight, progressive exception UX, versions, and optional export.
+
+path: docs/architecture/V1_BLENDER_BACKED_ARCHITECTURE_PROPOSAL.md
+sha256: 03402f520a72badfe75a7fbd2c3f8584693de2b2a4b065c264149a309cee0f0b
+size: 17710
+purpose: Replaceable Blender worker architecture, ownership, minimal first-PoC process evidence, risks, and later hardening boundary.
+
+path: docs/architecture/V1_WORKFLOW_DOMAIN_PROPOSAL.md
+sha256: 44d9a04fbc4d2107ffc7c966a3906dde72725eb5fa41b70be5f2241f82cc87dc
+size: 15548
+purpose: Thin Workflow Domain, Motion/Skeleton/Mapping/Policy/QC corrections, progressive Compatibility UX, and optional artifact relationship.
+
+path: docs/development/ROADMAP_SCOPE_REVISION_PROPOSAL.md
+sha256: 336a008fc8b61644152a2ac14335128f8c1fef3268da03da4e3447e22192abda
+size: 8586
+purpose: Proposed roadmap separating pre-implementation architecture validation from V1 product hardening and release qualification.
+
+path: docs/research/poc/W0P_REPLAN_PROPOSAL.md
+sha256: 5f01c4fd34cf257ee8d54c794b1ec94aed3ed114c86c858ae997631991fc403e
+size: 10532
+purpose: Minimal POC-BLENDER-E2E-01 contract, frozen Mapping, basic QC, retained later-test allocation, Preview follow-up, and export position.

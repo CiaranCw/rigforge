@@ -4,7 +4,11 @@ Use one file per decision. Do not record decisions only in chat.
 
 Suggested name: `ADR-XXXX-<short-title>.md`
 
-No ADRs exist yet. Do not invent decisions to fill this folder.
+## Records
+
+| ID | Title | Status |
+| --- | --- | --- |
+| [ADR-0001](ADR-0001-v1-scope-and-blender-backed-execution.md) | V1 scope and Blender-backed execution | Accepted |
 
 ## Format
 

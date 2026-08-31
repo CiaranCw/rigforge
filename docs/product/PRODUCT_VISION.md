@@ -1,75 +1,80 @@
 # Product Vision
 
-Working product vision. Object names below are expected and subject to W1 freeze. No fields are defined here.
+RigForge is a **Character Animation Asset Workbench**.
+
+Users organize and preview rigged Character and Motion assets, select one of
+each, run Transfer, and receive a previewable, versioned Derived Variant.
+
+Decision record: [ADR-0001](../architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
+V1 boundary: [V1_SCOPE.md](V1_SCOPE.md).
 
 ## Problem
 
-Character / Skeleton / Motion assets arrive from different sources:
+Animation work is still a file-copy problem. A rigged Character and a Motion
+from a different Skeleton do not become a managed, previewable, versioned
+result without leaving the workbench for a DCC or an engine.
 
-- FBX
-- glTF / GLB
-- USD
-- Blender
-- Maya
-- Unreal
-- Unity
-- other tools
+Formats, DCCs, and engines do not share one product contract for:
 
-Those sources do not share one semantic contract for:
+- Character / Motion identity and versions
+- source Skeleton context
+- Mapping and Compatibility
+- Transfer policy and QC
+- Derived Variant provenance
+- engine-independent Preview
 
-- Character
-- Skeleton
-- Motion
-- joint semantics
-- coordinate conventions
-- retarget compatibility
-- validation
-- publish provenance
-
-## Intended Architecture
-
-High-level only. Process and package boundaries are not frozen.
+## Product
 
 ```text
-Workbench UI / CLI / Automation
-             ↓
-         Domain API
-             ↓
- Mapping / Compatibility / Retarget / QC
-             ↓
-       Canonical Domain
-             ↑
-          Adapters
+Asset Browser
+    select Character  (already rigged)
+    select Motion     (with source Skeleton context)
+        ↓
+automatic Mapping / Compatibility preflight
+        ↓
+Ready  →  Transfer
+        ↓
+Derived Variant
+        ↓
+Preview / Version
 ```
 
-Adapters, interchange formats, and DCC/engine representations are derived or boundary layers. They are not the Canonical Domain.
+Mapping and Compatibility use **progressive disclosure**. Ordinary happy-path
+users do not enter a Mapping editor. Export is an optional derived artifact,
+not the defining V1 transaction.
 
-Unreal, Unity, Blender, Maya, MotionBuilder, and other tools are **reference systems**, **adapter targets**, and **optional integrations**. They are not Canonical authority and not a required runtime, preview engine, ingest host, or Workbench host.
+## Objects users work with
 
-## Long-Term Canonical Objects
+- **Character Asset** — mesh + skeleton/armature + skin weights. Already
+  rigged. Analogous at the product level to a skeletal mesh asset; not an
+  Unreal type and not an Auto-Rig request.
+- **Motion Asset** — animation data + source Skeleton reference/context +
+  time-domain provenance. Several Motions may share one Source Skeleton.
+- **Derived Variant** — first-class result with provenance (Character,
+  Motion, Source Skeleton, Mapping, Retarget Policy, Validation, Preview,
+  generation metadata). Not “another copy of the whole character file.”
+- **Preview** — rebuildable, derived, non-authoritative.
+- **Version** — Character, Motion, Mapping, policy, and Derived Variant are
+  versioned.
 
-Expected / subject to W1 freeze:
+## Explicit boundaries
 
-- Character
-- Skeleton
-- Motion
-- Manifest
-- Semantic Mapping
-- Compatibility Result
-- Retarget Request / Result
-- Validation / QC Result
-- Publish Manifest
-- Asset Reference / Provenance
+```text
+Character inputs are already rigged / skinned.
+RigForge is not an Auto-Rig product.
+Blender is not product authority.
+Engine independence remains.
+Formats are transport / boundary concerns.
+```
 
-V1 working boundary: [V1_SCOPE.md](V1_SCOPE.md).
+Unreal, Unity, Blender, Maya, and peers are not Canonical authority. Blender
+may be a hidden V1 execution backend (`PROVISIONAL_POC_GATED`). Preview must
+not require Unreal, Unity, or Blender as the user-facing viewer.
 
-## Engine-Independent Preview
+## What survives from earlier research
 
-RigForge must ultimately provide a standalone, engine-independent way to
-inspect and preview Character, Skeleton, and Motion assets.
-
-A browser-like viewer is a preferred product direction, but the rendering
-technology is not yet selected.
-
-The preview path must not require Unreal Engine, Unity, Blender, Maya, or
-another specific DCC/game engine to render Canonical RigForge assets.
+Mapping, Compatibility, Retarget Policy, QC, authoritative-vs-derived
+separation, names-as-evidence, and engine-independent Preview remain product
+capabilities. The earlier heavy Canonical Character / Skeleton / Motion
+runtime is not the current V1 product definition. Historical findings:
+[../research/R1_RESEARCH_BASELINE.md](../research/R1_RESEARCH_BASELINE.md).
