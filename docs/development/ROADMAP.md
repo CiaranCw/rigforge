@@ -36,7 +36,7 @@ W0.4 is the accepted Product / Tech-stack / Frontier / Engineering **decision-re
 
 It is not an implementation freeze. `DECIDE_NOW` is architectural/product rule. `PROVISIONAL_W0P_GATED` remains reversible by W0-P.
 
-W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS** ([docs/research/poc/POC_CORE_01.md](../research/poc/POC_CORE_01.md)). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **READY / NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**.
+W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS** ([docs/research/poc/POC_CORE_01.md](../research/poc/POC_CORE_01.md)). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **COMPLETE / PASS** ([docs/research/poc/POC_FBX_01.md](../research/poc/POC_FBX_01.md)). Decision impact: `KEEP_UFBX_WITH_GUARDS`. POC-GLTF-01 is **NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**.
 
 W0 remains ACTIVE until remaining W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes. IA-1 is **NOT STARTED**. Gate A is **NOT PASSED**. W1 is **NOT STARTED**. Preferred candidates are not implementation selections unless a row is `DECIDE_NOW` (architectural role). No Core language, GUI, Preview renderer, process topology, Preview data path, or format library is selected as authority. POC-CORE-01 is **COMPLETE / PASS** with decision impact `INCONCLUSIVE`; that result coexists with the W0.4 C++ preference (`PROVISIONAL_W0P_GATED`) until W0 Final Synthesis. It is not an implementation freeze.
 

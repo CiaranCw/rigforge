@@ -90,7 +90,7 @@ Preferred candidates remain `PROVISIONAL_W0P_GATED` unless the row is an archite
 
 No product implementation has started. W0.4 recommendations under `docs/research/decisions/` are unchanged.
 
-W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS**: [poc/POC_CORE_01.md](poc/POC_CORE_01.md). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **READY / NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**. Conditional POC-USD-01 is **NOT STARTED**. No other W0-P results are claimed.
+W0-P is **ACTIVE**. POC-CORE-01 is **COMPLETE / PASS**: [poc/POC_CORE_01.md](poc/POC_CORE_01.md). Decision impact: `INCONCLUSIVE`. Core language remains `PROVISIONAL_W0P_GATED` (not selected). POC-FBX-01 is **COMPLETE / PASS**: [poc/POC_FBX_01.md](poc/POC_FBX_01.md). Decision impact: `KEEP_UFBX_WITH_GUARDS`. That result does not freeze FBX as Canonical and does not select a Core language. POC-GLTF-01 is **NOT STARTED**. Remaining Mandatory PoCs are **NOT STARTED**. Conditional POC-USD-01 is **NOT STARTED**. No other W0-P results are claimed.
 
 W0.4 status: **COMPLETE**. W0 remains ACTIVE. Gate A / IA-1 / W1 are not claimed. W0 is not complete until remaining W0-P executes, evidence is synthesized, W0 final synthesis occurs, and IA-1 executes.
 
