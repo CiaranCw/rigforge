@@ -16,33 +16,33 @@ POC-FBX-01: COMPLETE / PASS / BASELINED
 POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
 POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
-W0-RS: READY / NOT STARTED
+W0-RS: COMPLETE / PASS / BASELINED
 old original PoCs: PAUSED / REPLANNED
-IA-1: NOT STARTED
+IA-1: READY / NOT STARTED
 product implementation: NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
 `ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. POC-PREVIEW-01R is **COMPLETE / PASS /
-BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. Remaining
-pre-implementation sequence is W0-RS (`READY / NOT STARTED`), then IA-1.
-Do not begin product implementation.
+BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. W0-RS is
+**COMPLETE / PASS / BASELINED**:
+[synthesis](../research/decisions/W0_REVISED_SYNTHESIS.md) and
+[traceability](../research/decisions/W0_RS_TRACEABILITY.md). Remaining
+pre-implementation sequence is IA-1 (`READY / NOT STARTED`). Do not begin
+product implementation. Product implementation remains unauthorized until
+IA-1 is PASS / CLOSED.
 
 ## Immediate sequence
 
 ```text
-W0-SR
-COMPLETE / ADOPTED
-        ↓
-POC-BLENDER-E2E-01
-        ↓
-POC-PREVIEW-01R
-        ↓
-Revised W0 Synthesis (W0-RS)
+W0-RS
+COMPLETE / PASS / BASELINED
         ↓
 IA-1
+READY / NOT STARTED
         ↓
 V1 implementation
+ONLY IF IA-1 PASS / CLOSED
         ↓
 Mapping / Compatibility validation
         ↓
@@ -84,8 +84,8 @@ findings are not rewritten.
 | --- | --- | --- |
 | POC-BLENDER-E2E-01 | Minimal architecture slice: hidden Blender worker, thin domain, real cross-Skeleton pair | COMPLETE / PASS / BASELINED |
 | POC-PREVIEW-01R | Click-to-preview from derived Preview Artifacts | COMPLETE / PASS / BASELINED |
-| W0-RS | Revised W0 synthesis | READY / NOT STARTED |
-| IA-1 | Independent architecture / research audit | NOT STARTED |
+| W0-RS | [Revised W0 synthesis](../research/decisions/W0_REVISED_SYNTHESIS.md) and [traceability](../research/decisions/W0_RS_TRACEABILITY.md) | COMPLETE / PASS / BASELINED |
+| IA-1 | Independent architecture / research audit | READY / NOT STARTED |
 
 POC-BLENDER-E2E-01 tests execution architecture only. Auto-Mapping quality,
 full non-humanoid E2E, crash/timeout campaigns, worker pools, advanced

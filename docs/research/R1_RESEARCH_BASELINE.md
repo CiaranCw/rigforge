@@ -24,6 +24,10 @@ POC-PREVIEW-01R     COMPLETE / PASS / BASELINED
               Decision Impact: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
               viewer library: NOT SELECTED
               payload candidate: GLB (not a permanent format selection)
+W0-RS         COMPLETE / PASS / BASELINED
+              accepted revised W0 synthesis feeding IA-1
+IA-1          READY / NOT STARTED
+product implementation  NOT STARTED
 ```
 
 Reports: [poc/POC_CORE_01.md](poc/POC_CORE_01.md), [poc/POC_FBX_01.md](poc/POC_FBX_01.md),
@@ -39,7 +43,10 @@ custom retarget runtime are not V1 critical-path mandates.
 
 Current contracts: [../product/V1_SCOPE.md](../product/V1_SCOPE.md),
 [ADR-0001](../architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
-Active PoC path: [poc/README.md](poc/README.md).
+Accepted audit entry:
+[W0_REVISED_SYNTHESIS.md](decisions/W0_REVISED_SYNTHESIS.md) and
+[W0_RS_TRACEABILITY.md](decisions/W0_RS_TRACEABILITY.md).
+PoC index: [poc/README.md](poc/README.md).
 
 ---
 
@@ -137,7 +144,7 @@ No product implementation has started. W0.4 recommendations under `docs/research
 
 W0.4 status: **COMPLETE**. W0 remains ACTIVE. Gate A / IA-1 are not claimed.
 
-W0-P original remaining sequence is **PAUSED / REPLANNED**. POC-BLENDER-E2E-01 is `COMPLETE / PASS / BASELINED` (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`). POC-PREVIEW-01R is `COMPLETE / PASS / BASELINED` (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Next is W0-RS (`READY / NOT STARTED`), then IA-1. See [poc/README.md](poc/README.md). POC-CORE-01 and POC-FBX-01 results above are unchanged. Core language is still not selected. POC-FBX-01 does not freeze FBX as product authority and does not make a native ufbx importer a V1 mandate. Viewer library and Preview payload format remain not selected.
+W0-P original remaining sequence is **PAUSED / REPLANNED**. POC-BLENDER-E2E-01 is `COMPLETE / PASS / BASELINED` (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`). POC-PREVIEW-01R is `COMPLETE / PASS / BASELINED` (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). W0-RS is `COMPLETE / PASS / BASELINED`. IA-1 is `READY / NOT STARTED` and must be executed by a newly opened independent Agent. See [poc/README.md](poc/README.md). POC-CORE-01 and POC-FBX-01 results above are unchanged. Core language is still not selected. POC-FBX-01 does not freeze FBX as product authority and does not make a native ufbx importer a V1 mandate. Viewer library and Preview payload format remain not selected. Product implementation remains unauthorized until IA-1 is PASS / CLOSED.
 
 From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers are not product authority. V1 may use a hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, validated by POC-BLENDER-E2E-01) without making Blender Canonical.
 

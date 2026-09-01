@@ -10,6 +10,8 @@ RigForge — Character Animation Asset Workbench
 W0 — ACTIVE; W0-SR COMPLETE / ADOPTED / BASELINED
 POC-BLENDER-E2E-01 COMPLETE / PASS / BASELINED
 POC-PREVIEW-01R COMPLETE / PASS / BASELINED
+W0-RS COMPLETE / PASS / BASELINED
+IA-1 READY / NOT STARTED
 ```
 
 Do not implement product code, workers, CLI, GUI, parsers, or CI in this phase.
@@ -91,11 +93,21 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-W0-RS —
-Revised W0 Synthesis.
-Execute only under its dedicated synthesis prompt.
+IA-1 —
+Independent end-to-end audit of the accepted W0 research baseline.
+IA-1 MUST be executed by a NEW independent Agent.
+The W0-RS synthesis Agent and prior implementation/research Agents
+must not impersonate the independent auditor.
+Preferred independent auditor:
+GPT-5.6 Sol High / 1M High
+or
+Claude Opus 5 High
 Do not begin product implementation.
-Do not run IA-1 before W0-RS is externally accepted/baselined.
 ```
+
+Synthesis:
+[docs/research/decisions/W0_REVISED_SYNTHESIS.md](docs/research/decisions/W0_REVISED_SYNTHESIS.md).
+Traceability:
+[docs/research/decisions/W0_RS_TRACEABILITY.md](docs/research/decisions/W0_RS_TRACEABILITY.md).
 
 Roadmap: [docs/development/ROADMAP.md](docs/development/ROADMAP.md).
