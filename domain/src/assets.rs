@@ -126,6 +126,9 @@ impl CharacterAssetVersion {
     pub fn source(&self) -> &SourceArtifactEvidence {
         &self.source
     }
+    pub fn skeleton_summary_id(&self) -> Option<SkeletonSummaryId> {
+        self.skeleton_summary_id
+    }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
@@ -265,6 +268,12 @@ impl MotionAssetVersion {
     pub fn time(&self) -> &TimeDomainProvenance {
         &self.time
     }
+    pub fn skeleton_summary_id(&self) -> Option<SkeletonSummaryId> {
+        self.skeleton_summary_id
+    }
+    pub fn display_name(&self) -> &str {
+        &self.display_name
+    }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
@@ -330,6 +339,9 @@ impl SourceSkeletonReference {
     pub fn display_name(&self) -> &str {
         &self.display_name
     }
+    pub fn source(&self) -> Option<&SourceArtifactEvidence> {
+        self.source.as_ref()
+    }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
@@ -391,6 +403,37 @@ impl JointObservation {
         Ok(value)
     }
 
+    pub fn joint_key(&self) -> &JointKey {
+        &self.joint_key
+    }
+    pub fn display_name(&self) -> &str {
+        &self.display_name
+    }
+    pub fn parent_key(&self) -> Option<&JointKey> {
+        self.parent_key.as_ref()
+    }
+    pub fn is_root(&self) -> bool {
+        self.is_root
+    }
+    pub fn deform_observation(&self) -> Option<&str> {
+        self.deform_observation.as_deref()
+    }
+    pub fn rest_evidence(&self) -> Option<&str> {
+        self.rest_evidence.as_deref()
+    }
+
+    pub fn is_helper_or_control(&self) -> bool {
+        let deform = self.deform_observation.as_deref().unwrap_or("");
+        let name = self.display_name.to_ascii_lowercase();
+        deform.eq_ignore_ascii_case("helper")
+            || deform.eq_ignore_ascii_case("control")
+            || deform.eq_ignore_ascii_case("non_deforming")
+            || name.contains("pole")
+            || name.contains("ik")
+            || name.ends_with("_end")
+            || name.ends_with(".end")
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         require_nonempty(&self.display_name, "joint display_name")
     }
@@ -435,6 +478,32 @@ impl SkeletonSummary {
         };
         value.validate()?;
         Ok(value)
+    }
+
+    pub fn id(&self) -> SkeletonSummaryId {
+        self.id
+    }
+    pub fn subject_kind(&self) -> SkeletonSubjectKind {
+        self.subject_kind
+    }
+    pub fn subject_character_version_id(&self) -> Option<CharacterAssetVersionId> {
+        self.subject_character_version_id
+    }
+    pub fn subject_source_skeleton_ref_id(&self) -> Option<SourceSkeletonReferenceId> {
+        self.subject_source_skeleton_ref_id
+    }
+    pub fn producer(&self) -> &BackendExecutionContext {
+        &self.producer
+    }
+    pub fn joints(&self) -> &[JointObservation] {
+        &self.joints
+    }
+    pub fn diagnostics(&self) -> &[String] {
+        &self.diagnostics
+    }
+
+    pub fn joint(&self, key: &JointKey) -> Option<&JointObservation> {
+        self.joints.iter().find(|j| j.joint_key() == key)
     }
 
     pub fn validate(&self) -> Result<(), DomainError> {

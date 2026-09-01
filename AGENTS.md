@@ -15,18 +15,21 @@ Gate A PASS / CLOSED
 V1-2 COMPLETE / PASS / BASELINED
 V1-3 COMPLETE / PASS / BASELINED
 Gate B PASS / CLOSED
-V1-4 READY / NOT STARTED
+V1-4 COMPLETE / PASS / BASELINED
+V1-5 READY / NOT STARTED
+Gate C NOT STARTED
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
 V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
-V1-4 is `READY / NOT STARTED`.
+V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is `READY / NOT STARTED`.
+Gate C is `NOT STARTED`.
 
 Do not begin arbitrary Product implementation.
 
 Execute V1 work only under the currently authorized dedicated implementation
-stage. V1-4 is `READY / NOT STARTED`. Do not start V1-4 until that stage is
-explicitly authorized. Do not open another independent Gate for V1-3.
+stage. Current authorized stage is V1-5 (`READY / NOT STARTED`). Do not
+open Gate C until after V1-5.
 
 ## Source of Truth
 
@@ -106,16 +109,21 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-V1-4 —
-Skeleton Mapping and Compatibility workflow.
+V1-5 —
+Transfer, QC, and Derived Variant lifecycle.
 ```
 
-Do not execute V1-4 until that stage is explicitly authorized.
+Do not open Gate C until after V1-5. Gate C remains `NOT STARTED`.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
 SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is
 **Accepted** (ADR-0005, V1-3 / Gate B Runtime Foundation Audit). Do not infer
 Preview viewer/payload from the GUI crate.
+
+V1-4 contracts:
+[docs/development/V1_4_IMPLEMENTATION_PLAN.md](docs/development/V1_4_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_4_MAPPING_WORKFLOW.md](docs/development/V1_4_MAPPING_WORKFLOW.md),
+[docs/development/V1_4_COMPATIBILITY_CONTRACT.md](docs/development/V1_4_COMPATIBILITY_CONTRACT.md).
 
 V1-3 contracts:
 [docs/development/V1_3_IMPLEMENTATION_PLAN.md](docs/development/V1_3_IMPLEMENTATION_PLAN.md),
@@ -148,7 +156,8 @@ GPT-5.6 Sol High
 Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
 
 Gate B is **PASS / CLOSED**. Do not open Gate B2 or another independent
-review of V1-3. Next authorized implementation stage is V1-4.
+review of V1-3 or V1-4. Next fixed independent gate is Gate C after V1-4 +
+V1-5. Do not open Gate C now.
 
 IA-1 closeout:
 [docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),

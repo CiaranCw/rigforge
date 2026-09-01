@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 
 use rigforge_domain::{
     ingest_validated, to_json, validate_job_inputs, BoneMappingVersion, CharacterAsset,
-    CharacterAssetVersion, DerivedVariant, DomainRecord, JobSpec, MotionAsset, MotionAssetVersion,
-    PersistenceArtifact, PersistenceVerification, ProductVersionStore, RecordType,
-    RetargetPolicyVersion, SourceArtifactEvidence, SourceSkeletonReference, Validated, WorkerResult,
+    CharacterAssetVersion, CompatibilityResult, CompatibilitySummary, DerivedVariant, DomainRecord,
+    JobSpec, Lifecycle, MotionAsset, MotionAssetVersion, PersistenceArtifact,
+    PersistenceVerification, ProductVersionStore, RecordType, RetargetPolicyVersion,
+    SourceArtifactEvidence, SourceSkeletonReference, Validated, WorkerResult,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction};
 use serde_json::Value;
@@ -159,7 +160,9 @@ impl SqliteCatalog {
                     'motion_asset_version',
                     'bone_mapping_version',
                     'retarget_policy_version',
-                    'derived_variant_version'
+                    'derived_variant_version',
+                    'skeleton_summary',
+                    'compatibility_result'
                )
              ORDER BY created_at ASC, product_id ASC",
         )?;
@@ -253,6 +256,95 @@ impl SqliteCatalog {
         id: &str,
     ) -> Result<Validated<PersistenceVerification>, AppError> {
         self.load_validated(id)
+    }
+
+    pub fn load_skeleton_summary(
+        &self,
+        id: &str,
+    ) -> Result<Validated<rigforge_domain::SkeletonSummary>, AppError> {
+        self.load_validated(id)
+    }
+
+    pub fn load_compatibility_result(
+        &self,
+        id: &str,
+    ) -> Result<Validated<rigforge_domain::CompatibilityResult>, AppError> {
+        self.load_validated(id)
+    }
+
+    pub fn load_bone_mapping(
+        &self,
+        id: &str,
+    ) -> Result<Validated<rigforge_domain::BoneMapping>, AppError> {
+        self.load_validated(id)
+    }
+
+    pub fn list_skeleton_summaries_for_character(
+        &self,
+        character_version_id: &str,
+    ) -> Result<Vec<String>, AppError> {
+        self.list_summaries_by_json_field(
+            "subject_character_version_id",
+            character_version_id,
+        )
+    }
+
+    pub fn list_skeleton_summaries_for_source_skeleton(
+        &self,
+        source_skeleton_id: &str,
+    ) -> Result<Vec<String>, AppError> {
+        self.list_summaries_by_json_field("subject_source_skeleton_ref_id", source_skeleton_id)
+    }
+
+    fn list_summaries_by_json_field(
+        &self,
+        field: &str,
+        value: &str,
+    ) -> Result<Vec<String>, AppError> {
+        let sql = format!(
+            "SELECT product_id FROM records
+             WHERE record_type = 'skeleton_summary'
+               AND json_extract(payload_json, '$.{field}') = ?1
+             ORDER BY created_at DESC, product_id DESC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let ids = stmt
+            .query_map([value], |row| row.get(0))?
+            .collect::<Result<Vec<String>, _>>()?;
+        Ok(ids)
+    }
+
+    pub fn latest_compatibility_for_exact_set(
+        &self,
+        character_version_id: &str,
+        motion_version_id: &str,
+        mapping_version_id: &str,
+        policy_version_id: &str,
+    ) -> Result<Option<Validated<rigforge_domain::CompatibilityResult>>, AppError> {
+        let row: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT product_id FROM records
+                 WHERE record_type = 'compatibility_result'
+                   AND json_extract(payload_json, '$.character_version_id') = ?1
+                   AND json_extract(payload_json, '$.motion_version_id') = ?2
+                   AND json_extract(payload_json, '$.mapping_version_id') = ?3
+                   AND json_extract(payload_json, '$.policy_version_id') = ?4
+                 ORDER BY created_at DESC, product_id DESC
+                 LIMIT 1",
+                rusqlite::params![
+                    character_version_id,
+                    motion_version_id,
+                    mapping_version_id,
+                    policy_version_id
+                ],
+                |row| row.get(0),
+            )
+            .optional()?;
+        match row {
+            Some(id) => Ok(Some(self.load_compatibility_result(&id)?)),
+            None => Ok(None),
+        }
     }
 
     pub fn list_artifact_instances(
@@ -670,6 +762,68 @@ impl ProductVersionStore for SqliteCatalog {
     }
 }
 
+fn validate_compatibility_graph_on(
+    conn: &Connection,
+    result: &CompatibilityResult,
+) -> Result<(), AppError> {
+    let character = load_validated_on::<CharacterAssetVersion>(
+        conn,
+        &result.character_version_id().canonical(),
+    )?;
+    let motion =
+        load_validated_on::<MotionAssetVersion>(conn, &result.motion_version_id().canonical())?;
+    let mapping =
+        load_validated_on::<BoneMappingVersion>(conn, &result.mapping_version_id().canonical())?;
+    let policy =
+        load_validated_on::<RetargetPolicyVersion>(conn, &result.policy_version_id().canonical())?;
+
+    if character.as_record().id() != result.character_version_id() {
+        return Err(AppError::Catalog(
+            "CompatibilityResult.character_version_id must equal the referenced CharacterAssetVersion.id".into(),
+        ));
+    }
+    if motion.as_record().id() != result.motion_version_id() {
+        return Err(AppError::Catalog(
+            "CompatibilityResult.motion_version_id must equal the referenced MotionAssetVersion.id"
+                .into(),
+        ));
+    }
+    if mapping.as_record().id() != result.mapping_version_id() {
+        return Err(AppError::Catalog(
+            "CompatibilityResult.mapping_version_id must equal the referenced BoneMappingVersion.id"
+                .into(),
+        ));
+    }
+    if policy.as_record().id() != result.policy_version_id() {
+        return Err(AppError::Catalog(
+            "CompatibilityResult.policy_version_id must equal the referenced RetargetPolicyVersion.id".into(),
+        ));
+    }
+    if mapping.as_record().target_character_version_id() != result.character_version_id() {
+        return Err(AppError::Catalog(
+            "CompatibilityResult character does not match BoneMappingVersion.target_character_version_id".into(),
+        ));
+    }
+    if matches!(
+        result.summary(),
+        CompatibilitySummary::Ready | CompatibilitySummary::ReadyWithWarnings
+    ) {
+        if mapping.as_record().lifecycle() != Lifecycle::Published {
+            return Err(AppError::Catalog(
+                "Ready/ReadyWithWarnings CompatibilityResult requires Published BoneMappingVersion"
+                    .into(),
+            ));
+        }
+        if mapping.as_record().source_skeleton_ref_id() != motion.as_record().source_skeleton_ref_id()
+        {
+            return Err(AppError::Catalog(
+                "Ready/ReadyWithWarnings CompatibilityResult requires Mapping and Motion to share SourceSkeletonReference".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_job_graph_on(conn: &Connection, spec: &JobSpec) -> Result<(), AppError> {
     let character = load_validated_on::<CharacterAssetVersion>(
         conn,
@@ -794,6 +948,10 @@ fn put_validated_on<T: DomainRecord>(
             "payload record_type {stored_type} does not match {}",
             expected_type
         )));
+    }
+    if T::RECORD_TYPE == RecordType::CompatibilityResult {
+        let result = ingest_validated::<CompatibilityResult>(&payload)?;
+        validate_compatibility_graph_on(conn, result.as_record())?;
     }
     let meta = meta_from_json(&value)?;
     let now = now_ms();
@@ -1032,11 +1190,12 @@ fn logical_id_of(record_type: &str, value: &Value) -> Option<String> {
         "retarget_policy_version" => json_string(value, "policy_id"),
         "derived_variant_version" => json_string(value, "variant_id"),
         "character_asset"
-        | "motion_asset"
-        | "bone_mapping"
-        | "retarget_policy"
-        | "derived_variant"
-        | "source_skeleton_reference" => json_string(value, "id"),
+                | "motion_asset"
+                | "bone_mapping"
+                | "retarget_policy"
+                | "derived_variant"
+                | "source_skeleton_reference" => json_string(value, "id"),
+        "skeleton_summary" | "compatibility_result" => json_string(value, "id"),
         _ => None,
     }
 }

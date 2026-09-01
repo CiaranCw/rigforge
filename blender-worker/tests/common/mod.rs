@@ -103,10 +103,11 @@ pub fn graph_with_sources_time(
             mapping_entry("root", "Bone", "root", true),
             mapping_entry("pelvis", "Body", "pelvis_central", true),
         ],
-        MappingReviewProvenance::new(
+        MappingReviewProvenance::with_kind(
             true,
             Some("manual review".to_string()),
             vec!["foot parent chain".to_string()],
+            MappingReviewKind::Manual,
         )
         .unwrap(),
     )

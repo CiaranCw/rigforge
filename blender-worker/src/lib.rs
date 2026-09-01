@@ -5,6 +5,7 @@
 pub mod adapter;
 pub mod command;
 pub mod envelope;
+pub mod inspect;
 pub mod isolation;
 pub mod pin;
 pub mod policy;
@@ -17,6 +18,7 @@ pub use command::{
     assert_safety_flags, blender_argv, blender_command, BACKGROUND, DISABLE_AUTOEXEC,
     FACTORY_STARTUP, PYTHON, PYTHON_EXIT_CODE,
 };
+pub use inspect::BlenderSkeletonInspector;
 pub use isolation::{attempt_workspace_root, AttemptWorkspace};
 pub use pin::{
     default_archive_path, default_blender_executable, enforce_pin, parse_blender_version_output,

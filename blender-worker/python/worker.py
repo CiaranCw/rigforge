@@ -774,6 +774,68 @@ def reopen(job: dict) -> dict:
     return payload
 
 
+def inspect_armature(arm_obj):
+    joints = []
+    for bone in arm_obj.data.bones:
+        parent = bone.parent.name if bone.parent is not None else None
+        deform = "deforming" if bool(getattr(bone, "use_deform", True)) else "helper"
+        rest = "head=({:.6f},{:.6f},{:.6f}) tail=({:.6f},{:.6f},{:.6f})".format(
+            bone.head_local[0],
+            bone.head_local[1],
+            bone.head_local[2],
+            bone.tail_local[0],
+            bone.tail_local[1],
+            bone.tail_local[2],
+        )
+        joints.append(
+            {
+                "joint_key": bone.name,
+                "display_name": bone.name,
+                "parent_key": parent,
+                "is_root": parent is None,
+                "deform_observation": deform,
+                "rest_evidence": rest,
+            }
+        )
+    joints.sort(key=lambda item: item["joint_key"])
+    return joints
+
+
+def inspect_skeleton(job: dict) -> dict:
+    expected = job.get("expected_digest")
+    source = Path(job["source_path"])
+    if not source.is_file():
+        raise FileNotFoundError(str(source))
+    digest = sha256_file(source)
+    if expected and digest != expected:
+        raise RuntimeError(f"source digest mismatch {digest} != {expected}")
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.fbx(
+        filepath=str(source),
+        use_anim=False,
+        automatic_bone_orientation=False,
+    )
+    armatures = [obj for obj in bpy.data.objects if obj.type == "ARMATURE"]
+    if not armatures:
+        raise RuntimeError("no armature found")
+    arm = max(armatures, key=lambda obj: len(obj.data.bones))
+    joints = inspect_armature(arm)
+    payload = {
+        "status": "SUCCESS",
+        "kind": "skeleton_observation",
+        "armature_display_name": arm.name,
+        "joint_count": len(joints),
+        "joints": joints,
+        "source_digest": digest,
+        "diagnostics": [
+            "inspect only; no retarget execution",
+            "joint_key is source-local evidence, not Product identity",
+        ],
+    }
+    write_json(Path(job["outputs"]["inspect_envelope"]), payload)
+    return payload
+
+
 def main() -> int:
     args = parse_after_dash()
     mode = args[0]
@@ -783,6 +845,8 @@ def main() -> int:
             execute(job)
         elif mode == "reopen":
             reopen(job)
+        elif mode == "inspect":
+            inspect_skeleton(job)
         else:
             raise SystemExit(f"unknown mode {mode}")
         return 0

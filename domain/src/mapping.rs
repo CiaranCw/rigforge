@@ -1,12 +1,14 @@
 //! Mapping, Compatibility, and Retarget Policy. Product-owned, backend-neutral.
 
+use std::collections::HashSet;
+
 use crate::backend::assert_lifecycle_transition;
 use crate::error::{DomainError, ErrorCode};
 use crate::identity::{
     assert_backend_neutral_text, expect_record_type, expect_schema_version, BoneMappingId,
     BoneMappingVersionId, CharacterAssetVersionId, CompatibilityResultId, JointKey, Lifecycle,
     MotionAssetVersionId, RecordType, RetargetPolicyId, RetargetPolicyVersionId,
-    SourceSkeletonReferenceId, SCHEMA_VERSION,
+    SkeletonSummaryId, SourceSkeletonReferenceId, SCHEMA_VERSION,
 };
 use crate::record::DomainRecord;
 use serde::{Deserialize, Serialize};
@@ -138,6 +140,25 @@ impl BoneMappingEntry {
     pub fn role_profile(&self) -> Option<&str> {
         self.role_profile.as_deref()
     }
+
+    pub fn evidence(&self) -> &str {
+        &self.evidence
+    }
+}
+
+/// Typed unmapped semantics. Reason text is explanation only, never decision authority.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnmappedDisposition {
+    Blocking,
+    Optional,
+    Helper,
+}
+
+impl UnmappedDisposition {
+    pub fn is_blocking(self) -> bool {
+        matches!(self, Self::Blocking)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -146,13 +167,57 @@ pub struct UnmappedJoint {
     skeleton_side: SkeletonSide,
     joint_key: JointKey,
     reason: String,
+    disposition: UnmappedDisposition,
 }
 
 impl UnmappedJoint {
+    pub fn new(
+        skeleton_side: SkeletonSide,
+        joint_key: JointKey,
+        reason: impl Into<String>,
+        disposition: UnmappedDisposition,
+    ) -> Result<Self, DomainError> {
+        let value = Self {
+            skeleton_side,
+            joint_key,
+            reason: reason.into(),
+            disposition,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn skeleton_side(&self) -> SkeletonSide {
+        self.skeleton_side
+    }
+
+    pub fn joint_key(&self) -> &JointKey {
+        &self.joint_key
+    }
+
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+
+    pub fn disposition(&self) -> UnmappedDisposition {
+        self.disposition
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         require_nonempty(&self.reason, "unmapped reason")?;
         assert_backend_neutral_text(&self.reason, "unmapped reason")
     }
+}
+
+/// How an accepted or candidate Mapping was reviewed. Optional on historical
+/// records. Automatic generation is never silent Product acceptance.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MappingReviewKind {
+    AutomaticCandidate,
+    AutomaticConfirmed,
+    UserOverride,
+    Manual,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -163,6 +228,8 @@ pub struct MappingReviewProvenance {
     method: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     ambiguities: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    review_kind: Option<MappingReviewKind>,
 }
 
 impl MappingReviewProvenance {
@@ -171,6 +238,23 @@ impl MappingReviewProvenance {
             reviewed,
             method,
             ambiguities,
+            review_kind: None,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn with_kind(
+        reviewed: bool,
+        method: Option<String>,
+        ambiguities: Vec<String>,
+        review_kind: MappingReviewKind,
+    ) -> Result<Self, DomainError> {
+        let value = Self {
+            reviewed,
+            method,
+            ambiguities,
+            review_kind: Some(review_kind),
         };
         value.validate()?;
         Ok(value)
@@ -180,12 +264,53 @@ impl MappingReviewProvenance {
         self.reviewed
     }
 
+    pub fn method(&self) -> Option<&str> {
+        self.method.as_deref()
+    }
+
+    pub fn ambiguities(&self) -> &[String] {
+        &self.ambiguities
+    }
+
+    pub fn review_kind(&self) -> Option<MappingReviewKind> {
+        self.review_kind
+    }
+
+    pub fn confirmation_required(&self) -> bool {
+        match self.review_kind {
+            Some(MappingReviewKind::AutomaticCandidate) => true,
+            Some(_) => !self.ambiguities.is_empty() && !self.reviewed,
+            None => !self.reviewed,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         if let Some(method) = &self.method {
             assert_backend_neutral_text(method, "mapping review method")?;
         }
         for item in &self.ambiguities {
             assert_backend_neutral_text(item, "mapping ambiguity")?;
+        }
+        if let Some(kind) = self.review_kind {
+            match kind {
+                MappingReviewKind::AutomaticCandidate if self.reviewed => {
+                    return Err(DomainError::new(
+                        ErrorCode::MappingTooThin,
+                        "automatic_candidate review cannot claim Mapping was reviewed/accepted",
+                    ));
+                }
+                MappingReviewKind::AutomaticConfirmed
+                | MappingReviewKind::UserOverride
+                | MappingReviewKind::Manual
+                    if !self.reviewed =>
+                {
+                    return Err(DomainError::new(
+                        ErrorCode::MappingTooThin,
+                        "accepted Mapping review kinds require reviewed=true",
+                    ));
+                }
+                _ => {}
+            }
         }
         Ok(())
     }
@@ -222,8 +347,20 @@ impl BoneMapping {
         self.id
     }
 
+    pub fn published_version_id(&self) -> Option<BoneMappingVersionId> {
+        self.published_version_id
+    }
+
+    pub fn draft_version_id(&self) -> Option<BoneMappingVersionId> {
+        self.draft_version_id
+    }
+
     pub fn bind_published(&mut self, version_id: BoneMappingVersionId) {
         self.published_version_id = Some(version_id);
+    }
+
+    pub fn bind_draft(&mut self, version_id: BoneMappingVersionId) {
+        self.draft_version_id = Some(version_id);
     }
 
     pub fn validate(&self) -> Result<(), DomainError> {
@@ -258,6 +395,16 @@ pub struct BoneMappingVersion {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     unmapped_target: Vec<UnmappedJoint>,
     review: MappingReviewProvenance,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_skeleton_summary_id: Option<SkeletonSummaryId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target_skeleton_summary_id: Option<SkeletonSummaryId>,
+    /// True when this version was created from automatic candidate generation.
+    #[serde(default)]
+    generated_from_candidates: bool,
+    /// True when an explicit Product override/unmap edited this version after generation.
+    #[serde(default)]
+    user_modified: bool,
 }
 
 impl BoneMappingVersion {
@@ -281,6 +428,10 @@ impl BoneMappingVersion {
             unmapped_source: Vec::new(),
             unmapped_target: Vec::new(),
             review,
+            source_skeleton_summary_id: None,
+            target_skeleton_summary_id: None,
+            generated_from_candidates: false,
+            user_modified: false,
         };
         value.validate()?;
         Ok(value)
@@ -304,6 +455,55 @@ impl BoneMappingVersion {
     pub fn review(&self) -> &MappingReviewProvenance {
         &self.review
     }
+    pub fn unmapped_source(&self) -> &[UnmappedJoint] {
+        &self.unmapped_source
+    }
+    pub fn unmapped_target(&self) -> &[UnmappedJoint] {
+        &self.unmapped_target
+    }
+    pub fn source_motion_version_id(&self) -> Option<MotionAssetVersionId> {
+        self.source_motion_version_id
+    }
+    pub fn mapping_id(&self) -> BoneMappingId {
+        self.mapping_id
+    }
+    pub fn source_skeleton_summary_id(&self) -> Option<SkeletonSummaryId> {
+        self.source_skeleton_summary_id
+    }
+    pub fn target_skeleton_summary_id(&self) -> Option<SkeletonSummaryId> {
+        self.target_skeleton_summary_id
+    }
+
+    pub fn generated_from_candidates(&self) -> bool {
+        self.generated_from_candidates
+    }
+
+    pub fn user_modified(&self) -> bool {
+        self.user_modified
+    }
+
+    /// Accepted review kind implied by durable workflow history. Not caller-chosen.
+    pub fn derived_accepted_kind(&self) -> MappingReviewKind {
+        if !self.generated_from_candidates {
+            MappingReviewKind::Manual
+        } else if self.user_modified {
+            MappingReviewKind::UserOverride
+        } else {
+            MappingReviewKind::AutomaticConfirmed
+        }
+    }
+
+    pub fn mark_generated_from_candidates(&mut self) -> Result<(), DomainError> {
+        self.lifecycle.assert_mutable()?;
+        self.generated_from_candidates = true;
+        self.validate()
+    }
+
+    pub fn mark_user_modified(&mut self) -> Result<(), DomainError> {
+        self.lifecycle.assert_mutable()?;
+        self.user_modified = true;
+        self.validate()
+    }
 
     pub fn bind_source_motion_version(
         &mut self,
@@ -311,6 +511,45 @@ impl BoneMappingVersion {
     ) -> Result<(), DomainError> {
         self.lifecycle.assert_mutable()?;
         self.source_motion_version_id = Some(motion_version_id);
+        self.validate()
+    }
+
+    pub fn clear_source_motion_version(&mut self) -> Result<(), DomainError> {
+        self.lifecycle.assert_mutable()?;
+        self.source_motion_version_id = None;
+        self.validate()
+    }
+
+    pub fn set_unmapped(
+        &mut self,
+        unmapped_source: Vec<UnmappedJoint>,
+        unmapped_target: Vec<UnmappedJoint>,
+    ) -> Result<(), DomainError> {
+        self.lifecycle.assert_mutable()?;
+        self.unmapped_source = unmapped_source;
+        self.unmapped_target = unmapped_target;
+        self.validate()
+    }
+
+    pub fn bind_skeleton_summaries(
+        &mut self,
+        source_skeleton_summary_id: SkeletonSummaryId,
+        target_skeleton_summary_id: SkeletonSummaryId,
+    ) -> Result<(), DomainError> {
+        self.lifecycle.assert_mutable()?;
+        self.source_skeleton_summary_id = Some(source_skeleton_summary_id);
+        self.target_skeleton_summary_id = Some(target_skeleton_summary_id);
+        self.validate()
+    }
+
+    pub fn replace_entries_and_review(
+        &mut self,
+        entries: Vec<BoneMappingEntry>,
+        review: MappingReviewProvenance,
+    ) -> Result<(), DomainError> {
+        self.lifecycle.assert_mutable()?;
+        self.entries = entries;
+        self.review = review;
         self.validate()
     }
 
@@ -326,16 +565,99 @@ impl BoneMappingVersion {
         for entry in &self.entries {
             entry.validate()?;
         }
-        for u in self.unmapped_source.iter().chain(self.unmapped_target.iter()) {
-            u.validate()?;
+        let mut sources = HashSet::new();
+        let mut targets = HashSet::new();
+        for entry in &self.entries {
+            if !sources.insert(entry.source.joint_key().as_str()) {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "BoneMappingVersion cannot map one source JointKey to multiple targets",
+                ));
+            }
+            if !targets.insert(entry.target.joint_key().as_str()) {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "BoneMappingVersion cannot map multiple sources onto one target JointKey",
+                ));
+            }
         }
-        self.review.validate()
+        for u in &self.unmapped_source {
+            u.validate()?;
+            if u.skeleton_side() != SkeletonSide::Source {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "unmapped_source entries must have SkeletonSide::Source",
+                ));
+            }
+        }
+        for u in &self.unmapped_target {
+            u.validate()?;
+            if u.skeleton_side() != SkeletonSide::Target {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "unmapped_target entries must have SkeletonSide::Target",
+                ));
+            }
+        }
+        self.review.validate()?;
+        self.validate_review_history()
+    }
+
+    fn validate_review_history(&self) -> Result<(), DomainError> {
+        if self.lifecycle == Lifecycle::Published {
+            if !self.review.reviewed {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "Published BoneMappingVersion requires reviewed=true",
+                ));
+            }
+            let Some(kind) = self.review.review_kind else {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "Published BoneMappingVersion requires an accepted review_kind",
+                ));
+            };
+            if kind == MappingReviewKind::AutomaticCandidate {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    "Published BoneMappingVersion cannot retain automatic_candidate review",
+                ));
+            }
+            let expected = self.derived_accepted_kind();
+            if kind != expected {
+                return Err(DomainError::new(
+                    ErrorCode::MappingTooThin,
+                    format!(
+                        "Published review_kind {kind:?} does not match workflow history (expected {expected:?})"
+                    ),
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub fn publish(&mut self) -> Result<(), DomainError> {
         self.validate()?;
+        if !self.review.reviewed {
+            return Err(DomainError::new(
+                ErrorCode::MappingTooThin,
+                "BoneMappingVersion::publish requires explicit reviewed Mapping provenance",
+            ));
+        }
+        if matches!(
+            self.review.review_kind,
+            Some(MappingReviewKind::AutomaticCandidate)
+        ) {
+            return Err(DomainError::new(
+                ErrorCode::MappingTooThin,
+                "BoneMappingVersion::publish rejects automatic_candidate review",
+            ));
+        }
+        if self.review.review_kind.is_none() {
+            self.review.review_kind = Some(self.derived_accepted_kind());
+        }
         self.lifecycle = freeze(self.lifecycle)?;
-        Ok(())
+        self.validate()
     }
 
     pub fn invalidate(&mut self) -> Result<(), DomainError> {
@@ -444,28 +766,115 @@ impl CompatibilityResult {
     pub fn summary(&self) -> CompatibilitySummary {
         self.summary
     }
+    pub fn id(&self) -> CompatibilityResultId {
+        self.id
+    }
+    pub fn character_version_id(&self) -> CharacterAssetVersionId {
+        self.character_version_id
+    }
+    pub fn motion_version_id(&self) -> MotionAssetVersionId {
+        self.motion_version_id
+    }
+    pub fn mapping_version_id(&self) -> BoneMappingVersionId {
+        self.mapping_version_id
+    }
+    pub fn policy_version_id(&self) -> RetargetPolicyVersionId {
+        self.policy_version_id
+    }
+    pub fn notes(&self) -> &[String] {
+        &self.notes
+    }
 
-    fn decision_critical_fail(&self) -> bool {
-        matches!(self.mapping_completeness, Judgment::Fail)
-            || matches!(self.structural_compatibility, Judgment::Fail)
-            || matches!(self.method_eligibility, Judgment::Fail)
-            || matches!(self.motion_suitability, Judgment::Fail)
-            || matches!(self.result_acceptability, Judgment::Fail)
+    /// Deterministic CompatibilitySummary. UI must not choose this value.
+    ///
+    /// Preflight-decision-critical: mapping_completeness, structural_compatibility,
+    /// method_eligibility, motion_suitability.
+    /// Post-execution-only: result_acceptability (UNKNOWN does not block Ready).
+    pub fn derive_summary(
+        mapping_completeness: Judgment,
+        structural_compatibility: Judgment,
+        method_eligibility: Judgment,
+        motion_suitability: Judgment,
+        result_acceptability: Judgment,
+    ) -> CompatibilitySummary {
+        let preflight = [
+            mapping_completeness,
+            structural_compatibility,
+            method_eligibility,
+            motion_suitability,
+        ];
+        if preflight.iter().any(|j| matches!(j, Judgment::Fail))
+            || matches!(result_acceptability, Judgment::Fail)
+        {
+            return CompatibilitySummary::Unsupported;
+        }
+        if matches!(mapping_completeness, Judgment::Unknown) {
+            return CompatibilitySummary::MappingConfirmationRequired;
+        }
+        if preflight.iter().any(|j| matches!(j, Judgment::PassWithWarnings))
+            || matches!(structural_compatibility, Judgment::Unknown)
+            || matches!(method_eligibility, Judgment::Unknown)
+            || matches!(motion_suitability, Judgment::Unknown)
+        {
+            CompatibilitySummary::ReadyWithWarnings
+        } else {
+            CompatibilitySummary::Ready
+        }
+    }
+
+    /// Construct from dimension judgments. Summary is derived, not caller-chosen.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_preflight(
+        character_version_id: CharacterAssetVersionId,
+        motion_version_id: MotionAssetVersionId,
+        mapping_version_id: BoneMappingVersionId,
+        policy_version_id: RetargetPolicyVersionId,
+        mapping_completeness: Judgment,
+        structural_compatibility: Judgment,
+        method_eligibility: Judgment,
+        motion_suitability: Judgment,
+        result_acceptability: Judgment,
+        notes: Vec<String>,
+    ) -> Result<Self, DomainError> {
+        let summary = Self::derive_summary(
+            mapping_completeness,
+            structural_compatibility,
+            method_eligibility,
+            motion_suitability,
+            result_acceptability,
+        );
+        Self::new(
+            character_version_id,
+            motion_version_id,
+            mapping_version_id,
+            policy_version_id,
+            mapping_completeness,
+            structural_compatibility,
+            method_eligibility,
+            motion_suitability,
+            result_acceptability,
+            summary,
+            notes,
+        )
     }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
         expect_record_type(self.record_type, RecordType::CompatibilityResult)?;
-        if self.summary == CompatibilitySummary::Ready && self.decision_critical_fail() {
+        let expected = Self::derive_summary(
+            self.mapping_completeness,
+            self.structural_compatibility,
+            self.method_eligibility,
+            self.motion_suitability,
+            self.result_acceptability,
+        );
+        if self.summary != expected {
             return Err(DomainError::new(
                 ErrorCode::CompatibilityContradiction,
-                "CompatibilitySummary::Ready cannot coexist with a decision-critical FAIL dimension",
-            ));
-        }
-        if self.summary == CompatibilitySummary::ReadyWithWarnings && self.decision_critical_fail() {
-            return Err(DomainError::new(
-                ErrorCode::CompatibilityContradiction,
-                "CompatibilitySummary::ReadyWithWarnings cannot coexist with a decision-critical FAIL dimension",
+                format!(
+                    "CompatibilitySummary must equal derive_summary(...); found {:?} expected {:?}",
+                    self.summary, expected
+                ),
             ));
         }
         for note in &self.notes {

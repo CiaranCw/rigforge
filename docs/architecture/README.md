@@ -75,8 +75,8 @@ cross-Skeleton Character + Motion pair, with guards. Derived Preview was
 validated by POC-PREVIEW-01R for one research Character / Motion / Derived
 Variant set (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Product
 implementation proceeds only under the currently authorized dedicated
-implementation stage. V1-3 is `COMPLETE / PASS / BASELINED`. Gate B is
-`PASS / CLOSED`. V1-4 is `READY / NOT STARTED`.
+implementation stage. V1-4 is `COMPLETE / PASS / BASELINED`. V1-5 is
+`READY / NOT STARTED`. Gate C is `NOT STARTED`.
 
 ## Decisions
 

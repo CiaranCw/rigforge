@@ -375,7 +375,7 @@ fn invalid_compatibility_summary_json_fails_ingress() {
         Judgment::Pass,
         Judgment::Pass,
         Judgment::Pass,
-        Judgment::Unknown,
+        Judgment::Pass,
         Judgment::Unknown,
         CompatibilitySummary::Ready,
         vec![],

@@ -74,6 +74,11 @@ impl Application {
             .list_assets(rigforge_domain::RecordType::DerivedVariant)
     }
 
+    pub fn list_mappings(&self) -> Result<Vec<AssetListItem>, AppError> {
+        self.catalog
+            .list_assets(rigforge_domain::RecordType::BoneMapping)
+    }
+
     pub fn load_logical_character(
         &self,
         id: &str,

@@ -117,10 +117,11 @@ fn seed_frozen(catalog: &mut SqliteCatalog) -> (JobSpec, BoneMappingVersionId, R
         character_version.id(),
         source_skeleton.id(),
         frozen_mapping_entries(),
-        MappingReviewProvenance::new(
+        MappingReviewProvenance::with_kind(
             true,
             Some("independent name and hierarchy review; frozen before worker execution".into()),
             vec!["Knight Foot parents to Bone; mapped as foot role".into()],
+            MappingReviewKind::Manual,
         )
         .unwrap(),
     )
@@ -354,7 +355,13 @@ fn production_path_two_clean_runs_and_missing_source_fail_closed() {
         character_version.id(),
         skeleton_id,
         frozen_mapping_entries(),
-        MappingReviewProvenance::new(true, Some("manual review".into()), vec![]).unwrap(),
+        MappingReviewProvenance::with_kind(
+            true,
+            Some("manual review".into()),
+            vec![],
+            MappingReviewKind::Manual,
+        )
+        .unwrap(),
     )
     .unwrap();
     mapping_version

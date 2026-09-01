@@ -110,10 +110,11 @@ pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
             mapping_entry("root", "Bone"),
             mapping_entry("pelvis", "Body"),
         ],
-        MappingReviewProvenance::new(
+        MappingReviewProvenance::with_kind(
             true,
             Some("manual review".to_string()),
             vec!["foot parent chain".to_string()],
+            MappingReviewKind::Manual,
         )
         .unwrap(),
     )
