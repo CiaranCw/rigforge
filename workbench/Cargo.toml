@@ -1,0 +1,17 @@
+[package]
+name = "rigforge_workbench"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+publish = false
+description = "V1-2 Workbench shell: egui/eframe Asset Browser surface. Not a Preview viewer."
+license = "UNLICENSED"
+
+[dependencies]
+eframe = "0.31.1"
+egui = "0.31.1"
+rigforge_app = { path = "../app" }
+
+[[bin]]
+name = "rigforge_workbench"
+path = "src/main.rs"

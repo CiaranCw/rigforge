@@ -20,5 +20,17 @@ desktop.ini
 # Local caches
 .cache/
 
-# V1-1 Domain build outputs
+# Rust workspace / crate build outputs
+/target/
 /domain/target/
+/app/target/
+/workbench/target/
+
+# Local catalog files created during development or tests
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# V1-2 review evidence is packaged outside git
+/review_evidence/

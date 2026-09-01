@@ -1,0 +1,8 @@
+[workspace]
+members = ["domain", "app", "workbench"]
+resolver = "2"
+
+# Compact V1-2 workspace:
+# - domain/ is the unchanged V1-1 Product Domain crate
+# - app/ is local catalog, persistence, orchestration, and application queries
+# - workbench/ is the selected GUI shell (egui/eframe), not a worker or Preview viewer

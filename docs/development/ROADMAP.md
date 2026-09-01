@@ -21,8 +21,9 @@ old original PoCs: PAUSED / REPLANNED
 IA-1: COMPLETE / PASS / CLOSED
 V1-1: COMPLETE / PASS / BASELINED
 Gate A: PASS / CLOSED
-V1-2: READY / NOT STARTED
-V1-3: NOT STARTED
+V1-2: COMPLETE / PASS / BASELINED
+V1-3: READY / NOT STARTED
+Gate B: NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -37,8 +38,12 @@ BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. W0-RS is
 **COMPLETE / PASS / BASELINED**. V1-1 is **COMPLETE / PASS / BASELINED**.
 Gate A is **PASS / CLOSED**. Core language is **Rust**
 ([ADR-0002](../architecture/decisions/ADR-0002-v1-core-language.md)
-**Accepted**). V1-2 is **READY / NOT STARTED**. Next is V1-2 — Local-first
-Asset Catalog, persistence, orchestration, and GUI implementation planning.
+**Accepted**). V1-2 is **COMPLETE / PASS / BASELINED**.
+V1-3 is **READY / NOT STARTED**. Gate B is **NOT STARTED**.
+Storage: SQLite **Accepted**
+([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
+GUI: egui/eframe **Accepted**
+([ADR-0004](../architecture/decisions/ADR-0004-v1-workbench-gui.md)).
 
 ## Immediate sequence
 
@@ -56,12 +61,12 @@ Gate A
 PASS / CLOSED
         ↓
 V1-2
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
 Local-first Asset Catalog, persistence, orchestration,
-and GUI implementation planning
+and Workbench GUI shell
         ↓
 V1-3
-NOT STARTED
+READY / NOT STARTED
 Pinned isolated Blender worker integration
         ↓
 V1-4
@@ -130,8 +135,9 @@ later V1 hardening. See [../research/poc/README.md](../research/poc/README.md).
 ## Future V1 implementation
 
 V1-1 is **COMPLETE / PASS / BASELINED**. Gate A is **PASS / CLOSED**.
-V1-2 is **READY / NOT STARTED**. Names are planning labels, not frozen
-lifecycle IDs.
+V1-2 is **COMPLETE / PASS / BASELINED**. V1-3 is **READY / NOT STARTED**.
+Gate B is **NOT STARTED**. Names are planning labels, not frozen lifecycle
+IDs.
 
 | Stage | Purpose |
 | --- | --- |
@@ -146,7 +152,7 @@ lifecycle IDs.
 
 ## Independent gates
 
-Routine V1-2 work uses the Main Agent workflow. Do not add an independent
+Routine V1-3 work uses the Main Agent workflow. Do not add an independent
 audit after V1-2.
 
 Next fixed independent Gate:
@@ -157,6 +163,15 @@ after V1-2 + V1-3
 Purpose: Runtime Foundation Audit
 Model: GPT-5.6 Sol High
 ```
+
+## Current next step
+
+```text
+V1-3 —
+Pinned isolated Blender worker integration.
+```
+
+Do not start V1-3 until that stage is explicitly authorized.
 
 ## Historical planned phases (superseded as the active plan)
 

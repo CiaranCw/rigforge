@@ -1,8 +1,9 @@
 # Architecture
 
-Current V1 architecture principles. Implementation language, GUI stack,
-serialization format, package layout, viewer library, and database are not
-frozen.
+Current V1 architecture principles. Core language is **Rust** (ADR-0002).
+Local catalog storage is **SQLite / rusqlite bundled** (ADR-0003). Workbench
+GUI is **egui/eframe** (ADR-0004). Preview viewer library and Preview payload
+format remain OPEN (V1-6). Serialization format is not frozen.
 
 Decision: [ADR-0001](decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Blender worker: [V1_BLENDER_BACKED_ARCHITECTURE.md](V1_BLENDER_BACKED_ARCHITECTURE.md).
@@ -72,8 +73,8 @@ This placement was validated by POC-BLENDER-E2E-01 for one real
 cross-Skeleton Character + Motion pair, with guards. Derived Preview was
 validated by POC-PREVIEW-01R for one research Character / Motion / Derived
 Variant set (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Product
-implementation remains unauthorized until W0-RS and IA-1 complete the
-remaining required gates.
+implementation proceeds only under the currently authorized dedicated
+implementation stage. V1-3 is `READY / NOT STARTED`.
 
 ## Decisions
 

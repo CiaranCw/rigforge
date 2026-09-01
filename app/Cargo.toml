@@ -1,0 +1,22 @@
+[package]
+name = "rigforge_app"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+publish = false
+description = "V1-2 local Asset Catalog, persistence, orchestration, and application queries"
+license = "UNLICENSED"
+
+[dependencies]
+rigforge_domain = { path = "../domain" }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+uuid = { version = "1.26.0", features = ["v7", "serde"] }
+
+[dev-dependencies]
+sha2 = "0.10.9"
+
+[lib]
+name = "rigforge_app"
+path = "src/lib.rs"

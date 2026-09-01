@@ -12,17 +12,18 @@ W0-RS COMPLETE / PASS / BASELINED
 IA-1 COMPLETE / PASS / CLOSED
 V1-1 COMPLETE / PASS / BASELINED
 Gate A PASS / CLOSED
-V1-2 READY / NOT STARTED
-V1-3 NOT STARTED
+V1-2 COMPLETE / PASS / BASELINED
+V1-3 READY / NOT STARTED
+Gate B NOT STARTED
 ```
 
-W0 research gates are closed. V1-1 Gate A is closed.
+W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
 
 Do not begin arbitrary Product implementation.
 
 Execute V1 work only under the currently authorized dedicated implementation
-stage. V1-2 is `READY / NOT STARTED`; do not start V1-2 until that stage is
-explicitly authorized.
+stage. V1-3 is `READY / NOT STARTED`. Do not start V1-3 until that stage is
+explicitly authorized. Do not add an independent audit after V1-2.
 
 ## Source of Truth
 
@@ -48,8 +49,8 @@ product/architecture/roadmap files are current project truth.
 1. Do not treat a third-party format as product authority.
 2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, ADR-0001, validated by POC-BLENDER-E2E-01). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
 3. Core language is **Rust** (ADR-0002 **Accepted** at V1-1 Gate A). Do not reopen Rust vs C++ vs Python. POC-CORE-01 remains `INCONCLUSIVE` historical evidence, not silent C++ selection.
-4. Do not lock a GUI framework before its owner stage. GUI framework remains OPEN / NOT SELECTED. Earliest owner: V1-2 planning. Rust Core does not select a GUI.
-5. The Domain crate lives at `domain/`. Catalog, persistence, orchestration, and GUI belong to V1-2. Do not start V1-2 until that dedicated stage is authorized.
+4. GUI framework is **Accepted: egui/eframe** ([ADR-0004](docs/architecture/decisions/ADR-0004-v1-workbench-gui.md), Accepted at V1-2 focused review). This selection does not choose a Preview viewer or payload (V1-6). Rust Core does not imply a Rust GUI; the GUI decision is independent.
+5. The Domain crate lives at `domain/`. Catalog, persistence, and orchestration live at `app/`. The Workbench shell lives at `workbench/`. Do not grow a Blender worker tree until V1-3 is authorized.
 6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R). Neither is product authority, permanently final, a viewer/payload selection, or coverage of all Characters/Motions.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
@@ -102,15 +103,20 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-V1-2 —
-Local-first Asset Catalog, persistence, orchestration,
-and GUI implementation planning.
+V1-3 —
+Pinned isolated Blender worker integration.
 ```
 
-Do not execute V1-2 until that stage is explicitly authorized.
+Do not execute V1-3 until that stage is explicitly authorized.
 
-GUI remains OPEN. Do not infer GUI from Core or from research harness
-technology.
+GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
+SQLite / rusqlite bundled** (ADR-0003). Do not infer Preview viewer/payload
+from the GUI crate.
+
+V1-2 contracts:
+[docs/development/V1_2_IMPLEMENTATION_PLAN.md](docs/development/V1_2_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_2_CATALOG_CONTRACT.md](docs/development/V1_2_CATALOG_CONTRACT.md),
+[docs/development/V1_2_ORCHESTRATION_CONTRACT.md](docs/development/V1_2_ORCHESTRATION_CONTRACT.md).
 
 V1-1 contracts:
 [docs/development/V1_1_IMPLEMENTATION_PLAN.md](docs/development/V1_1_IMPLEMENTATION_PLAN.md),
