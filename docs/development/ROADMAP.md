@@ -19,8 +19,10 @@ Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 W0-RS: COMPLETE / PASS / BASELINED
 old original PoCs: PAUSED / REPLANNED
 IA-1: COMPLETE / PASS / CLOSED
-V1 implementation: AUTHORIZED / NOT STARTED
-V1-1: READY / NOT STARTED
+V1-1: COMPLETE / PASS / BASELINED
+Gate A: PASS / CLOSED
+V1-2: READY / NOT STARTED
+V1-3: NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -32,9 +34,11 @@ BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. W0-RS is
 **COMPLETE / PASS / CLOSED**:
 [independent audit](../research/audits/IA_1_INDEPENDENT_AUDIT.md) and
 [external review](../research/audits/IA_1_EXTERNAL_REVIEW.md). W0 is
-**COMPLETE / PASS / BASELINED**. V1 implementation is **AUTHORIZED / NOT
-STARTED**. Do not begin arbitrary product implementation. Next is **V1-1**
-(`READY / NOT STARTED`). Execute only under a dedicated V1-1 prompt.
+**COMPLETE / PASS / BASELINED**. V1-1 is **COMPLETE / PASS / BASELINED**.
+Gate A is **PASS / CLOSED**. Core language is **Rust**
+([ADR-0002](../architecture/decisions/ADR-0002-v1-core-language.md)
+**Accepted**). V1-2 is **READY / NOT STARTED**. Next is V1-2 — Local-first
+Asset Catalog, persistence, orchestration, and GUI implementation planning.
 
 ## Immediate sequence
 
@@ -46,12 +50,18 @@ IA-1
 COMPLETE / PASS / CLOSED
         ↓
 V1-1
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
+        ↓
+Gate A
+PASS / CLOSED
         ↓
 V1-2
-Local-first Asset Catalog and job orchestration
+READY / NOT STARTED
+Local-first Asset Catalog, persistence, orchestration,
+and GUI implementation planning
         ↓
 V1-3
+NOT STARTED
 Pinned isolated Blender worker integration
         ↓
 V1-4
@@ -119,10 +129,9 @@ later V1 hardening. See [../research/poc/README.md](../research/poc/README.md).
 
 ## Future V1 implementation
 
-V1 implementation is **AUTHORIZED / NOT STARTED**. Execute only under the
-currently authorized dedicated implementation stage. Current authorized
-next stage is V1-1 (`READY / NOT STARTED`). Names are planning labels, not
-frozen lifecycle IDs.
+V1-1 is **COMPLETE / PASS / BASELINED**. Gate A is **PASS / CLOSED**.
+V1-2 is **READY / NOT STARTED**. Names are planning labels, not frozen
+lifecycle IDs.
 
 | Stage | Purpose |
 | --- | --- |
@@ -134,6 +143,20 @@ frozen lifecycle IDs.
 | V1-6 | Engine-independent Preview |
 | V1-7 | Optional artifact/output support (only if a concrete consumer requires it) |
 | V1-8 | Real-asset hardening and release audit |
+
+## Independent gates
+
+Routine V1-2 work uses the Main Agent workflow. Do not add an independent
+audit after V1-2.
+
+Next fixed independent Gate:
+
+```text
+Gate B:
+after V1-2 + V1-3
+Purpose: Runtime Foundation Audit
+Model: GPT-5.6 Sol High
+```
 
 ## Historical planned phases (superseded as the active plan)
 

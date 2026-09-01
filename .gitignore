@@ -19,3 +19,6 @@ desktop.ini
 
 # Local caches
 .cache/
+
+# V1-1 Domain build outputs
+/domain/target/

@@ -10,16 +10,19 @@ RigForge — Character Animation Asset Workbench
 W0 COMPLETE / PASS / BASELINED
 W0-RS COMPLETE / PASS / BASELINED
 IA-1 COMPLETE / PASS / CLOSED
-V1 implementation AUTHORIZED / NOT STARTED
-V1-1 READY / NOT STARTED
+V1-1 COMPLETE / PASS / BASELINED
+Gate A PASS / CLOSED
+V1-2 READY / NOT STARTED
+V1-3 NOT STARTED
 ```
 
-W0 research gates are closed.
+W0 research gates are closed. V1-1 Gate A is closed.
 
 Do not begin arbitrary Product implementation.
 
 Execute V1 work only under the currently authorized dedicated implementation
-stage. Current authorized next stage is V1-1.
+stage. V1-2 is `READY / NOT STARTED`; do not start V1-2 until that stage is
+explicitly authorized.
 
 ## Source of Truth
 
@@ -35,6 +38,7 @@ stage. Current authorized next stage is V1-1.
 Read the relevant file. Do not treat chat history as the contract.
 
 Current V1 decision: [docs/architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md](docs/architecture/decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
+Core language: [docs/architecture/decisions/ADR-0002-v1-core-language.md](docs/architecture/decisions/ADR-0002-v1-core-language.md) (`Accepted` at V1-1 Gate A). RigForge V1 Core is **Rust**.
 
 W0-SR proposal files remain historical rationale/review evidence. Canonical
 product/architecture/roadmap files are current project truth.
@@ -43,9 +47,9 @@ product/architecture/roadmap files are current project truth.
 
 1. Do not treat a third-party format as product authority.
 2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, ADR-0001, validated by POC-BLENDER-E2E-01). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
-3. Do not lock an implementation language before its owner stage. Core language remains OPEN / NOT SELECTED (POC-CORE-01 `INCONCLUSIVE`). Earliest owner: V1-1 planning.
-4. Do not lock a GUI framework before its owner stage. GUI framework remains OPEN / NOT SELECTED. Earliest owner: V1-2 planning.
-5. Do not create a production source-tree architecture that depends on Core-language or GUI choices before those owner stages decide them.
+3. Core language is **Rust** (ADR-0002 **Accepted** at V1-1 Gate A). Do not reopen Rust vs C++ vs Python. POC-CORE-01 remains `INCONCLUSIVE` historical evidence, not silent C++ selection.
+4. Do not lock a GUI framework before its owner stage. GUI framework remains OPEN / NOT SELECTED. Earliest owner: V1-2 planning. Rust Core does not select a GUI.
+5. The Domain crate lives at `domain/`. Catalog, persistence, orchestration, and GUI belong to V1-2. Do not start V1-2 until that dedicated stage is authorized.
 6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R). Neither is product authority, permanently final, a viewer/payload selection, or coverage of all Characters/Motions.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
@@ -98,24 +102,44 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-V1-1 —
-Thin Workflow Domain / version / provenance contract and implementation
-planning.
-
-Execute only under a dedicated V1-1 prompt.
+V1-2 —
+Local-first Asset Catalog, persistence, orchestration,
+and GUI implementation planning.
 ```
 
-Core language remains NOT SELECTED. GUI remains OPEN. Do not infer either
-from research harness technology.
+Do not execute V1-2 until that stage is explicitly authorized.
 
-Independent audit / review model:
-`GPT-5.6 Sol High`
+GUI remains OPEN. Do not infer GUI from Core or from research harness
+technology.
 
-Do not use GPT-5.6 Sol 1M High for routine project audit/review work unless the
-user explicitly re-authorizes it.
+V1-1 contracts:
+[docs/development/V1_1_IMPLEMENTATION_PLAN.md](docs/development/V1_1_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_1_DOMAIN_CONTRACT.md](docs/development/V1_1_DOMAIN_CONTRACT.md),
+[docs/development/V1_1_VERSION_PROVENANCE.md](docs/development/V1_1_VERSION_PROVENANCE.md).
 
-Do not substitute another audit model unless the user explicitly changes this
-rule.
+## Agent models
+
+```text
+Main Agent default:
+Cursor + Grok 4.6 Extra High
+
+Use GPT-5.6 Sol High as Main Agent only when task complexity genuinely
+requires the stronger model.
+
+Independent Gate Agent:
+GPT-5.6 Sol High
+```
+
+Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
+
+Do not add an independent audit after V1-2. Next fixed independent Gate:
+
+```text
+Gate B:
+after V1-2 + V1-3
+Purpose: Runtime Foundation Audit
+Model: GPT-5.6 Sol High
+```
 
 IA-1 closeout:
 [docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),

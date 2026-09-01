@@ -1,0 +1,17 @@
+[package]
+name = "rigforge_domain"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+publish = false
+description = "V1-1 thin Workflow Domain: identity, version, provenance, and validation"
+license = "UNLICENSED"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+uuid = { version = "1.26.0", features = ["v7", "serde"] }
+
+[lib]
+name = "rigforge_domain"
+path = "src/lib.rs"

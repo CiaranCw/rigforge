@@ -50,8 +50,10 @@ POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 W0-RS: COMPLETE / PASS / BASELINED
 IA-1: COMPLETE / PASS / CLOSED
-V1 implementation: AUTHORIZED / NOT STARTED
-V1-1: READY / NOT STARTED
+V1-1: COMPLETE / PASS / BASELINED
+Gate A: PASS / CLOSED
+V1-2: READY / NOT STARTED
+V1-3: NOT STARTED
 ```
 
 W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
@@ -63,10 +65,11 @@ BASELINED**: [synthesis](docs/research/decisions/W0_REVISED_SYNTHESIS.md) and
 **COMPLETE / PASS / CLOSED**:
 [independent audit](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md) and
 [external review](docs/research/audits/IA_1_EXTERNAL_REVIEW.md). W0 is
-**COMPLETE / PASS / BASELINED**. V1 implementation is **AUTHORIZED / NOT
-STARTED**. Do not begin arbitrary product implementation. Next is **V1-1**
-— Thin Workflow Domain / version / provenance contract and implementation
-planning. Execute only under a dedicated V1-1 prompt.
+**COMPLETE / PASS / BASELINED**. V1-1 is **COMPLETE / PASS / BASELINED**.
+Gate A is **PASS / CLOSED**. Core language is **Rust**
+([ADR-0002](docs/architecture/decisions/ADR-0002-v1-core-language.md)
+**Accepted**). V1-2 is **READY / NOT STARTED**. Next is V1-2 — Local-first
+Asset Catalog, persistence, orchestration, and GUI implementation planning.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
 evidence. They are not a mandate to ship a heavy Canonical runtime or a
@@ -91,7 +94,7 @@ Policy, jobs, Derived Variant, QC meaning, Preview orchestration, and
 versioning. Blender is a **hidden execution backend**, validated by
 POC-BLENDER-E2E-01 with guards. It is not product authority. V1 work
 proceeds only under the currently authorized dedicated implementation
-stage. Current authorized next stage is V1-1.
+stage. Current authorized next stage is V1-2 planning (`READY / NOT STARTED`).
 
 ## Roadmap
 

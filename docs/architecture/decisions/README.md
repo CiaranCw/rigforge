@@ -9,6 +9,7 @@ Suggested name: `ADR-XXXX-<short-title>.md`
 | ID | Title | Status |
 | --- | --- | --- |
 | [ADR-0001](ADR-0001-v1-scope-and-blender-backed-execution.md) | V1 scope and Blender-backed execution | Accepted |
+| [ADR-0002](ADR-0002-v1-core-language.md) | V1 Core language | Accepted |
 
 ## Format
 
