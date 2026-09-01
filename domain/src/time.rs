@@ -27,6 +27,26 @@ impl TimePoint {
         self.kind
     }
 
+    pub fn value_num(&self) -> i64 {
+        self.value_num
+    }
+
+    pub fn value_den(&self) -> u32 {
+        self.value_den
+    }
+
+    pub fn is_integral_frame(&self) -> bool {
+        self.kind == TimeKind::Frames && self.value_den == 1
+    }
+
+    pub fn fps_num(&self) -> Option<u32> {
+        self.fps_num
+    }
+
+    pub fn fps_den(&self) -> Option<u32> {
+        self.fps_den
+    }
+
     pub fn seconds(num: i64, den: u32) -> Result<Self, DomainError> {
         let point = Self {
             kind: TimeKind::Seconds,
@@ -40,10 +60,21 @@ impl TimePoint {
     }
 
     pub fn frames(frame: i64, fps_num: u32, fps_den: u32) -> Result<Self, DomainError> {
+        Self::frames_rational(frame, 1, fps_num, fps_den)
+    }
+
+    /// Exact rational frame provenance. V1-3 Blender execution accepts only
+    /// `value_den == 1`; non-integral points remain valid Domain records.
+    pub fn frames_rational(
+        value_num: i64,
+        value_den: u32,
+        fps_num: u32,
+        fps_den: u32,
+    ) -> Result<Self, DomainError> {
         let point = Self {
             kind: TimeKind::Frames,
-            value_num: frame,
-            value_den: 1,
+            value_num,
+            value_den,
             fps_num: Some(fps_num),
             fps_den: Some(fps_den),
         };
@@ -123,6 +154,10 @@ impl TimeDomainProvenance {
         Ok(value)
     }
 
+    pub fn clip_identity_evidence(&self) -> &str {
+        &self.clip_identity_evidence
+    }
+
     pub fn start(&self) -> &TimePoint {
         &self.start
     }
@@ -160,24 +195,21 @@ impl TimeDomainProvenance {
                         "frame-based start and end must share the same fps rational",
                     ));
                 }
-                if self.start.value_num > self.end.value_num {
-                    return Err(DomainError::new(
-                        ErrorCode::TimeDomainInvalid,
-                        "time-domain start must be <= end",
-                    ));
-                }
             }
-            TimeKind::Seconds => {
-                let (sn, sd) = self.start.as_i128_num_den();
-                let (en, ed) = self.end.as_i128_num_den();
-                if sn * ed > en * sd {
-                    return Err(DomainError::new(
-                        ErrorCode::TimeDomainInvalid,
-                        "time-domain start must be <= end",
-                    ));
-                }
-            }
+            TimeKind::Seconds => {}
+        }
+        if Self::rational_greater(&self.start, &self.end) {
+            return Err(DomainError::new(
+                ErrorCode::TimeDomainInvalid,
+                "time-domain start must be <= end",
+            ));
         }
         Ok(())
+    }
+
+    fn rational_greater(left: &TimePoint, right: &TimePoint) -> bool {
+        let (ln, ld) = left.as_i128_num_den();
+        let (rn, rd) = right.as_i128_num_den();
+        ln * rd > rn * ld
     }
 }

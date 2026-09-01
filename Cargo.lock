@@ -2546,6 +2546,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rigforge_blender_worker"
+version = "0.1.0"
+dependencies = [
+ "rigforge_app",
+ "rigforge_domain",
+ "serde",
+ "serde_json",
+ "sha2",
+ "uuid",
+]
+
+[[package]]
 name = "rigforge_domain"
 version = "0.1.0"
 dependencies = [

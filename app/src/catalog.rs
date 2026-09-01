@@ -6,17 +6,20 @@ use rigforge_domain::{
     ingest_validated, to_json, validate_job_inputs, BoneMappingVersion, CharacterAsset,
     CharacterAssetVersion, DerivedVariant, DomainRecord, JobSpec, MotionAsset, MotionAssetVersion,
     PersistenceArtifact, PersistenceVerification, ProductVersionStore, RecordType,
-    RetargetPolicyVersion, SourceSkeletonReference, Validated, WorkerResult,
+    RetargetPolicyVersion, SourceArtifactEvidence, SourceSkeletonReference, Validated, WorkerResult,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction};
 use serde_json::Value;
 use std::fmt;
 
+use crate::dispatch::{filesystem_location, ResolvedSourceInput, WorkerDispatchRequest};
 use crate::error::AppError;
 use crate::migrate::{apply_migrations, now_ms};
 use crate::orchestration::{JobRun, JobRunState};
 use crate::queries::AssetListItem;
-use crate::worker::{DispatchReceipt, WorkerPort};
+use crate::worker::{
+    DispatchReceipt, TerminalOutcome, WorkerCompletionPort, WorkerFailureClass, WorkerPort,
+};
 
 pub use crate::migrate::{DB_SCHEMA_NAME, DB_SCHEMA_VERSION};
 
@@ -415,7 +418,14 @@ impl SqliteCatalog {
             self.fail_dispatch(run_id, &err.to_string())?;
             return Err(err);
         }
-        match worker.dispatch(&spec, &run.attempt_id) {
+        let request = match self.assemble_worker_dispatch_request(&run) {
+            Ok(request) => request,
+            Err(err) => {
+                self.fail_dispatch(run_id, &err.to_string())?;
+                return Err(err);
+            }
+        };
+        match worker.dispatch_resolved(&request) {
             Ok(receipt) => {
                 if receipt.attempt_id != run.attempt_id {
                     let reason =
@@ -444,6 +454,10 @@ impl SqliteCatalog {
         }
     }
 
+    /// Test and recovery helper. Ordinary runtime completion is [`Self::collect`].
+    /// Successful completion still requires exact JobSpec, attempt_id, and
+    /// worker_execution_ref correlation, and one WorkerResult ID cannot
+    /// authorize two JobRuns.
     pub fn complete_success(
         &mut self,
         run_id: &str,
@@ -452,16 +466,7 @@ impl SqliteCatalog {
         self.in_transaction(|tx| {
             let run = load_job_run_on(&*tx, run_id)?;
             let result = worker_result.as_record();
-            if result.job_spec_id().canonical() != run.job_spec_id {
-                return Err(AppError::Orchestration(
-                    "WorkerResult.job_spec_id must equal JobRun.job_spec_id".into(),
-                ));
-            }
-            if !result.worker_success() {
-                return Err(AppError::Orchestration(
-                    "SUCCEEDED requires WorkerResult.worker_success == true".into(),
-                ));
-            }
+            bind_successful_worker_result(&*tx, &run, result)?;
             put_validated_on(&*tx, worker_result)?;
             transition_on(
                 &*tx,
@@ -478,10 +483,137 @@ impl SqliteCatalog {
         run_id: &str,
         reason: impl Into<String>,
     ) -> Result<JobRun, AppError> {
+        self.complete_terminal_failure(run_id, reason, None)
+    }
+
+    /// Persist a launched terminal failure. Optional failed `WorkerResult` is
+    /// stored before the JobRun becomes FAILED. Launch failures omit it.
+    pub fn complete_terminal_failure(
+        &mut self,
+        run_id: &str,
+        reason: impl Into<String>,
+        worker_result: Option<&Validated<WorkerResult>>,
+    ) -> Result<JobRun, AppError> {
         let reason = reason.into();
         self.in_transaction(|tx| {
-            transition_on(&*tx, run_id, JobRunState::Failed, Some(reason), None)
+            let run = load_job_run_on(&*tx, run_id)?;
+            if let Some(result) = worker_result {
+                match bind_failed_worker_result(&*tx, &run, result.as_record()) {
+                    Ok(()) => {
+                        put_validated_on(&*tx, result)?;
+                        transition_on(
+                            &*tx,
+                            run_id,
+                            JobRunState::Failed,
+                            Some(reason),
+                            Some(result.as_record().id().canonical()),
+                        )
+                    }
+                    Err(reject) => {
+                        let combined = format!(
+                            "{reason}; evidence rejected: {reject}"
+                        );
+                        transition_on(
+                            &*tx,
+                            run_id,
+                            JobRunState::Failed,
+                            Some(combined),
+                            None,
+                        )
+                    }
+                }
+            } else {
+                transition_on(&*tx, run_id, JobRunState::Failed, Some(reason), None)
+            }
         })
+    }
+
+    /// Collect a launched attempt and write the matching terminal JobRun state.
+    pub fn collect<C: WorkerCompletionPort + ?Sized>(
+        &mut self,
+        run_id: &str,
+        worker: &mut C,
+    ) -> Result<(JobRun, TerminalOutcome), AppError> {
+        let run = self.load_job_run(run_id)?;
+        if run.state != JobRunState::Running {
+            return Err(AppError::InvalidTransition {
+                from: run.state,
+                to: JobRunState::Succeeded,
+            });
+        }
+        let worker_execution_ref = run.worker_execution_ref.clone().ok_or_else(|| {
+            AppError::Orchestration("RUNNING JobRun is missing worker_execution_ref".into())
+        })?;
+        let receipt = DispatchReceipt {
+            attempt_id: run.attempt_id.clone(),
+            worker_execution_ref,
+        };
+        let outcome = match worker.collect(&receipt) {
+            Ok(outcome) => outcome,
+            Err(err) => {
+                let reason = format!("terminal collection failure: {err}");
+                self.complete_terminal_failure(run_id, reason.clone(), None)?;
+                return Ok((
+                    self.load_job_run(run_id)?,
+                    TerminalOutcome::Failed {
+                        class: WorkerFailureClass::Other("collection_failure".into()),
+                        reason,
+                        worker_result: None,
+                    },
+                ));
+            }
+        };
+        match &outcome {
+            TerminalOutcome::Success(result) => {
+                if let Err(err) = self.complete_success(run_id, result) {
+                    let reason = format!("terminal collection failure: {err}");
+                    self.complete_terminal_failure(run_id, reason, None)?;
+                    return Err(err);
+                }
+            }
+            TerminalOutcome::Failed {
+                reason,
+                worker_result,
+                ..
+            } => {
+                self.complete_terminal_failure(run_id, reason.clone(), worker_result.as_ref())?;
+            }
+        }
+        Ok((self.load_job_run(run_id)?, outcome))
+    }
+
+    /// Exact Catalog projection used at dispatch. Never resolves latest/current.
+    pub fn assemble_worker_dispatch_request(
+        &self,
+        run: &JobRun,
+    ) -> Result<WorkerDispatchRequest, AppError> {
+        let spec = self.load_job_spec(&run.job_spec_id)?;
+        let record = spec.as_record();
+        let character = self.load_character_version(&record.character_version_id().canonical())?;
+        let motion = self.load_motion_version(&record.motion_version_id().canonical())?;
+        let mapping = self.load_mapping_version(&record.mapping_version_id().canonical())?;
+        let policy = self.load_policy_version(&record.policy_version_id().canonical())?;
+        let skeleton = self.load_source_skeleton(&record.source_skeleton_ref_id().canonical())?;
+        let character_src = resolve_source_input(
+            self,
+            &record.character_version_id().canonical(),
+            character.as_record().source(),
+        )?;
+        let motion_src = resolve_source_input(
+            self,
+            &record.motion_version_id().canonical(),
+            motion.as_record().source(),
+        )?;
+        WorkerDispatchRequest::new(
+            spec,
+            run.attempt_id.clone(),
+            character_src,
+            motion_src,
+            motion.as_record(),
+            skeleton.as_record().id().canonical(),
+            mapping,
+            policy,
+        )
     }
 
     pub fn transition(&mut self, run_id: &str, next: JobRunState) -> Result<JobRun, AppError> {
@@ -562,6 +694,90 @@ fn validate_job_graph_on(conn: &Connection, spec: &JobSpec) -> Result<(), AppErr
         spec,
     )
     .map_err(AppError::from)
+}
+
+fn bind_successful_worker_result(
+    conn: &Connection,
+    run: &JobRun,
+    result: &WorkerResult,
+) -> Result<(), AppError> {
+    if result.job_spec_id().canonical() != run.job_spec_id {
+        return Err(AppError::Orchestration(
+            "WorkerResult.job_spec_id must equal JobRun.job_spec_id".into(),
+        ));
+    }
+    if result.attempt_id() != run.attempt_id {
+        return Err(AppError::Orchestration(
+            "WorkerResult.attempt_id must equal JobRun.attempt_id".into(),
+        ));
+    }
+    let expected_ref = run.worker_execution_ref.as_deref().ok_or_else(|| {
+        AppError::Orchestration("RUNNING JobRun is missing worker_execution_ref".into())
+    })?;
+    if result.worker_execution_ref() != expected_ref {
+        return Err(AppError::Orchestration(
+            "WorkerResult.worker_execution_ref must equal JobRun.worker_execution_ref".into(),
+        ));
+    }
+    if !result.worker_success() {
+        return Err(AppError::Orchestration(
+            "SUCCEEDED requires WorkerResult.worker_success == true".into(),
+        ));
+    }
+    reject_worker_result_reuse(conn, &run.run_id, &result.id().canonical())
+}
+
+fn bind_failed_worker_result(
+    conn: &Connection,
+    run: &JobRun,
+    result: &WorkerResult,
+) -> Result<(), String> {
+    if result.job_spec_id().canonical() != run.job_spec_id {
+        return Err("WorkerResult.job_spec_id must equal JobRun.job_spec_id".into());
+    }
+    if result.attempt_id() != run.attempt_id {
+        return Err("WorkerResult.attempt_id must equal JobRun.attempt_id".into());
+    }
+    match run.worker_execution_ref.as_deref() {
+        Some(expected) if result.worker_execution_ref() == expected => {}
+        Some(_) => {
+            return Err(
+                "WorkerResult.worker_execution_ref must equal JobRun.worker_execution_ref".into(),
+            )
+        }
+        None => return Err("RUNNING JobRun is missing worker_execution_ref".into()),
+    }
+    if result.worker_success() {
+        return Err(
+            "terminal failure cannot persist worker_success == true; use complete_success".into(),
+        );
+    }
+    if let Err(err) = reject_worker_result_reuse(conn, &run.run_id, &result.id().canonical()) {
+        return Err(err.to_string());
+    }
+    Ok(())
+}
+
+fn reject_worker_result_reuse(
+    conn: &Connection,
+    run_id: &str,
+    worker_result_id: &str,
+) -> Result<(), AppError> {
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT run_id FROM job_runs WHERE worker_result_id = ?1 LIMIT 1",
+            [worker_result_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(other) = existing {
+        if other != run_id {
+            return Err(AppError::Orchestration(format!(
+                "WorkerResult {worker_result_id} already authorizes JobRun {other} and cannot complete {run_id}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn put_validated_on<T: DomainRecord>(
@@ -850,4 +1066,25 @@ fn record_type_key(record_type: RecordType) -> String {
 
 fn json_string(value: &Value, key: &str) -> Option<String> {
     value.get(key)?.as_str().map(str::to_owned)
+}
+
+fn resolve_source_input(
+    catalog: &SqliteCatalog,
+    version_id: &str,
+    evidence: &SourceArtifactEvidence,
+) -> Result<ResolvedSourceInput, AppError> {
+    let mut location = filesystem_location(evidence)?;
+    let overlays = catalog.list_payload_locations(version_id)?;
+    if let Some(last) = overlays.last() {
+        if last.location_kind == "filesystem_path_evidence" && !last.location_value.trim().is_empty()
+        {
+            location = PathBuf::from(&last.location_value);
+        }
+    }
+    Ok(ResolvedSourceInput {
+        version_id: version_id.to_string(),
+        location,
+        digest_sha256: evidence.digest().sha256().to_string(),
+        size_bytes: evidence.size_bytes(),
+    })
 }

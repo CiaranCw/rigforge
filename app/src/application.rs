@@ -10,10 +10,11 @@ use rigforge_domain::{
 };
 
 use crate::catalog::SqliteCatalog;
+use crate::dispatch::WorkerDispatchRequest;
 use crate::error::AppError;
 use crate::orchestration::JobRun;
 use crate::queries::AssetListItem;
-use crate::worker::{DispatchReceipt, WorkerPort};
+use crate::worker::{DispatchReceipt, TerminalOutcome, WorkerCompletionPort, WorkerPort};
 
 pub struct Application {
     pub catalog: SqliteCatalog,
@@ -156,5 +157,39 @@ impl Application {
         worker: &mut W,
     ) -> Result<(JobRun, DispatchReceipt), AppError> {
         self.catalog.dispatch(run_id, worker)
+    }
+
+    pub fn collect<C: WorkerCompletionPort + ?Sized>(
+        &mut self,
+        run_id: &str,
+        worker: &mut C,
+    ) -> Result<(JobRun, TerminalOutcome), AppError> {
+        self.catalog.collect(run_id, worker)
+    }
+
+    /// Test and recovery helper. Ordinary runtime completion is [`Self::collect`].
+    /// Successful completion still requires exact JobSpec, attempt_id, and
+    /// worker_execution_ref correlation.
+    pub fn complete_success(
+        &mut self,
+        run_id: &str,
+        worker_result: &rigforge_domain::Validated<rigforge_domain::WorkerResult>,
+    ) -> Result<JobRun, AppError> {
+        self.catalog.complete_success(run_id, worker_result)
+    }
+
+    pub fn complete_failure(
+        &mut self,
+        run_id: &str,
+        reason: impl Into<String>,
+    ) -> Result<JobRun, AppError> {
+        self.catalog.complete_failure(run_id, reason)
+    }
+
+    pub fn assemble_worker_dispatch_request(
+        &self,
+        run: &JobRun,
+    ) -> Result<WorkerDispatchRequest, AppError> {
+        self.catalog.assemble_worker_dispatch_request(run)
     }
 }

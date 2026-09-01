@@ -46,6 +46,21 @@ impl BackendExecutionContext {
     pub fn id(&self) -> BackendExecutionContextId {
         self.id
     }
+    pub fn backend_kind(&self) -> &str {
+        &self.backend_kind
+    }
+    pub fn backend_version(&self) -> &str {
+        &self.backend_version
+    }
+    pub fn build(&self) -> &str {
+        &self.build
+    }
+    pub fn adapter_version(&self) -> &str {
+        &self.adapter_version
+    }
+    pub fn execution_policy_version(&self) -> &str {
+        &self.execution_policy_version
+    }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;

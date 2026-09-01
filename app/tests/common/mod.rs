@@ -18,6 +18,10 @@ pub fn source(name: &str, n: u8) -> SourceArtifactEvidence {
     .unwrap()
 }
 
+pub fn fixture_correlation() -> ExecutionCorrelation {
+    ExecutionCorrelation::new("app-fixture-attempt", "app-fixture-worker-ref").unwrap()
+}
+
 pub fn time_domain() -> TimeDomainProvenance {
     TimeDomainProvenance::new(
         "clip:walk-carry",
@@ -73,6 +77,10 @@ pub struct Graph {
 }
 
 pub fn unpublished_graph() -> Graph {
+    unpublished_graph_with_time(time_domain())
+}
+
+pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
     let backend = backend();
     let mut character = CharacterAsset::new("Knight").unwrap();
     let mut character_version =
@@ -86,7 +94,7 @@ pub fn unpublished_graph() -> Graph {
         motion.id(),
         "Walk Carry v1",
         source_skeleton.id(),
-        time_domain(),
+        time,
         source("motion", 2),
     )
     .unwrap();
@@ -138,7 +146,13 @@ pub fn unpublished_graph() -> Graph {
     .unwrap();
 
     let persist_digest = digest(3);
-    let worker = WorkerResult::new(job.id(), backend.clone(), true, "completed")
+    let worker = WorkerResult::new(
+        job.id(),
+        backend.clone(),
+        true,
+        "completed",
+        fixture_correlation(),
+    )
         .unwrap()
         .with_staged_artifact_digests(vec![persist_digest.clone()])
         .unwrap();
@@ -254,14 +268,58 @@ pub fn certify<T: DomainRecord>(record: T) -> Validated<T> {
     Validated::certify(record).unwrap()
 }
 
-pub fn successful_worker_for(job: &JobSpec) -> Validated<WorkerResult> {
-    certify(
-        WorkerResult::new(job.id(), backend(), true, "completed").unwrap(),
+pub fn matching_success(job: &JobSpec, run: &rigforge_app::JobRun) -> Validated<WorkerResult> {
+    successful_worker_for(
+        job,
+        &run.attempt_id,
+        run.worker_execution_ref
+            .as_deref()
+            .expect("RUNNING JobRun must have worker_execution_ref"),
     )
 }
 
-pub fn failed_worker_for(job: &JobSpec) -> Validated<WorkerResult> {
-    certify(WorkerResult::new(job.id(), backend(), false, "failed").unwrap())
+pub fn matching_failure(job: &JobSpec, run: &rigforge_app::JobRun) -> Validated<WorkerResult> {
+    failed_worker_for(
+        job,
+        &run.attempt_id,
+        run.worker_execution_ref
+            .as_deref()
+            .expect("RUNNING JobRun must have worker_execution_ref"),
+    )
+}
+
+pub fn successful_worker_for(
+    job: &JobSpec,
+    attempt_id: &str,
+    worker_execution_ref: &str,
+) -> Validated<WorkerResult> {
+    certify(
+        WorkerResult::new(
+            job.id(),
+            backend(),
+            true,
+            "completed",
+            ExecutionCorrelation::new(attempt_id, worker_execution_ref).unwrap(),
+        )
+        .unwrap(),
+    )
+}
+
+pub fn failed_worker_for(
+    job: &JobSpec,
+    attempt_id: &str,
+    worker_execution_ref: &str,
+) -> Validated<WorkerResult> {
+    certify(
+        WorkerResult::new(
+            job.id(),
+            backend(),
+            false,
+            "failed",
+            ExecutionCorrelation::new(attempt_id, worker_execution_ref).unwrap(),
+        )
+        .unwrap(),
+    )
 }
 
 pub fn mutate_json_field<T: DomainRecord>(record: &T, field: &str, value: serde_json::Value) -> Validated<T> {

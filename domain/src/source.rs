@@ -42,6 +42,14 @@ impl SourceArtifactEvidence {
         &self.digest
     }
 
+    pub fn location(&self) -> &LocationEvidence {
+        &self.location
+    }
+
+    pub fn size_bytes(&self) -> u64 {
+        self.size_bytes
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         self.location.validate()?;
         self.digest.validate()?;

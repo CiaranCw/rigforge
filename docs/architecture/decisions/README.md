@@ -12,6 +12,7 @@ Suggested name: `ADR-XXXX-<short-title>.md`
 | [ADR-0002](ADR-0002-v1-core-language.md) | V1 Core language | Accepted |
 | [ADR-0003](ADR-0003-v1-local-catalog-storage.md) | V1 local catalog storage | Accepted |
 | [ADR-0004](ADR-0004-v1-workbench-gui.md) | V1 Workbench GUI | Accepted |
+| [ADR-0005](ADR-0005-v1-blender-worker-process.md) | V1 production Blender worker process | Accepted |
 
 ## Format
 

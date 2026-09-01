@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use common::{certify, successful_worker_for, unpublished_graph, valid_graph};
+use common::{certify, matching_success, unpublished_graph, valid_graph};
 use rigforge_app::{FakeWorker, JobRunState, SqliteCatalog};
 
 fn temp_db() -> PathBuf {
@@ -66,7 +66,10 @@ fn reopen_preserves_catalog_and_job_state() {
         catalog.mark_dispatchable(&run.run_id).unwrap();
         let mut worker = FakeWorker::default();
         catalog.dispatch(&run.run_id, &mut worker).unwrap();
-        catalog.complete_success(&run.run_id, &successful_worker_for(&g.job)).unwrap();
+        let running = catalog.load_job_run(&run.run_id).unwrap();
+        catalog
+            .complete_success(&run.run_id, &matching_success(&g.job, &running))
+            .unwrap();
         run_id = run.run_id;
     }
 

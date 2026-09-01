@@ -122,6 +122,22 @@ impl BoneMappingEntry {
         }
         Ok(())
     }
+
+    pub fn source(&self) -> &JointRef {
+        &self.source
+    }
+
+    pub fn target(&self) -> &JointRef {
+        &self.target
+    }
+
+    pub fn participation(&self) -> JointParticipation {
+        self.participation
+    }
+
+    pub fn role_profile(&self) -> Option<&str> {
+        self.role_profile.as_deref()
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -724,6 +740,21 @@ impl RetargetPolicyVersion {
     }
     pub fn ik_policy(&self) -> IkPolicy {
         self.ik_policy
+    }
+    pub fn quaternion_interpolation_policy(&self) -> QuaternionInterpolationPolicy {
+        self.quaternion_interpolation_policy
+    }
+    pub fn time_bake_policy(&self) -> TimeBakePolicy {
+        self.time_bake_policy
+    }
+    pub fn rest_alignment_policy(&self) -> RestAlignmentPolicy {
+        self.rest_alignment_policy
+    }
+    pub fn missing_channel_policy(&self) -> &MissingChannelPolicy {
+        &self.missing_channel_policy
+    }
+    pub fn scale_policy(&self) -> ScalePolicy {
+        self.scale_policy
     }
     pub fn contract_status(&self) -> PolicyContractStatus {
         self.contract_status

@@ -13,17 +13,20 @@ IA-1 COMPLETE / PASS / CLOSED
 V1-1 COMPLETE / PASS / BASELINED
 Gate A PASS / CLOSED
 V1-2 COMPLETE / PASS / BASELINED
-V1-3 READY / NOT STARTED
-Gate B NOT STARTED
+V1-3 COMPLETE / PASS / BASELINED
+Gate B PASS / CLOSED
+V1-4 READY / NOT STARTED
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
+V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
+V1-4 is `READY / NOT STARTED`.
 
 Do not begin arbitrary Product implementation.
 
 Execute V1 work only under the currently authorized dedicated implementation
-stage. V1-3 is `READY / NOT STARTED`. Do not start V1-3 until that stage is
-explicitly authorized. Do not add an independent audit after V1-2.
+stage. V1-4 is `READY / NOT STARTED`. Do not start V1-4 until that stage is
+explicitly authorized. Do not open another independent Gate for V1-3.
 
 ## Source of Truth
 
@@ -50,7 +53,7 @@ product/architecture/roadmap files are current project truth.
 2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, ADR-0001, validated by POC-BLENDER-E2E-01). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
 3. Core language is **Rust** (ADR-0002 **Accepted** at V1-1 Gate A). Do not reopen Rust vs C++ vs Python. POC-CORE-01 remains `INCONCLUSIVE` historical evidence, not silent C++ selection.
 4. GUI framework is **Accepted: egui/eframe** ([ADR-0004](docs/architecture/decisions/ADR-0004-v1-workbench-gui.md), Accepted at V1-2 focused review). This selection does not choose a Preview viewer or payload (V1-6). Rust Core does not imply a Rust GUI; the GUI decision is independent.
-5. The Domain crate lives at `domain/`. Catalog, persistence, and orchestration live at `app/`. The Workbench shell lives at `workbench/`. Do not grow a Blender worker tree until V1-3 is authorized.
+5. The Domain crate lives at `domain/`. Catalog, persistence, and orchestration live at `app/`. The Workbench shell lives at `workbench/`. The pinned Blender adapter lives at `blender-worker/`. Do not add further DCC backends in V1.
 6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R). Neither is product authority, permanently final, a viewer/payload selection, or coverage of all Characters/Motions.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
@@ -103,15 +106,21 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-V1-3 —
-Pinned isolated Blender worker integration.
+V1-4 —
+Skeleton Mapping and Compatibility workflow.
 ```
 
-Do not execute V1-3 until that stage is explicitly authorized.
+Do not execute V1-4 until that stage is explicitly authorized.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
-SQLite / rusqlite bundled** (ADR-0003). Do not infer Preview viewer/payload
-from the GUI crate.
+SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is
+**Accepted** (ADR-0005, V1-3 / Gate B Runtime Foundation Audit). Do not infer
+Preview viewer/payload from the GUI crate.
+
+V1-3 contracts:
+[docs/development/V1_3_IMPLEMENTATION_PLAN.md](docs/development/V1_3_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_3_WORKER_CONTRACT.md](docs/development/V1_3_WORKER_CONTRACT.md),
+[docs/development/V1_3_PROCESS_LIFECYCLE.md](docs/development/V1_3_PROCESS_LIFECYCLE.md).
 
 V1-2 contracts:
 [docs/development/V1_2_IMPLEMENTATION_PLAN.md](docs/development/V1_2_IMPLEMENTATION_PLAN.md),
@@ -138,14 +147,8 @@ GPT-5.6 Sol High
 
 Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
 
-Do not add an independent audit after V1-2. Next fixed independent Gate:
-
-```text
-Gate B:
-after V1-2 + V1-3
-Purpose: Runtime Foundation Audit
-Model: GPT-5.6 Sol High
-```
+Gate B is **PASS / CLOSED**. Do not open Gate B2 or another independent
+review of V1-3. Next authorized implementation stage is V1-4.
 
 IA-1 closeout:
 [docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),

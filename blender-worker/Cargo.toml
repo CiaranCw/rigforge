@@ -1,0 +1,24 @@
+[package]
+name = "rigforge_blender_worker"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+publish = false
+description = "V1-3 pinned isolated Blender worker adapter. Not Product Domain and not GUI."
+license = "UNLICENSED"
+
+[dependencies]
+rigforge_app = { path = "../app" }
+rigforge_domain = { path = "../domain" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.10.9"
+uuid = { version = "1.26.0", features = ["v7", "serde"] }
+
+[[bin]]
+name = "rigforge_fake_blender"
+path = "src/bin/fake_blender.rs"
+
+[lib]
+name = "rigforge_blender_worker"
+path = "src/lib.rs"

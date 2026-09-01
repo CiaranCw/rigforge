@@ -22,8 +22,9 @@ IA-1: COMPLETE / PASS / CLOSED
 V1-1: COMPLETE / PASS / BASELINED
 Gate A: PASS / CLOSED
 V1-2: COMPLETE / PASS / BASELINED
-V1-3: READY / NOT STARTED
-Gate B: NOT STARTED
+V1-3: COMPLETE / PASS / BASELINED
+Gate B: PASS / CLOSED
+V1-4: READY / NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -39,11 +40,14 @@ BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. W0-RS is
 Gate A is **PASS / CLOSED**. Core language is **Rust**
 ([ADR-0002](../architecture/decisions/ADR-0002-v1-core-language.md)
 **Accepted**). V1-2 is **COMPLETE / PASS / BASELINED**.
-V1-3 is **READY / NOT STARTED**. Gate B is **NOT STARTED**.
+V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
+V1-4 is **READY / NOT STARTED**.
 Storage: SQLite **Accepted**
 ([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
 GUI: egui/eframe **Accepted**
 ([ADR-0004](../architecture/decisions/ADR-0004-v1-workbench-gui.md)).
+Blender worker process: **Accepted**
+([ADR-0005](../architecture/decisions/ADR-0005-v1-blender-worker-process.md)).
 
 ## Immediate sequence
 
@@ -66,10 +70,12 @@ Local-first Asset Catalog, persistence, orchestration,
 and Workbench GUI shell
         ↓
 V1-3
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
 Pinned isolated Blender worker integration
+Gate B PASS / CLOSED
         ↓
 V1-4
+READY / NOT STARTED
 Skeleton Mapping and compatibility workflow
         ↓
 V1-5
@@ -135,9 +141,9 @@ later V1 hardening. See [../research/poc/README.md](../research/poc/README.md).
 ## Future V1 implementation
 
 V1-1 is **COMPLETE / PASS / BASELINED**. Gate A is **PASS / CLOSED**.
-V1-2 is **COMPLETE / PASS / BASELINED**. V1-3 is **READY / NOT STARTED**.
-Gate B is **NOT STARTED**. Names are planning labels, not frozen lifecycle
-IDs.
+V1-2 is **COMPLETE / PASS / BASELINED**. V1-3 is **COMPLETE / PASS / BASELINED**.
+Gate B is **PASS / CLOSED**. V1-4 is **READY / NOT STARTED**. Names are planning
+labels, not frozen lifecycle IDs.
 
 | Stage | Purpose |
 | --- | --- |
@@ -152,26 +158,42 @@ IDs.
 
 ## Independent gates
 
-Routine V1-3 work uses the Main Agent workflow. Do not add an independent
-audit after V1-2.
-
-Next fixed independent Gate:
+Routine V1-4 work uses the Main Agent workflow. Gate B is **PASS / CLOSED**.
+Do not open Gate B2, a post-Gate-B independent review, or a V1-3 release
+audit.
 
 ```text
 Gate B:
-after V1-2 + V1-3
+PASS / CLOSED
 Purpose: Runtime Foundation Audit
 Model: GPT-5.6 Sol High
+```
+
+## Deferred Gate B observations
+
+These are accepted future hardening, not unresolved V1-3 blockers. They
+belong primarily to later hardening / V1-8 unless a later owner stage needs
+a narrower piece:
+
+```text
+spawn-to-RUNNING application crash recovery
+release worker-script/package integrity
+process reattachment
+worker pool
+running cancellation / retry policy
+release packaging / installer
+GPL/legal release qualification
+broader asset coverage
 ```
 
 ## Current next step
 
 ```text
-V1-3 —
-Pinned isolated Blender worker integration.
+V1-4 —
+Skeleton Mapping and Compatibility workflow.
 ```
 
-Do not start V1-3 until that stage is explicitly authorized.
+Do not execute V1-4 until that stage is explicitly authorized.
 
 ## Historical planned phases (superseded as the active plan)
 

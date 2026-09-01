@@ -85,7 +85,13 @@ fn source_skeleton_historical_reference_is_immutable() {
 #[test]
 fn worker_result_job_spec_mismatch_fails_publication() {
     let mut g = unpublished_graph();
-    g.worker = WorkerResult::new(JobSpecId::generate(), g.backend.clone(), true, "completed")
+    g.worker = WorkerResult::new(
+        JobSpecId::generate(),
+        g.backend.clone(),
+        true,
+        "completed",
+        fixture_correlation(),
+    )
         .unwrap()
         .with_staged_artifact_digests(vec![g.persistence.digest().clone()])
         .unwrap();
@@ -203,7 +209,7 @@ fn qc_policy_mismatch_fails_publication() {
 fn backend_execution_context_mismatch_fails_publication() {
     let mut g = unpublished_graph();
     let other = backend();
-    g.worker = WorkerResult::new(g.job.id(), other, true, "completed")
+    g.worker = WorkerResult::new(g.job.id(), other, true, "completed", fixture_correlation())
         .unwrap()
         .with_staged_artifact_digests(vec![g.persistence.digest().clone()])
         .unwrap();
@@ -513,7 +519,7 @@ fn unknown_serialized_policy_mode_rejected() {
 #[test]
 fn worker_diagnostics_may_mention_backend_observations() {
     let g = unpublished_graph();
-    let worker = WorkerResult::new(g.job.id(), g.backend.clone(), true, "completed")
+    let worker = WorkerResult::new(g.job.id(), g.backend.clone(), true, "completed", fixture_correlation())
         .unwrap()
         .with_diagnostics(vec![
             "Blender bpy error on object Knight_Armature".to_string(),
@@ -604,6 +610,57 @@ fn old_verification_does_not_apply_to_regenerated_bytes() {
 fn zero_fps_is_rejected() {
     let err = TimePoint::frames(1, 0, 1).unwrap_err();
     assert_eq!(err.code, ErrorCode::TimeDomainInvalid);
+}
+
+#[test]
+fn validated_json_accepts_rational_frame_provenance() {
+    let g = valid_graph();
+    let mut value = serde_json::to_value(&g.motion_version).unwrap();
+    value["time"]["start"]["value_num"] = serde_json::json!(3);
+    value["time"]["start"]["value_den"] = serde_json::json!(2);
+    value["time"]["end"]["value_num"] = serde_json::json!(4);
+    value["time"]["end"]["value_den"] = serde_json::json!(1);
+    let loaded = from_json_validated::<MotionAssetVersion>(&value.to_string()).unwrap();
+    let start = loaded.time().start();
+    assert_eq!(start.value_num(), 3);
+    assert_eq!(start.value_den(), 2);
+    assert!(!start.is_integral_frame());
+    assert_eq!(loaded.time().end().value_den(), 1);
+}
+
+#[test]
+fn rational_frame_start_end_order_is_exact() {
+    let start = TimePoint::frames_rational(3, 2, 30, 1).unwrap();
+    let end = TimePoint::frames_rational(2, 1, 30, 1).unwrap();
+    TimeDomainProvenance::new(
+        "clip:rational-order",
+        start.clone(),
+        end.clone(),
+        SamplingInterpretation::BakedEverySourceFrame,
+        "declared",
+    )
+    .unwrap();
+    let err = TimeDomainProvenance::new(
+        "clip:rational-order",
+        end,
+        start,
+        SamplingInterpretation::BakedEverySourceFrame,
+        "declared",
+    )
+    .unwrap_err();
+    assert_eq!(err.code, ErrorCode::TimeDomainInvalid);
+}
+
+#[test]
+fn worker_result_json_requires_execution_correlation() {
+    let g = unpublished_graph();
+    let mut value = serde_json::to_value(&g.worker).unwrap();
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove("execution_correlation");
+    let err = from_json_validated::<WorkerResult>(&value.to_string()).unwrap_err();
+    assert_eq!(err.code, ErrorCode::InvalidJson);
 }
 
 #[test]

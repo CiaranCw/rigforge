@@ -16,6 +16,10 @@ pub fn source(name: &str, n: u8) -> SourceArtifactEvidence {
     .unwrap()
 }
 
+pub fn fixture_correlation() -> ExecutionCorrelation {
+    ExecutionCorrelation::new("domain-fixture-attempt", "domain-fixture-worker-ref").unwrap()
+}
+
 pub fn time_domain() -> TimeDomainProvenance {
     TimeDomainProvenance::new(
         "clip:walk-carry",
@@ -197,7 +201,13 @@ pub fn unpublished_graph() -> Graph {
     .unwrap();
 
     let persist_digest = digest(3);
-    let worker = WorkerResult::new(job.id(), backend.clone(), true, "completed")
+    let worker = WorkerResult::new(
+        job.id(),
+        backend.clone(),
+        true,
+        "completed",
+        fixture_correlation(),
+    )
         .unwrap()
         .with_staged_artifact_digests(vec![persist_digest.clone()])
         .unwrap();

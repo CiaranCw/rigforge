@@ -123,6 +123,9 @@ impl CharacterAssetVersion {
     pub fn schema_version(&self) -> u32 {
         self.schema_version
     }
+    pub fn source(&self) -> &SourceArtifactEvidence {
+        &self.source
+    }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
@@ -255,6 +258,12 @@ impl MotionAssetVersion {
     }
     pub fn source_skeleton_ref_id(&self) -> SourceSkeletonReferenceId {
         self.source_skeleton_ref_id
+    }
+    pub fn source(&self) -> &SourceArtifactEvidence {
+        &self.source
+    }
+    pub fn time(&self) -> &TimeDomainProvenance {
+        &self.time
     }
 
     pub fn validate(&self) -> Result<(), DomainError> {

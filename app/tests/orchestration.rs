@@ -1,8 +1,14 @@
 mod common;
 
-use common::{certify, failed_worker_for, successful_worker_for, unpublished_graph};
-use rigforge_app::{AppError, FakeWorker, JobRunState, SqliteCatalog, WorkerPort};
-use rigforge_domain::{to_json, JobSpec, Validated};
+use common::{
+    certify, failed_worker_for, matching_failure, matching_success, successful_worker_for,
+    unpublished_graph,
+};
+use rigforge_app::{
+    AppError, DispatchReceipt, FakeWorker, JobRunState, SqliteCatalog, TerminalOutcome,
+    WorkerCompletionPort, WorkerFailureClass, WorkerPort,
+};
+use rigforge_domain::{to_json, ExecutionCorrelation, JobSpec, Validated, WorkerResult};
 
 fn seeded_spec(catalog: &mut SqliteCatalog) -> Validated<JobSpec> {
     let g = unpublished_graph();
@@ -73,10 +79,15 @@ fn valid_transitions_and_fake_worker_receive_exact_spec() {
         worker.last_motion_version_id.as_deref(),
         Some(motion_id.as_str())
     );
-    assert_eq!(receipt.worker_execution_ref, "fake-worker:v1-2");
+    assert_eq!(
+        receipt.worker_execution_ref,
+        format!("fake-worker:{}", receipt.attempt_id)
+    );
     let after = catalog.load_job_spec(&spec_id).unwrap();
     assert_eq!(to_json(&after).unwrap(), spec_json_before);
-    catalog.complete_success(&run.run_id, &successful_worker_for(after.as_record())).unwrap();
+    catalog
+        .complete_success(&run.run_id, &matching_success(after.as_record(), &running))
+        .unwrap();
     let done = catalog.load_job_run(&run.run_id).unwrap();
     assert_eq!(done.state, JobRunState::Succeeded);
     let after_success = catalog.load_job_spec(&spec_id).unwrap();
@@ -209,7 +220,10 @@ fn worker_port_is_usable_without_blender() {
     let g = unpublished_graph();
     let spec = certify(g.job);
     let receipt = WorkerPort::dispatch(&mut worker, &spec, "attempt-from-orchestrator").unwrap();
-    assert_eq!(receipt.worker_execution_ref, "fake-worker:v1-2");
+    assert_eq!(
+        receipt.worker_execution_ref,
+        "fake-worker:attempt-from-orchestrator"
+    );
     assert_eq!(receipt.attempt_id, "attempt-from-orchestrator");
 }
 
@@ -217,8 +231,13 @@ fn worker_port_is_usable_without_blender() {
 fn mismatched_worker_result_job_spec_cannot_complete_success() {
     let mut catalog = SqliteCatalog::open_in_memory().unwrap();
     let (spec, run_id) = running_job(&mut catalog);
+    let run = catalog.load_job_run(&run_id).unwrap();
     let other = unpublished_graph();
-    let mismatched = successful_worker_for(&other.job);
+    let mismatched = successful_worker_for(
+        &other.job,
+        &run.attempt_id,
+        run.worker_execution_ref.as_deref().unwrap(),
+    );
     let err = catalog
         .complete_success(&run_id, &mismatched)
         .unwrap_err();
@@ -264,7 +283,8 @@ fn successful_run_requires_worker_result() {
 fn failed_worker_result_cannot_mark_succeeded() {
     let mut catalog = SqliteCatalog::open_in_memory().unwrap();
     let (spec, run_id) = running_job(&mut catalog);
-    let failed = failed_worker_for(spec.as_record());
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let failed = matching_failure(spec.as_record(), &run);
     let err = catalog.complete_success(&run_id, &failed).unwrap_err();
     match err {
         AppError::Orchestration(msg) => assert!(msg.contains("worker_success"), "{msg}"),
@@ -322,7 +342,8 @@ fn attempt_id_is_stable_across_dispatch() {
 fn success_transaction_stores_matching_worker_result_and_state_atomically() {
     let mut catalog = SqliteCatalog::open_in_memory().unwrap();
     let (spec, run_id) = running_job(&mut catalog);
-    let worker_result = successful_worker_for(spec.as_record());
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let worker_result = matching_success(spec.as_record(), &run);
     let worker_id = worker_result.as_record().id().canonical();
     let done = catalog.complete_success(&run_id, &worker_result).unwrap();
     assert_eq!(done.state, JobRunState::Succeeded);
@@ -330,4 +351,317 @@ fn success_transaction_stores_matching_worker_result_and_state_atomically() {
     let loaded = catalog.load_worker_result(&worker_id).unwrap();
     assert_eq!(loaded.as_record().job_spec_id(), spec.as_record().id());
     assert!(loaded.as_record().worker_success());
+}
+
+struct CollectErrWorker;
+
+impl WorkerCompletionPort for CollectErrWorker {
+    fn collect(
+        &mut self,
+        _receipt: &DispatchReceipt,
+    ) -> Result<TerminalOutcome, AppError> {
+        Err(AppError::Worker(
+            "injected terminal wait failure".into(),
+        ))
+    }
+}
+
+#[test]
+fn collection_failure_does_not_leave_running() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (_spec, run_id) = running_job(&mut catalog);
+    assert_eq!(
+        catalog.load_job_run(&run_id).unwrap().state,
+        JobRunState::Running
+    );
+    let (done, outcome) = catalog
+        .collect(&run_id, &mut CollectErrWorker)
+        .unwrap();
+    assert_eq!(done.state, JobRunState::Failed);
+    assert!(done.worker_result_id.is_none());
+    assert!(
+        done.failure_reason
+            .as_deref()
+            .unwrap_or("")
+            .contains("injected terminal wait failure"),
+        "{:?}",
+        done.failure_reason
+    );
+    match outcome {
+        TerminalOutcome::Failed {
+            worker_result,
+            reason,
+            ..
+        } => {
+            assert!(worker_result.is_none());
+            assert!(reason.contains("terminal collection failure"));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+struct FailedOutcomePort {
+    result: Option<Validated<WorkerResult>>,
+}
+
+impl WorkerCompletionPort for FailedOutcomePort {
+    fn collect(
+        &mut self,
+        _receipt: &DispatchReceipt,
+    ) -> Result<TerminalOutcome, AppError> {
+        Ok(TerminalOutcome::Failed {
+            class: WorkerFailureClass::StructuredWorkerFail,
+            reason: "injected terminal failure".into(),
+            worker_result: self.result.clone(),
+        })
+    }
+}
+
+fn assert_failed_without_result(catalog: &SqliteCatalog, run_id: &str, needle: &str) {
+    let run = catalog.load_job_run(run_id).unwrap();
+    assert_eq!(run.state, JobRunState::Failed);
+    assert!(run.worker_result_id.is_none());
+    let reason = run.failure_reason.as_deref().unwrap_or("");
+    assert!(reason.contains("injected terminal failure"), "{reason}");
+    assert!(reason.contains("evidence rejected"), "{reason}");
+    assert!(reason.contains(needle), "{reason}");
+}
+
+#[test]
+fn same_jobspec_different_attempt_cannot_reuse_worker_result() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let spec = seeded_spec(&mut catalog);
+    let a = catalog.enqueue_job(spec.clone()).unwrap();
+    let b = catalog.enqueue_job(spec.clone()).unwrap();
+    catalog.mark_dispatchable(&a.run_id).unwrap();
+    catalog.mark_dispatchable(&b.run_id).unwrap();
+    let mut worker = FakeWorker::default();
+    catalog.dispatch(&a.run_id, &mut worker).unwrap();
+    catalog.dispatch(&b.run_id, &mut worker).unwrap();
+    let run_a = catalog.load_job_run(&a.run_id).unwrap();
+    let run_b = catalog.load_job_run(&b.run_id).unwrap();
+    assert_ne!(run_a.attempt_id, run_b.attempt_id);
+    let result = matching_success(spec.as_record(), &run_a);
+    catalog.complete_success(&a.run_id, &result).unwrap();
+    let err = catalog.complete_success(&b.run_id, &result).unwrap_err();
+    match err {
+        AppError::Orchestration(msg) => {
+            assert!(
+                msg.contains("attempt_id") || msg.contains("already authorizes"),
+                "{msg}"
+            );
+        }
+        other => panic!("unexpected {other}"),
+    }
+    let still = catalog.load_job_run(&b.run_id).unwrap();
+    assert_eq!(still.state, JobRunState::Running);
+    assert!(still.worker_result_id.is_none());
+}
+
+#[test]
+fn wrong_attempt_worker_result_cannot_complete_success() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (spec, run_id) = running_job(&mut catalog);
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let wrong = successful_worker_for(
+        spec.as_record(),
+        "not-this-attempt",
+        run.worker_execution_ref.as_deref().unwrap(),
+    );
+    let err = catalog.complete_success(&run_id, &wrong).unwrap_err();
+    match err {
+        AppError::Orchestration(msg) => assert!(msg.contains("attempt_id"), "{msg}"),
+        other => panic!("unexpected {other}"),
+    }
+    assert_eq!(
+        catalog.load_job_run(&run_id).unwrap().state,
+        JobRunState::Running
+    );
+}
+
+#[test]
+fn wrong_execution_ref_worker_result_cannot_complete_success() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (spec, run_id) = running_job(&mut catalog);
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let wrong = successful_worker_for(spec.as_record(), &run.attempt_id, "not-this-ref");
+    let err = catalog.complete_success(&run_id, &wrong).unwrap_err();
+    match err {
+        AppError::Orchestration(msg) => {
+            assert!(msg.contains("worker_execution_ref"), "{msg}")
+        }
+        other => panic!("unexpected {other}"),
+    }
+    assert_eq!(
+        catalog.load_job_run(&run_id).unwrap().state,
+        JobRunState::Running
+    );
+}
+
+#[test]
+fn matching_attempt_worker_result_completes_success() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (spec, run_id) = running_job(&mut catalog);
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let result = matching_success(spec.as_record(), &run);
+    let rec = result.as_record();
+    assert_eq!(rec.job_spec_id().canonical(), run.job_spec_id);
+    assert_eq!(rec.attempt_id(), run.attempt_id);
+    assert_eq!(
+        rec.worker_execution_ref(),
+        run.worker_execution_ref.as_deref().unwrap()
+    );
+    assert!(rec.worker_success());
+    let done = catalog.complete_success(&run_id, &result).unwrap();
+    assert_eq!(done.state, JobRunState::Succeeded);
+    assert_eq!(
+        done.worker_result_id.as_deref(),
+        Some(rec.id().canonical().as_str())
+    );
+}
+
+#[test]
+fn one_worker_result_id_cannot_complete_two_runs() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let spec = seeded_spec(&mut catalog);
+    let a = catalog.enqueue_job(spec.clone()).unwrap();
+    let b = catalog.enqueue_job(spec.clone()).unwrap();
+    catalog.mark_dispatchable(&a.run_id).unwrap();
+    catalog.mark_dispatchable(&b.run_id).unwrap();
+    let mut worker = FakeWorker::default();
+    catalog.dispatch(&a.run_id, &mut worker).unwrap();
+    catalog.dispatch(&b.run_id, &mut worker).unwrap();
+    let run_a = catalog.load_job_run(&a.run_id).unwrap();
+    let result = matching_success(spec.as_record(), &run_a);
+    let worker_id = result.as_record().id().canonical();
+    catalog.complete_success(&a.run_id, &result).unwrap();
+    let err = catalog.complete_success(&b.run_id, &result).unwrap_err();
+    match err {
+        AppError::Orchestration(msg) => {
+            assert!(
+                msg.contains(&worker_id) || msg.contains("attempt_id") || msg.contains("already authorizes"),
+                "{msg}"
+            );
+        }
+        other => panic!("unexpected {other}"),
+    }
+    assert_eq!(
+        catalog.load_job_run(&b.run_id).unwrap().state,
+        JobRunState::Running
+    );
+    assert_eq!(
+        catalog
+            .load_job_run(&a.run_id)
+            .unwrap()
+            .worker_result_id
+            .as_deref(),
+        Some(worker_id.as_str())
+    );
+}
+
+#[test]
+fn failed_outcome_wrong_jobspec_marks_failed_without_result() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (_spec, run_id) = running_job(&mut catalog);
+    let other = unpublished_graph();
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let bad = failed_worker_for(
+        &other.job,
+        &run.attempt_id,
+        run.worker_execution_ref.as_deref().unwrap(),
+    );
+    let bad_id = bad.as_record().id().canonical();
+    let (done, _) = catalog
+        .collect(
+            &run_id,
+            &mut FailedOutcomePort {
+                result: Some(bad),
+            },
+        )
+        .unwrap();
+    assert_eq!(done.state, JobRunState::Failed);
+    assert!(done.worker_result_id.is_none());
+    match catalog.load_worker_result(&bad_id) {
+        Err(AppError::NotFound { .. }) => {}
+        other => panic!("rejected WorkerResult must not persist, got {other:?}"),
+    }
+    assert_failed_without_result(&catalog, &run_id, "job_spec_id");
+}
+
+#[test]
+fn failed_outcome_success_valued_result_marks_failed_without_result() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (spec, run_id) = running_job(&mut catalog);
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let bad = matching_success(spec.as_record(), &run);
+    let bad_id = bad.as_record().id().canonical();
+    catalog
+        .collect(
+            &run_id,
+            &mut FailedOutcomePort {
+                result: Some(bad),
+            },
+        )
+        .unwrap();
+    match catalog.load_worker_result(&bad_id) {
+        Err(AppError::NotFound { .. }) => {}
+        other => panic!("success-valued failure evidence must not persist, got {other:?}"),
+    }
+    assert_failed_without_result(&catalog, &run_id, "worker_success");
+}
+
+#[test]
+fn failed_outcome_wrong_attempt_marks_failed_without_result() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (spec, run_id) = running_job(&mut catalog);
+    let run = catalog.load_job_run(&run_id).unwrap();
+    let bad = failed_worker_for(
+        spec.as_record(),
+        "other-attempt",
+        run.worker_execution_ref.as_deref().unwrap(),
+    );
+    catalog
+        .collect(
+            &run_id,
+            &mut FailedOutcomePort {
+                result: Some(bad),
+            },
+        )
+        .unwrap();
+    assert_failed_without_result(&catalog, &run_id, "attempt_id");
+}
+
+#[test]
+fn rejected_failure_evidence_never_leaves_running() {
+    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+    let (_spec, run_id) = running_job(&mut catalog);
+    let other = unpublished_graph();
+    catalog
+        .collect(
+            &run_id,
+            &mut FailedOutcomePort {
+                result: Some(failed_worker_for(&other.job, "nope", "nope-ref")),
+            },
+        )
+        .unwrap();
+    assert_ne!(
+        catalog.load_job_run(&run_id).unwrap().state,
+        JobRunState::Running
+    );
+    assert_eq!(
+        catalog.load_job_run(&run_id).unwrap().state,
+        JobRunState::Failed
+    );
+}
+
+#[test]
+fn worker_result_execution_correlation_is_required_and_read_only() {
+    let g = unpublished_graph();
+    let corr = ExecutionCorrelation::new("attempt-a", "worker-ref-a").unwrap();
+    let result = WorkerResult::new(g.job.id(), g.backend.clone(), true, "completed", corr).unwrap();
+    assert_eq!(result.attempt_id(), "attempt-a");
+    assert_eq!(result.worker_execution_ref(), "worker-ref-a");
+    let json = to_json(&result).unwrap();
+    assert!(json.contains("execution_correlation"));
+    assert!(json.contains("attempt-a"));
 }

@@ -51,6 +51,14 @@ impl NamedMeasurement {
         require_nonempty(&self.value, "measurement value")?;
         Ok(())
     }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -124,6 +132,12 @@ impl JobSpec {
     pub fn requested_capabilities(&self) -> &[RequestedCapability] {
         &self.requested_capabilities
     }
+    pub fn determinism_context(&self) -> &str {
+        &self.determinism_context
+    }
+    pub fn isolation_limits(&self) -> &str {
+        &self.isolation_limits
+    }
 
     pub fn with_requested_capabilities(
         mut self,
@@ -152,6 +166,48 @@ impl DomainRecord for JobSpec {
     }
 }
 
+/// Runtime execution correlation. Not a Product ID.
+///
+/// Binds a WorkerResult to one orchestrator-owned attempt and one opaque
+/// worker execution reference. Two JobRuns must not share one successful
+/// WorkerResult.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionCorrelation {
+    attempt_id: String,
+    worker_execution_ref: String,
+}
+
+impl ExecutionCorrelation {
+    pub fn new(
+        attempt_id: impl Into<String>,
+        worker_execution_ref: impl Into<String>,
+    ) -> Result<Self, DomainError> {
+        let value = Self {
+            attempt_id: attempt_id.into(),
+            worker_execution_ref: worker_execution_ref.into(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn attempt_id(&self) -> &str {
+        &self.attempt_id
+    }
+
+    pub fn worker_execution_ref(&self) -> &str {
+        &self.worker_execution_ref
+    }
+
+    pub fn validate(&self) -> Result<(), DomainError> {
+        require_nonempty(&self.attempt_id, "attempt_id")?;
+        require_nonempty(&self.worker_execution_ref, "worker_execution_ref")?;
+        assert_backend_neutral_text(&self.attempt_id, "attempt_id")?;
+        assert_backend_neutral_text(&self.worker_execution_ref, "worker_execution_ref")?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerResult {
@@ -159,6 +215,7 @@ pub struct WorkerResult {
     record_type: RecordType,
     id: WorkerResultId,
     job_spec_id: JobSpecId,
+    execution_correlation: ExecutionCorrelation,
     execution: BackendExecutionContext,
     worker_success: bool,
     terminal_status: String,
@@ -180,12 +237,14 @@ impl WorkerResult {
         execution: BackendExecutionContext,
         worker_success: bool,
         terminal_status: impl Into<String>,
+        execution_correlation: ExecutionCorrelation,
     ) -> Result<Self, DomainError> {
         let value = Self {
             schema_version: SCHEMA_VERSION,
             record_type: RecordType::WorkerResult,
             id: WorkerResultId::generate(),
             job_spec_id,
+            execution_correlation,
             execution,
             worker_success,
             terminal_status: terminal_status.into(),
@@ -204,6 +263,15 @@ impl WorkerResult {
     }
     pub fn job_spec_id(&self) -> JobSpecId {
         self.job_spec_id
+    }
+    pub fn attempt_id(&self) -> &str {
+        self.execution_correlation.attempt_id()
+    }
+    pub fn worker_execution_ref(&self) -> &str {
+        self.execution_correlation.worker_execution_ref()
+    }
+    pub fn execution_correlation(&self) -> &ExecutionCorrelation {
+        &self.execution_correlation
     }
     pub fn execution(&self) -> &BackendExecutionContext {
         &self.execution
@@ -233,10 +301,37 @@ impl WorkerResult {
         Ok(self)
     }
 
+    pub fn terminal_status(&self) -> &str {
+        &self.terminal_status
+    }
+
+    pub fn measurements(&self) -> &[NamedMeasurement] {
+        &self.measurements
+    }
+
+    pub fn with_measurements(
+        mut self,
+        measurements: Vec<NamedMeasurement>,
+    ) -> Result<Self, DomainError> {
+        self.measurements = measurements;
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn with_applied_mapping_projection_note(
+        mut self,
+        note: impl Into<String>,
+    ) -> Result<Self, DomainError> {
+        self.applied_mapping_projection_note = Some(note.into());
+        self.validate()?;
+        Ok(self)
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
         expect_record_type(self.record_type, RecordType::WorkerResult)?;
         require_nonempty(&self.terminal_status, "terminal_status")?;
+        self.execution_correlation.validate()?;
         self.execution.validate()?;
         for m in &self.measurements {
             m.validate()?;
