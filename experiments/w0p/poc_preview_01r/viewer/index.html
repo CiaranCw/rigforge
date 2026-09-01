@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>POC-PREVIEW-01R research viewer</title>
+  <link rel="stylesheet" href="./app.css" />
+  <script type="module" src="/vendor/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <strong>POC-PREVIEW-01R</strong>
+    <span>research mock — not product UX — viewer library NOT SELECTED</span>
+  </header>
+  <main>
+    <section id="assets">
+      <h1>Assets</h1>
+      <div id="cards"></div>
+    </section>
+    <section id="preview">
+      <h1>Preview</h1>
+      <div id="preview-wrap">
+      <model-viewer
+        id="viewer"
+        camera-controls
+        touch-action="pan-y"
+        shadow-intensity="0.4"
+        exposure="1.1"
+        environment-image="neutral"
+        interaction-prompt="none"
+      ></model-viewer>
+      <div id="preview-block">No preview selected</div>
+      </div>
+      <div id="controls">
+        <button type="button" id="btn-play">Play</button>
+        <button type="button" id="btn-pause">Pause</button>
+        <button type="button" id="btn-restart">Restart</button>
+        <label>Seek <input id="seek" type="range" min="0" max="1000" value="0" /></label>
+        <button type="button" id="btn-reset-cam">Reset camera</button>
+      </div>
+    </section>
+    <section id="status">
+      <h1>Status</h1>
+      <pre id="status-pre">No selection.</pre>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

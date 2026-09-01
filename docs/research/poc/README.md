@@ -14,13 +14,14 @@ W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS
 POC-FBX-01: COMPLETE / PASS
 POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
-POC-PREVIEW-01R: READY / NOT STARTED
+POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 old original PoCs: PAUSED / REPLANNED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision impact:
-`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. Do not start product implementation.
-POC-PREVIEW-01R is next; execute it only under its dedicated PoC prompt.
+`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. POC-PREVIEW-01R is **COMPLETE / PASS /
+BASELINED**. Decision impact: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`.
+Do not start product implementation. Next is W0-RS.
 
 | ID | Class | Status |
 | --- | --- | --- |
@@ -28,7 +29,7 @@ POC-PREVIEW-01R is next; execute it only under its dedicated PoC prompt.
 | POC-CORE-01 | Mandatory (executed) | **COMPLETE / PASS** |
 | POC-FBX-01 | Mandatory (executed) | **COMPLETE / PASS** |
 | POC-BLENDER-E2E-01 | Mandatory (executed) | **COMPLETE / PASS / BASELINED** |
-| POC-PREVIEW-01R | Mandatory (after E2E) | **READY / NOT STARTED** |
+| POC-PREVIEW-01R | Mandatory (after E2E) | **COMPLETE / PASS / BASELINED** |
 | POC-GLTF-01 | original Mandatory | PAUSED / REPLANNED (`MERGE`) |
 | POC-RETARGET-01 | original Mandatory | REDEFINED / REPLANNED (`MERGE`) |
 | POC-PREVIEW-01 | original Mandatory | REDEFINED (`REDEFINE` → POC-PREVIEW-01R) |
@@ -76,7 +77,7 @@ Report: [POC_BLENDER_E2E_01.md](POC_BLENDER_E2E_01.md).
 POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
 Decision Impact: ACCEPT_BLENDER_BACKEND_WITH_GUARDS
 Core language: NOT SELECTED
-POC-PREVIEW-01R: READY / NOT STARTED
+POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 ```
 
 Harness: [experiments/w0p/poc_blender_e2e_01/](../../experiments/w0p/poc_blender_e2e_01/).
@@ -84,10 +85,23 @@ Harness: [experiments/w0p/poc_blender_e2e_01/](../../experiments/w0p/poc_blender
 This is a W0 research/architecture validation result. It does not authorize
 product implementation. Blender is not product authority.
 
-## Next: POC-PREVIEW-01R
+## POC-PREVIEW-01R (COMPLETE / PASS / BASELINED)
 
-POC-PREVIEW-01R tests engine-independent click-to-preview from derived
-Preview Artifacts. Execute only under its dedicated PoC prompt. This E2E
-only produced a candidate artifact; it does not freeze GLB or a viewer.
+Report: [POC_PREVIEW_01R.md](POC_PREVIEW_01R.md).
+
+```text
+POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
+Decision Impact: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
+viewer library: RESEARCH HARNESS ONLY / NOT SELECTED
+payload candidate: GLB (not a permanent format selection)
+W0-RS: READY / NOT STARTED
+```
+
+Harness: [experiments/w0p/poc_preview_01r/](../../experiments/w0p/poc_preview_01r/).
+
+This is a W0 research/architecture validation result. It does not authorize
+product implementation. It does not select a viewer library or Preview
+payload format. Next is W0-RS. Do not start IA-1 before W0-RS is externally
+accepted/baselined.
 
 Contract: [W0P_REPLAN_PROPOSAL.md](W0P_REPLAN_PROPOSAL.md).

@@ -37,8 +37,12 @@ remains accepted evidence: [../research/R1_RESEARCH_BASELINE.md](../research/R1_
   final. A future worker must implement the Job Spec without pretending to be Blender.
 - **Engine independence.** Unreal and Unity are not required for Preview,
   Transfer, or V1 identity. Direct engine integrations are out of V1.
-- **Preview is derived / non-authoritative.** Engine-independent click-to-preview
-  is mandatory. The viewer is not the Blender UI.
+- **Preview is derived / non-authoritative.** Engine-independent
+  click-to-preview is `VALIDATED_WITH_GUARDS` by POC-PREVIEW-01R without
+  Blender at view time, a game engine runtime, or a full RigForge animation
+  runtime. Product truth validates Preview; Preview never validates Product
+  truth. The viewer is not the Blender UI. Viewer library and Preview payload
+  format remain OPEN.
 - **Deterministic-first where practical.** Determinism claims require a
   declared context. Semantic consistency under that context is the V1 bar;
   byte-identical outputs are not assumed.
@@ -65,8 +69,10 @@ Blender Worker   (ACCEPT_BLENDER_BACKEND_WITH_GUARDS)
 ```
 
 This placement was validated by POC-BLENDER-E2E-01 for one real
-cross-Skeleton Character + Motion pair, with guards. Product implementation
-remains unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1 complete the
+cross-Skeleton Character + Motion pair, with guards. Derived Preview was
+validated by POC-PREVIEW-01R for one research Character / Motion / Derived
+Variant set (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Product
+implementation remains unauthorized until W0-RS and IA-1 complete the
 remaining required gates.
 
 ## Decisions

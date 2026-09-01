@@ -14,17 +14,19 @@ W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS / BASELINED
 POC-FBX-01: COMPLETE / PASS / BASELINED
 POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
-POC-PREVIEW-01R: READY / NOT STARTED
-W0-RS: NOT STARTED
+POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
+Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
+W0-RS: READY / NOT STARTED
 old original PoCs: PAUSED / REPLANNED
 IA-1: NOT STARTED
 product implementation: NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
-`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. Next is POC-PREVIEW-01R (`READY /
-NOT STARTED`). Execute it only under its dedicated PoC prompt. Do not begin
-product implementation.
+`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. POC-PREVIEW-01R is **COMPLETE / PASS /
+BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. Remaining
+pre-implementation sequence is W0-RS (`READY / NOT STARTED`), then IA-1.
+Do not begin product implementation.
 
 ## Immediate sequence
 
@@ -81,8 +83,8 @@ findings are not rewritten.
 | Stage | Purpose | Status |
 | --- | --- | --- |
 | POC-BLENDER-E2E-01 | Minimal architecture slice: hidden Blender worker, thin domain, real cross-Skeleton pair | COMPLETE / PASS / BASELINED |
-| POC-PREVIEW-01R | Click-to-preview from derived Preview Artifacts | READY / NOT STARTED |
-| W0-RS | Revised W0 synthesis | NOT STARTED |
+| POC-PREVIEW-01R | Click-to-preview from derived Preview Artifacts | COMPLETE / PASS / BASELINED |
+| W0-RS | Revised W0 synthesis | READY / NOT STARTED |
 | IA-1 | Independent architecture / research audit | NOT STARTED |
 
 POC-BLENDER-E2E-01 tests execution architecture only. Auto-Mapping quality,

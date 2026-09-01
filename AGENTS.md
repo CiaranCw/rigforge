@@ -9,6 +9,7 @@ RigForge — Character Animation Asset Workbench
 ```text
 W0 — ACTIVE; W0-SR COMPLETE / ADOPTED / BASELINED
 POC-BLENDER-E2E-01 COMPLETE / PASS / BASELINED
+POC-PREVIEW-01R COMPLETE / PASS / BASELINED
 ```
 
 Do not implement product code, workers, CLI, GUI, parsers, or CI in this phase.
@@ -38,7 +39,7 @@ product/architecture/roadmap files are current project truth.
 3. Do not lock an implementation language before research decision gates. Core language remains not selected (POC-CORE-01 `INCONCLUSIVE`).
 4. Do not lock a GUI framework before research decision gates.
 5. Do not create a complex source-tree layout before those gates.
-6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). That is not product authority, not permanently final, and not coverage of all Characters/Motions.
+6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R). Neither is product authority, permanently final, a viewer/payload selection, or coverage of all Characters/Motions.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
 9. A derived representation must not become product authority.
@@ -90,9 +91,11 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-POC-PREVIEW-01R — engine-independent click-to-preview validation.
-Execute only under its dedicated PoC prompt.
+W0-RS —
+Revised W0 Synthesis.
+Execute only under its dedicated synthesis prompt.
 Do not begin product implementation.
+Do not run IA-1 before W0-RS is externally accepted/baselined.
 ```
 
 Roadmap: [docs/development/ROADMAP.md](docs/development/ROADMAP.md).

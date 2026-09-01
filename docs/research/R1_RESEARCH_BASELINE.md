@@ -20,11 +20,15 @@ W0-SR         COMPLETE / ADOPTED / BASELINED
 POC-BLENDER-E2E-01  COMPLETE / PASS / BASELINED
               Decision Impact: ACCEPT_BLENDER_BACKEND_WITH_GUARDS
               Core language: NOT SELECTED
-POC-PREVIEW-01R     READY / NOT STARTED
+POC-PREVIEW-01R     COMPLETE / PASS / BASELINED
+              Decision Impact: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
+              viewer library: NOT SELECTED
+              payload candidate: GLB (not a permanent format selection)
 ```
 
 Reports: [poc/POC_CORE_01.md](poc/POC_CORE_01.md), [poc/POC_FBX_01.md](poc/POC_FBX_01.md),
-[poc/POC_BLENDER_E2E_01.md](poc/POC_BLENDER_E2E_01.md).
+[poc/POC_BLENDER_E2E_01.md](poc/POC_BLENDER_E2E_01.md),
+[poc/POC_PREVIEW_01R.md](poc/POC_PREVIEW_01R.md).
 
 V1 is a Character Animation Asset Workbench with a thin Workflow Domain and
 a Blender execution backend (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`). Historical
@@ -133,7 +137,7 @@ No product implementation has started. W0.4 recommendations under `docs/research
 
 W0.4 status: **COMPLETE**. W0 remains ACTIVE. Gate A / IA-1 are not claimed.
 
-W0-P original remaining sequence is **PAUSED / REPLANNED**. POC-BLENDER-E2E-01 is `COMPLETE / PASS / BASELINED` (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`). Next is POC-PREVIEW-01R (`READY / NOT STARTED`). Then revised W0 synthesis, then IA-1. See [poc/README.md](poc/README.md). POC-CORE-01 and POC-FBX-01 results above are unchanged. Core language is still not selected. POC-FBX-01 does not freeze FBX as product authority and does not make a native ufbx importer a V1 mandate.
+W0-P original remaining sequence is **PAUSED / REPLANNED**. POC-BLENDER-E2E-01 is `COMPLETE / PASS / BASELINED` (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`). POC-PREVIEW-01R is `COMPLETE / PASS / BASELINED` (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Next is W0-RS (`READY / NOT STARTED`), then IA-1. See [poc/README.md](poc/README.md). POC-CORE-01 and POC-FBX-01 results above are unchanged. Core language is still not selected. POC-FBX-01 does not freeze FBX as product authority and does not make a native ufbx importer a V1 mandate. Viewer library and Preview payload format remain not selected.
 
 From W0.2 Rev1 onward, every later stage must explicitly check: **product requirements**, **generality**, **engine independence**, **format independence**, **DCC independence**, and **real-asset evidence**. Unreal, Unity, Blender, Maya, MotionBuilder, and peers are not product authority. V1 may use a hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, validated by POC-BLENDER-E2E-01) without making Blender Canonical.
 

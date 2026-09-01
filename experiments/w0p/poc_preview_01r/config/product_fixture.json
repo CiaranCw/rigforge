@@ -1,0 +1,57 @@
+{
+  "fixture_id": "poc-preview-01r.product-fixture.v1",
+  "classification": "RESEARCH_ONLY / independent product truth / NOT generated from Preview Manifest",
+  "frozen_from": "POC-FBX-01 Knight identity + POC-BLENDER-E2E-01 accepted Derived Variant lineage",
+  "note": "Catalog expected binding is copied from this file. Preview Manifests are generated separately and must match this truth.",
+  "products": [
+    {
+      "product_kind": "CHARACTER",
+      "product_id": "QCHAR_Knight_Male",
+      "product_version": "poc-blender-e2e-01.frozen",
+      "label": "Knight",
+      "preview_artifact_id": "preview.character.qchar-knight-male.v1",
+      "expected_source_binding": {
+        "source_product_kind": "CHARACTER",
+        "source_product_id": "QCHAR_Knight_Male",
+        "source_asset_sha256": "fd323fbc4962a9b94ab58d303bbc92ead7228393b735a95d98a8509e33747e3f",
+        "character_sha256": "fd323fbc4962a9b94ab58d303bbc92ead7228393b735a95d98a8509e33747e3f"
+      }
+    },
+    {
+      "product_kind": "MOTION",
+      "product_id": "UAL2_Standard_Walk_Carry_Loop",
+      "product_version": "poc-blender-e2e-01.frozen",
+      "label": "Walk_Carry_Loop",
+      "preview_artifact_id": "preview.motion.ual2-walk-carry-loop.v1",
+      "expected_source_binding": {
+        "source_product_kind": "MOTION",
+        "source_product_id": "UAL2_Standard_Walk_Carry_Loop",
+        "source_asset_sha256": "d26d0e9f4a202d473194c056045143095a605a53ba1d823ef24055be4b86851d",
+        "motion_sha256": "d26d0e9f4a202d473194c056045143095a605a53ba1d823ef24055be4b86851d",
+        "clip_id": "Armature|Armature|Walk_Carry_Loop",
+        "source_skeleton_id": "UAL2_Standard_Armature"
+      }
+    },
+    {
+      "product_kind": "DERIVED_VARIANT",
+      "product_id": "poc-blender-e2e-01.knight-ual2.walk-carry.run1",
+      "product_version": "poc-blender-e2e-01.frozen",
+      "label": "Knight + Walk_Carry",
+      "preview_artifact_id": "preview.derived.knight-ual2-walk-carry.run1.v1",
+      "expected_source_binding": {
+        "source_product_kind": "DERIVED_VARIANT",
+        "source_product_id": "poc-blender-e2e-01.knight-ual2.walk-carry.run1",
+        "source_asset_sha256": "fd323fbc4962a9b94ab58d303bbc92ead7228393b735a95d98a8509e33747e3f",
+        "character_sha256": "fd323fbc4962a9b94ab58d303bbc92ead7228393b735a95d98a8509e33747e3f",
+        "motion_sha256": "d26d0e9f4a202d473194c056045143095a605a53ba1d823ef24055be4b86851d",
+        "clip_id": "Armature|Armature|Walk_Carry_Loop",
+        "derived_variant_id": "poc-blender-e2e-01.knight-ual2.walk-carry.run1",
+        "persistence_blend_sha256": "fef863e208b51e2fcf70aa278ff9041e39b93c1e9f479940a8db6670d970a532",
+        "mapping_sha256": "683603627bbe431a8438c8b6bacca4d6779046e4ef09ede7fa3218c41e8a602b",
+        "retarget_policy_sha256": "43eee4b181ffad617b270eeb8b076e650e39c4e2d7ed8425918d825c9cab1b8b",
+        "job_spec_semantic_hash": "bc953822b6498bf3f87c8ca40ddf03365e920adff359a84a291bb27cffc42d80",
+        "qc_report_sha256": "692754326cd1fb1c47ad90286a50b0374ca7180f50a5dc56bdf47d421755e8af"
+      }
+    }
+  ]
+}

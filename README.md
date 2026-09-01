@@ -46,17 +46,20 @@ W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS / BASELINED
 POC-FBX-01: COMPLETE / PASS / BASELINED
 POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
-POC-PREVIEW-01R: READY / NOT STARTED
-W0-RS: NOT STARTED
+POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
+Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
+W0-RS: READY / NOT STARTED
 IA-1: NOT STARTED
 product implementation: NOT STARTED
 ```
 
 W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
 **COMPLETE / PASS / BASELINED** (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`).
-No product implementation has started. The next experiment is
-**POC-PREVIEW-01R**. Execute it only under its dedicated experiment prompt /
-contract. Do not execute it from this README.
+POC-PREVIEW-01R is **COMPLETE / PASS / BASELINED**
+(`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). No product implementation has
+started. Next is **W0-RS**. Execute it only under its dedicated synthesis
+prompt. Do not begin product implementation. Do not run IA-1 before W0-RS is
+externally accepted/baselined.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
 evidence. They are not a mandate to ship a heavy Canonical runtime or a
@@ -80,8 +83,8 @@ RigForge owns product semantics: assets, Mapping, Compatibility, Retarget
 Policy, jobs, Derived Variant, QC meaning, Preview orchestration, and
 versioning. Blender is a **hidden execution backend**, validated by
 POC-BLENDER-E2E-01 with guards. It is not product authority. Product
-implementation remains unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1
-complete the remaining required gates.
+implementation remains unauthorized until W0-RS and IA-1 complete the
+remaining required gates.
 
 ## Roadmap
 

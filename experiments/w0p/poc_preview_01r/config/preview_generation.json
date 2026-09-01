@@ -1,0 +1,34 @@
+{
+  "classification": "RESEARCH_ONLY / W0-P / NON-PRODUCTION",
+  "payload_candidate": "GLB",
+  "payload_mime": "model/gltf-binary",
+  "payload_not_selected_as_product_format": true,
+  "viewer_library": "@google/model-viewer",
+  "viewer_library_version": "4.3.1",
+  "viewer_library_not_selected": true,
+  "generator_backend": "blender",
+  "generator_version": "5.2.1 LTS",
+  "generator_build_hash": "9e2066aef7ef",
+  "fps": 30,
+  "expected_clip_duration_s": 2.0,
+  "duration_tolerance_s": 0.15,
+  "character": {
+    "product_id": "QCHAR_Knight_Male",
+    "kind": "CHARACTER",
+    "sha256": "fd323fbc4962a9b94ab58d303bbc92ead7228393b735a95d98a8509e33747e3f",
+    "presentation": "imported rest after animation strip; not a source clip player"
+  },
+  "motion": {
+    "product_id": "UAL2_Standard_Walk_Carry_Loop",
+    "kind": "MOTION",
+    "sha256": "d26d0e9f4a202d473194c056045143095a605a53ba1d823ef24055be4b86851d",
+    "clip_id": "Armature|Armature|Walk_Carry_Loop",
+    "proxy": "generic joint/bone-segment mesh from hierarchy; not a Canonical Skeleton"
+  },
+  "derived": {
+    "product_id": "poc-blender-e2e-01.knight-ual2.walk-carry.run1",
+    "kind": "DERIVED_VARIANT",
+    "lineage": "POC-BLENDER-E2E-01 accepted published Derived Variant",
+    "persistence_blend_sha256": "fef863e208b51e2fcf70aa278ff9041e39b93c1e9f479940a8db6670d970a532"
+  }
+}

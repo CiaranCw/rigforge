@@ -5,6 +5,7 @@ Current V1 conceptual model. Not a production schema or API.
 The domain is **thin** and **`VALIDATED_WITH_GUARDS` by POC-BLENDER-E2E-01**:
 the tested vertical slice ran the product path without leaking Blender
 semantics into durable Job / Mapping / Policy / QC / Derived Variant state.
+Derived Preview is **`VALIDATED_WITH_GUARDS` by POC-PREVIEW-01R**.
 
 Exact production schema remains **OPEN**. Future worker replaceability is
 architecturally preserved but not multi-backend-demonstrated. Non-humanoid
@@ -148,8 +149,26 @@ complete discontinuity policy are later hardening.
 
 ### PreviewArtifact
 
-DERIVED / REBUILDABLE / NON-AUTHORITATIVE. Does not own identity, Mapping,
-QC thresholds, or source truth.
+Thin derived concept. **DERIVED / REBUILDABLE / NON-AUTHORITATIVE.** Bound to
+exact Product / Version lineage. Payload identity / integrity is recorded
+before valid display. Regeneration does not alter Product identity.
+Deleting a Preview Artifact does not change Character, Motion, Derived
+Variant, Mapping, Retarget Policy, or QC identity.
+
+Product truth validates Preview. Preview never validates Product truth.
+
+```text
+ProductRef
+!=
+PreviewArtifactRef
+!=
+payload path
+```
+
+POC-PREVIEW-01R validated these properties for one research Character /
+Motion / Derived Variant set. Exact production schema remains **OPEN**. This
+is not a glTF / GLB schema and not a viewer-library selection. Does not own
+identity, Mapping, QC thresholds, or source truth.
 
 ### ExportArtifact (optional)
 

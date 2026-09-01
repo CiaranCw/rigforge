@@ -10,9 +10,11 @@ Decision: [ADR-0001](../architecture/decisions/ADR-0001-v1-scope-and-blender-bac
 Architecture: [../architecture/README.md](../architecture/README.md).
 
 Blender as execution backend is **`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`**,
-validated by POC-BLENDER-E2E-01. This is a W0 research/architecture
-validation result. Product implementation remains unauthorized until
-POC-PREVIEW-01R, W0-RS, and IA-1 complete the remaining required gates.
+validated by POC-BLENDER-E2E-01. Derived Preview is
+**`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`**, validated by POC-PREVIEW-01R.
+These are W0 research/architecture validation results. Product implementation
+remains unauthorized until W0-RS and IA-1 complete the remaining required
+gates.
 
 ## In scope
 
@@ -32,7 +34,7 @@ POC-PREVIEW-01R, W0-RS, and IA-1 complete the remaining required gates.
 | Derived Variant | First-class result with versions and provenance |
 | Version / provenance | Inputs, Mapping, policy, backend, QC, artifacts |
 | Basic structural QC | First-class; must not silently mutate the subject |
-| Engine-independent Preview | Derived Preview Artifact + independent viewer |
+| Engine-independent Preview | **IN V1 DIRECTION / VALIDATED WITH GUARDS** by POC-PREVIEW-01R; GLB/browser path candidate only; viewer library OPEN |
 
 Happy path:
 
@@ -130,17 +132,23 @@ root-trajectory sanity.
 ## Preview
 
 ```text
-Authoritative Asset / Derived Variant
+Authoritative Product Object
         ↓
 Preview Generator
         ↓
-Derived Preview Artifact     (DERIVED / REBUILDABLE / NON-AUTHORITATIVE)
+Preview Artifact     (DERIVED / REBUILDABLE / NON-AUTHORITATIVE)
+        ↓
+binding / integrity validation
         ↓
 engine-independent Viewer
 ```
 
-A GLB/browser path is a candidate, not a frozen technology choice. Preview
-must not require Unreal, Unity, or Blender as the user-facing viewer.
+Derived Preview architecture is `VALIDATED_WITH_GUARDS` by POC-PREVIEW-01R
+for one research Character / Motion / Derived Variant set. Decision:
+`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. A GLB/browser path is a candidate,
+not a frozen technology choice. Viewer library remains OPEN. The research
+Motion hierarchy proxy is not a production-mandatory Canonical model.
+Preview must not require Unreal, Unity, or Blender as the user-facing viewer.
 
 ## Non-humanoid
 

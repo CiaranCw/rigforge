@@ -137,13 +137,19 @@ Risks:
   different-Skeleton pair: backend-neutral Job Spec, backend-neutral Policy,
   QC-gated publication, fresh-process persistence, and no large custom
   RigForge retarget runtime.
+- POC-PREVIEW-01R — `COMPLETE / PASS`; impact
+  `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. Demonstrated, for one research
+  Character / Motion / Derived Variant set: derived rebuildable
+  non-authoritative Preview Artifacts, independent Product binding, payload
+  integrity checks, and engine-independent click-to-preview without Blender
+  or a game engine at view time.
 - Accepted W0-SR proposal package under `*_PROPOSAL.md` and
   [W0P_REPLAN_PROPOSAL.md](../../research/poc/W0P_REPLAN_PROPOSAL.md).
 
 This is a W0 research/architecture validation result. Product implementation
-remains unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1 complete the
-remaining required gates. Blender is not product authority and is not
-permanently final.
+remains unauthorized until W0-RS and IA-1 complete the remaining required
+gates. Blender is not product authority and is not permanently final. Viewer
+library and Preview payload format are not selected.
 
 ```text
 POC-BLENDER-E2E-01:
@@ -151,13 +157,22 @@ COMPLETE / PASS
 
 Decision Impact:
 ACCEPT_BLENDER_BACKEND_WITH_GUARDS
+
+POC-PREVIEW-01R:
+COMPLETE / PASS
+
+Decision Impact:
+ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 ```
 
 ## Open questions
 
 1. Preview Artifact / viewer path: is a generated Preview Artifact
    sufficient for click-to-preview, or is another payload required?
-   (POC-PREVIEW-01R)
+   **YES, WITH GUARDS**, for the tested Character / Motion / Derived Variant
+   vertical slice (POC-PREVIEW-01R). Viewer technology, production payload
+   choice, non-humanoid coverage, material fidelity, and browser/platform
+   qualification remain open.
 2. Is the thin Skeleton Summary sufficient beyond the tested humanoid pair
    for Mapping, Compatibility, QC, Preview, and backend replacement?
 3. Non-humanoid hardening: real E2E remains later mandatory validation.
@@ -167,5 +182,5 @@ ACCEPT_BLENDER_BACKEND_WITH_GUARDS
 7. Does a concrete downstream consumer require Export Artifacts or versioned
    Export Profiles in V1?
 
-Viewer technology, Core language, database, and exact schemas remain `OPEN`
-or `DEFER`.
+Viewer technology, production Preview payload, Core language, database, and
+exact schemas remain `OPEN` or `DEFER`.

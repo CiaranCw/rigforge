@@ -5,8 +5,7 @@ Current V1 execution architecture.
 Blender as backend is **`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`**, validated by
 POC-BLENDER-E2E-01. It is not product authority, not permanently final, and
 not coverage of all Characters/Motions. Product implementation remains
-unauthorized until POC-PREVIEW-01R, W0-RS, and IA-1 complete the remaining
-required gates.
+unauthorized until W0-RS and IA-1 complete the remaining required gates.
 
 Decision: [ADR-0001](decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Domain: [V1_WORKFLOW_DOMAIN.md](V1_WORKFLOW_DOMAIN.md).
@@ -118,17 +117,22 @@ and complete packaging qualification are later V1 hardening.
 ## Preview
 
 ```text
-Authoritative Asset / Derived Variant
+Authoritative Product Object
         ↓
-Preview Generator   (Blender is the first candidate, replaceable)
+Preview Generator   (Blender is an acceptable first candidate, replaceable)
         ↓
-Preview Artifact + inspection metadata
+Preview Artifact
         ↓
-engine-independent read-only viewer
+binding / integrity validation
+        ↓
+engine-independent Viewer
 ```
 
-Preview Artifact is **DERIVED / REBUILDABLE / NON-AUTHORITATIVE**. Derived
-GLB is a candidate, not a frozen choice. Preview must remain usable without
+POC-PREVIEW-01R validated this derived Preview path with guards
+(`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Preview Artifact is **DERIVED /
+REBUILDABLE / NON-AUTHORITATIVE**. Viewer runtime is not Blender. Blender is
+not a permanent Preview Generator. Derived GLB is a candidate, not a frozen
+choice. Viewer library remains OPEN. Preview must remain usable without
 Blender at view time. Unreal and Unity are not required.
 
 ## Reconciliation with historical DCC-independence
