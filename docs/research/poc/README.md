@@ -9,25 +9,33 @@ Replan authority: [W0P_REPLAN_PROPOSAL.md](W0P_REPLAN_PROPOSAL.md).
 ## Active lifecycle
 
 ```text
+W0: COMPLETE / PASS / BASELINED
 W0-P: REPLANNED
 W0-SR: COMPLETE / ADOPTED / BASELINED
-POC-CORE-01: COMPLETE / PASS
-POC-FBX-01: COMPLETE / PASS
+POC-CORE-01: COMPLETE / PASS / BASELINED
+POC-FBX-01: COMPLETE / PASS / BASELINED
 POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
 POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
+W0-RS: COMPLETE / PASS / BASELINED
+IA-1: COMPLETE / PASS / CLOSED
 old original PoCs: PAUSED / REPLANNED
 ```
 
-POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision impact:
-`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`. POC-PREVIEW-01R is **COMPLETE / PASS /
-BASELINED**. Decision impact: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`.
-Do not start product implementation. Next is W0-RS.
+POC-CORE-01 is **COMPLETE / PASS / BASELINED**. Decision impact:
+`INCONCLUSIVE`. POC-FBX-01 is **COMPLETE / PASS / BASELINED**. Decision
+impact: `KEEP_UFBX_WITH_GUARDS`. POC-BLENDER-E2E-01 is **COMPLETE / PASS /
+BASELINED**. Decision impact: `ACCEPT_BLENDER_BACKEND_WITH_GUARDS`.
+POC-PREVIEW-01R is **COMPLETE / PASS / BASELINED**. Decision impact:
+`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. W0-RS is **COMPLETE / PASS /
+BASELINED**. IA-1 is **COMPLETE / PASS / CLOSED**. Do not begin arbitrary
+product implementation. Next: V1-1 — Thin Workflow Domain / version /
+provenance implementation planning.
 
 | ID | Class | Status |
 | --- | --- | --- |
 | W0-P | — | **REPLANNED** |
-| POC-CORE-01 | Mandatory (executed) | **COMPLETE / PASS** |
-| POC-FBX-01 | Mandatory (executed) | **COMPLETE / PASS** |
+| POC-CORE-01 | Mandatory (executed) | **COMPLETE / PASS / BASELINED** |
+| POC-FBX-01 | Mandatory (executed) | **COMPLETE / PASS / BASELINED** |
 | POC-BLENDER-E2E-01 | Mandatory (executed) | **COMPLETE / PASS / BASELINED** |
 | POC-PREVIEW-01R | Mandatory (after E2E) | **COMPLETE / PASS / BASELINED** |
 | POC-GLTF-01 | original Mandatory | PAUSED / REPLANNED (`MERGE`) |
@@ -44,7 +52,7 @@ Do not start product implementation. Next is W0-RS.
 POC-CORE-01 report: [POC_CORE_01.md](POC_CORE_01.md).
 
 ```text
-POC-CORE-01: COMPLETE / PASS
+POC-CORE-01: COMPLETE / PASS / BASELINED
 Decision Impact: INCONCLUSIVE
 Core language: NOT SELECTED
 ```
@@ -54,7 +62,7 @@ Harness: [experiments/w0p/poc_core_01/](../../experiments/w0p/poc_core_01/).
 POC-FBX-01 report: [POC_FBX_01.md](POC_FBX_01.md).
 
 ```text
-POC-FBX-01: COMPLETE / PASS
+POC-FBX-01: COMPLETE / PASS / BASELINED
 Decision Impact: KEEP_UFBX_WITH_GUARDS
 Core language: NOT SELECTED (C harness is not a language selection)
 ```
@@ -82,8 +90,9 @@ POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 
 Harness: [experiments/w0p/poc_blender_e2e_01/](../../experiments/w0p/poc_blender_e2e_01/).
 
-This is a W0 research/architecture validation result. It does not authorize
-product implementation. Blender is not product authority.
+This is a W0 research/architecture validation result. Blender is not product
+authority. V1 work proceeds only under the currently authorized dedicated
+implementation stage.
 
 ## POC-PREVIEW-01R (COMPLETE / PASS / BASELINED)
 
@@ -94,14 +103,14 @@ POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 Decision Impact: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 viewer library: RESEARCH HARNESS ONLY / NOT SELECTED
 payload candidate: GLB (not a permanent format selection)
-W0-RS: READY / NOT STARTED
+W0-RS: COMPLETE / PASS / BASELINED
+IA-1: COMPLETE / PASS / CLOSED
 ```
 
 Harness: [experiments/w0p/poc_preview_01r/](../../experiments/w0p/poc_preview_01r/).
 
-This is a W0 research/architecture validation result. It does not authorize
-product implementation. It does not select a viewer library or Preview
-payload format. Next is W0-RS. Do not start IA-1 before W0-RS is externally
-accepted/baselined.
+This is a W0 research/architecture validation result. It does not select a
+viewer library or Preview payload format. Next: V1-1 — Thin Workflow Domain
+/ version / provenance implementation planning.
 
 Contract: [W0P_REPLAN_PROPOSAL.md](W0P_REPLAN_PROPOSAL.md).

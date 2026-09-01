@@ -41,7 +41,7 @@ Decision: [ADR-0001](docs/architecture/decisions/ADR-0001-v1-scope-and-blender-b
 ## Current Status
 
 ```text
-W0: ACTIVE
+W0: COMPLETE / PASS / BASELINED
 W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS / BASELINED
 POC-FBX-01: COMPLETE / PASS / BASELINED
@@ -49,8 +49,9 @@ POC-BLENDER-E2E-01: COMPLETE / PASS / BASELINED
 POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 W0-RS: COMPLETE / PASS / BASELINED
-IA-1: READY / NOT STARTED
-product implementation: NOT STARTED
+IA-1: COMPLETE / PASS / CLOSED
+V1 implementation: AUTHORIZED / NOT STARTED
+V1-1: READY / NOT STARTED
 ```
 
 W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
@@ -58,11 +59,14 @@ W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
 POC-PREVIEW-01R is **COMPLETE / PASS / BASELINED**
 (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). W0-RS is **COMPLETE / PASS /
 BASELINED**: [synthesis](docs/research/decisions/W0_REVISED_SYNTHESIS.md) and
-[traceability](docs/research/decisions/W0_RS_TRACEABILITY.md). No product
-implementation has started. Next is **IA-1** — Independent W0 architecture /
-research audit. IA-1 must be executed by a newly opened independent Agent.
-Do not begin product implementation. Product implementation remains
-unauthorized until IA-1 is PASS / CLOSED.
+[traceability](docs/research/decisions/W0_RS_TRACEABILITY.md). IA-1 is
+**COMPLETE / PASS / CLOSED**:
+[independent audit](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md) and
+[external review](docs/research/audits/IA_1_EXTERNAL_REVIEW.md). W0 is
+**COMPLETE / PASS / BASELINED**. V1 implementation is **AUTHORIZED / NOT
+STARTED**. Do not begin arbitrary product implementation. Next is **V1-1**
+— Thin Workflow Domain / version / provenance contract and implementation
+planning. Execute only under a dedicated V1-1 prompt.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
 evidence. They are not a mandate to ship a heavy Canonical runtime or a
@@ -85,8 +89,9 @@ Blender Worker   (ACCEPT_BLENDER_BACKEND_WITH_GUARDS)
 RigForge owns product semantics: assets, Mapping, Compatibility, Retarget
 Policy, jobs, Derived Variant, QC meaning, Preview orchestration, and
 versioning. Blender is a **hidden execution backend**, validated by
-POC-BLENDER-E2E-01 with guards. It is not product authority. Product
-implementation remains unauthorized until IA-1 is PASS / CLOSED.
+POC-BLENDER-E2E-01 with guards. It is not product authority. V1 work
+proceeds only under the currently authorized dedicated implementation
+stage. Current authorized next stage is V1-1.
 
 ## Roadmap
 

@@ -7,14 +7,19 @@ RigForge — Character Animation Asset Workbench
 ## Current Phase
 
 ```text
-W0 — ACTIVE; W0-SR COMPLETE / ADOPTED / BASELINED
-POC-BLENDER-E2E-01 COMPLETE / PASS / BASELINED
-POC-PREVIEW-01R COMPLETE / PASS / BASELINED
+W0 COMPLETE / PASS / BASELINED
 W0-RS COMPLETE / PASS / BASELINED
-IA-1 READY / NOT STARTED
+IA-1 COMPLETE / PASS / CLOSED
+V1 implementation AUTHORIZED / NOT STARTED
+V1-1 READY / NOT STARTED
 ```
 
-Do not implement product code, workers, CLI, GUI, parsers, or CI in this phase.
+W0 research gates are closed.
+
+Do not begin arbitrary Product implementation.
+
+Execute V1 work only under the currently authorized dedicated implementation
+stage. Current authorized next stage is V1-1.
 
 ## Source of Truth
 
@@ -38,9 +43,9 @@ product/architecture/roadmap files are current project truth.
 
 1. Do not treat a third-party format as product authority.
 2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, ADR-0001, validated by POC-BLENDER-E2E-01). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
-3. Do not lock an implementation language before research decision gates. Core language remains not selected (POC-CORE-01 `INCONCLUSIVE`).
-4. Do not lock a GUI framework before research decision gates.
-5. Do not create a complex source-tree layout before those gates.
+3. Do not lock an implementation language before its owner stage. Core language remains OPEN / NOT SELECTED (POC-CORE-01 `INCONCLUSIVE`). Earliest owner: V1-1 planning.
+4. Do not lock a GUI framework before its owner stage. GUI framework remains OPEN / NOT SELECTED. Earliest owner: V1-2 planning.
+5. Do not create a production source-tree architecture that depends on Core-language or GUI choices before those owner stages decide them.
 6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R). Neither is product authority, permanently final, a viewer/payload selection, or coverage of all Characters/Motions.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
@@ -93,17 +98,28 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-IA-1 —
-Independent end-to-end audit of the accepted W0 research baseline.
-IA-1 MUST be executed by a NEW independent Agent.
-The W0-RS synthesis Agent and prior implementation/research Agents
-must not impersonate the independent auditor.
-Preferred independent auditor:
-GPT-5.6 Sol High / 1M High
-or
-Claude Opus 5 High
-Do not begin product implementation.
+V1-1 —
+Thin Workflow Domain / version / provenance contract and implementation
+planning.
+
+Execute only under a dedicated V1-1 prompt.
 ```
+
+Core language remains NOT SELECTED. GUI remains OPEN. Do not infer either
+from research harness technology.
+
+Independent audit / review model:
+`GPT-5.6 Sol High`
+
+Do not use GPT-5.6 Sol 1M High for routine project audit/review work unless the
+user explicitly re-authorizes it.
+
+Do not substitute another audit model unless the user explicitly changes this
+rule.
+
+IA-1 closeout:
+[docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),
+[docs/research/audits/IA_1_EXTERNAL_REVIEW.md](docs/research/audits/IA_1_EXTERNAL_REVIEW.md).
 
 Synthesis:
 [docs/research/decisions/W0_REVISED_SYNTHESIS.md](docs/research/decisions/W0_REVISED_SYNTHESIS.md).

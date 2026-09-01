@@ -9,7 +9,7 @@ Replan authority: [../research/poc/W0P_REPLAN_PROPOSAL.md](../research/poc/W0P_R
 ## Current lifecycle
 
 ```text
-W0: ACTIVE
+W0: COMPLETE / PASS / BASELINED
 W0-SR: COMPLETE / ADOPTED / BASELINED
 POC-CORE-01: COMPLETE / PASS / BASELINED
 POC-FBX-01: COMPLETE / PASS / BASELINED
@@ -18,8 +18,9 @@ POC-PREVIEW-01R: COMPLETE / PASS / BASELINED
 Decision: ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 W0-RS: COMPLETE / PASS / BASELINED
 old original PoCs: PAUSED / REPLANNED
-IA-1: READY / NOT STARTED
-product implementation: NOT STARTED
+IA-1: COMPLETE / PASS / CLOSED
+V1 implementation: AUTHORIZED / NOT STARTED
+V1-1: READY / NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -27,22 +28,46 @@ POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
 BASELINED**. Decision: `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. W0-RS is
 **COMPLETE / PASS / BASELINED**:
 [synthesis](../research/decisions/W0_REVISED_SYNTHESIS.md) and
-[traceability](../research/decisions/W0_RS_TRACEABILITY.md). Remaining
-pre-implementation sequence is IA-1 (`READY / NOT STARTED`). Do not begin
-product implementation. Product implementation remains unauthorized until
-IA-1 is PASS / CLOSED.
+[traceability](../research/decisions/W0_RS_TRACEABILITY.md). IA-1 is
+**COMPLETE / PASS / CLOSED**:
+[independent audit](../research/audits/IA_1_INDEPENDENT_AUDIT.md) and
+[external review](../research/audits/IA_1_EXTERNAL_REVIEW.md). W0 is
+**COMPLETE / PASS / BASELINED**. V1 implementation is **AUTHORIZED / NOT
+STARTED**. Do not begin arbitrary product implementation. Next is **V1-1**
+(`READY / NOT STARTED`). Execute only under a dedicated V1-1 prompt.
 
 ## Immediate sequence
 
 ```text
-W0-RS
+W0
 COMPLETE / PASS / BASELINED
         ↓
 IA-1
+COMPLETE / PASS / CLOSED
+        ↓
+V1-1
 READY / NOT STARTED
         ↓
-V1 implementation
-ONLY IF IA-1 PASS / CLOSED
+V1-2
+Local-first Asset Catalog and job orchestration
+        ↓
+V1-3
+Pinned isolated Blender worker integration
+        ↓
+V1-4
+Skeleton Mapping and compatibility workflow
+        ↓
+V1-5
+Transfer, QC, and Derived Variant lifecycle
+        ↓
+V1-6
+Engine-independent Preview
+        ↓
+V1-7
+Optional artifact/output support (only if a concrete consumer requires it)
+        ↓
+V1-8
+Real-asset hardening and release audit
         ↓
 Mapping / Compatibility validation
         ↓
@@ -76,7 +101,7 @@ findings are not rewritten.
 | Stage | Purpose | Status |
 | --- | --- | --- |
 | W0-SR | Reconcile clarified workflow with W0 evidence | `COMPLETE / ADOPTED` |
-| W0 | Research Baseline (open until revised synthesis + IA-1) | ACTIVE |
+| W0 | Research Baseline | COMPLETE / PASS / BASELINED |
 
 ## New validation path
 
@@ -85,7 +110,7 @@ findings are not rewritten.
 | POC-BLENDER-E2E-01 | Minimal architecture slice: hidden Blender worker, thin domain, real cross-Skeleton pair | COMPLETE / PASS / BASELINED |
 | POC-PREVIEW-01R | Click-to-preview from derived Preview Artifacts | COMPLETE / PASS / BASELINED |
 | W0-RS | [Revised W0 synthesis](../research/decisions/W0_REVISED_SYNTHESIS.md) and [traceability](../research/decisions/W0_RS_TRACEABILITY.md) | COMPLETE / PASS / BASELINED |
-| IA-1 | Independent architecture / research audit | READY / NOT STARTED |
+| IA-1 | Independent architecture / research audit | COMPLETE / PASS / CLOSED |
 
 POC-BLENDER-E2E-01 tests execution architecture only. Auto-Mapping quality,
 full non-humanoid E2E, crash/timeout campaigns, worker pools, advanced
@@ -94,8 +119,10 @@ later V1 hardening. See [../research/poc/README.md](../research/poc/README.md).
 
 ## Future V1 implementation
 
-Start only after IA-1 acceptance. Names are planning labels, not frozen
-lifecycle IDs.
+V1 implementation is **AUTHORIZED / NOT STARTED**. Execute only under the
+currently authorized dedicated implementation stage. Current authorized
+next stage is V1-1 (`READY / NOT STARTED`). Names are planning labels, not
+frozen lifecycle IDs.
 
 | Stage | Purpose |
 | --- | --- |
@@ -121,8 +148,8 @@ implementation path. That is **not** the current V1 plan.
 | W3 | Canonical I/O MVP | superseded as active plan |
 | W4 | Validation + Semantic Mapping | retained as capability; sequenced under V1-4 / V1-5 |
 | W5 | Compatibility + Deterministic Retarget | retained as policy/UX; execution is worker-backed |
-| W6 | Domain API + CLI | later implementation, after IA-1 |
-| W7 | Minimal Workbench | becomes Asset Browser / Transfer Tray after IA-1 |
+| W6 | Domain API + CLI | later implementation, after V1-1 planning |
+| W7 | Minimal Workbench | becomes Asset Browser / Transfer Tray after V1-1 |
 | W8 | DCC / Engine Adapters | multiple DCC backends and direct engine integrations are out of V1 |
 | W9 | Automation / MCP-ready API | MCP deferred |
 | W10 | CI / Structural Validation / Final Audit | absorbed into V1-8 release qualification |
