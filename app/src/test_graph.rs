@@ -238,6 +238,7 @@ pub fn persist_core(catalog: &mut SqliteCatalog, g: &Graph) -> Result<(), AppErr
     catalog.put_validated(&certify(g.policy.clone()))?;
     catalog.put_validated(&certify(g.policy_version.clone()))?;
     catalog.put_validated(&certify(g.compatibility.clone()))?;
+    catalog.put_validated(&certify(g.backend.clone()))?;
     Ok(())
 }
 

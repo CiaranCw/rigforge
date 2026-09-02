@@ -20,6 +20,10 @@ pub(crate) fn deserialize_untrusted<T: DeserializeOwned>(text: &str) -> Result<T
             DomainError::new(ErrorCode::UnknownField, msg)
         } else if msg.contains("must be RFC 9562 UUIDv7") {
             DomainError::new(ErrorCode::UuidVersion, msg)
+        } else if msg.contains("must not be a SHA-256 digest") {
+            DomainError::new(ErrorCode::DigestUsedAsId, msg)
+        } else if msg.contains("must not be a filesystem path") {
+            DomainError::new(ErrorCode::PathUsedAsId, msg)
         } else {
             DomainError::new(ErrorCode::InvalidJson, msg)
         }

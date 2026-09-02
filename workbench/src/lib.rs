@@ -1,18 +1,23 @@
 //! RigForge V1-2 Workbench shell.
 //!
 //! GUI → Application / Catalog / Orchestrator → WorkerPort.
-//! This crate does not call Blender and does not select a Preview viewer.
+//! Preview generation uses a hidden backend; this process does not require
+//! the user to open Blender. Viewer library/payload are V1-6 implementation
+//! details, not Product authority.
 
 use eframe::egui;
 use rigforge_app::rigforge_domain::{
     BoneMappingVersion, CompatibilityResult, Lifecycle,
 };
 use rigforge_app::{
-    Application, AssetListItem, JobRunState, TransferAuthorization, TransferOutcome,
-    TransferOutcomeKind,
+    Application, AssetListItem, JobRunState, PreviewGenerationRequest, PreviewSubject,
+    TransferAuthorization, TransferOutcome, TransferOutcomeKind,
 };
 
-/// Future Preview embedding boundary. Viewer library and payload remain V1-6.
+pub mod preview_host;
+
+/// Preview embedding boundary. Viewer library and payload are V1-6 implementation
+/// details, not Product identity.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PreviewEmbeddingSlot {
     pub occupied: bool,
@@ -20,11 +25,11 @@ pub struct PreviewEmbeddingSlot {
 
 impl PreviewEmbeddingSlot {
     pub fn viewer_library() -> Option<&'static str> {
-        None
+        Some(preview_host::VIEWER_LIBRARY)
     }
 
     pub fn payload_format() -> Option<&'static str> {
-        None
+        Some(preview_host::PAYLOAD_FORMAT)
     }
 }
 
@@ -41,8 +46,11 @@ pub struct WorkbenchApp {
     derived: Vec<AssetListItem>,
     selected_character_version: Option<String>,
     selected_motion_version: Option<String>,
+    selected_derived_variant_version: Option<String>,
     jobs: Vec<JobStatusView>,
     preview: PreviewEmbeddingSlot,
+    preview_status: String,
+    preview_valid: bool,
     mapping_entries: Vec<String>,
     unmapped: Vec<String>,
     ambiguities: Vec<String>,
@@ -71,8 +79,11 @@ impl WorkbenchApp {
             derived: Vec::new(),
             selected_character_version: None,
             selected_motion_version: None,
+            selected_derived_variant_version: None,
             jobs: Vec::new(),
             preview: PreviewEmbeddingSlot::default(),
+            preview_status: "no Preview generated".into(),
+            preview_valid: false,
             mapping_entries: Vec::new(),
             unmapped: Vec::new(),
             ambiguities: Vec::new(),
@@ -114,6 +125,9 @@ impl WorkbenchApp {
         }
         if let Some(item) = shell.motions.first() {
             shell.selected_motion_version = item.published_version_id.clone();
+        }
+        if let Some(item) = shell.derived.first() {
+            shell.selected_derived_variant_version = item.published_version_id.clone();
         }
         shell.bind_published_mapping_for_current_selection(app)?;
         Ok(shell)
@@ -166,12 +180,37 @@ impl WorkbenchApp {
         self.selected_motion_version.as_deref()
     }
 
+    pub fn selected_derived_variant_version(&self) -> Option<&str> {
+        self.selected_derived_variant_version.as_deref()
+    }
+
+    pub fn preview_status(&self) -> &str {
+        &self.preview_status
+    }
+
+    pub fn preview_valid(&self) -> bool {
+        self.preview_valid
+    }
+
     pub fn select_character_version(&mut self, version_id: impl Into<String>) {
         self.selected_character_version = Some(version_id.into());
+        self.clear_preview_presentation();
     }
 
     pub fn select_motion_version(&mut self, version_id: impl Into<String>) {
         self.selected_motion_version = Some(version_id.into());
+        self.clear_preview_presentation();
+    }
+
+    pub fn select_derived_variant_version(&mut self, version_id: impl Into<String>) {
+        self.selected_derived_variant_version = Some(version_id.into());
+        self.clear_preview_presentation();
+    }
+
+    fn clear_preview_presentation(&mut self) {
+        self.preview.occupied = false;
+        self.preview_valid = false;
+        self.preview_status = "selection changed; previous Preview is not valid for this Product version".into();
     }
 
     /// Non-authoritative presentation helper. Does not accept a Product Mapping.
@@ -469,6 +508,107 @@ impl WorkbenchApp {
         }
     }
 
+    pub fn request_preview(
+        &mut self,
+        app: &mut Application,
+        subject: PreviewSubject,
+        generate_if_missing: bool,
+        open_sidecar: bool,
+    ) -> Result<rigforge_app::PreviewSession, rigforge_app::AppError> {
+        if generate_if_missing {
+            let request = match &subject {
+                PreviewSubject::Character { version_id } => {
+                    PreviewGenerationRequest::character(version_id)
+                }
+                PreviewSubject::Motion { version_id } => {
+                    PreviewGenerationRequest::motion(version_id)
+                }
+                PreviewSubject::DerivedVariant { version_id } => {
+                    PreviewGenerationRequest::derived_variant(version_id)
+                }
+            };
+            let resolved = app.resolve_preview_for_display(subject.clone());
+            if !resolved.is_valid() {
+                match app.generate_preview(request) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        self.preview.occupied = false;
+                        self.preview_valid = false;
+                        self.preview_status = format!("Preview generation failed: {err}");
+                        let session = app.materialize_preview_session(subject)?;
+                        return Ok(session);
+                    }
+                }
+            }
+        }
+        let session = app.materialize_preview_session(subject)?;
+        self.preview.occupied = session.document.valid;
+        self.preview_valid = session.document.valid;
+        self.preview_status = if session.document.valid {
+            format!(
+                "valid Preview for {} {}",
+                session.document.selected_product_kind,
+                session.document.selected_product_version_id
+            )
+        } else {
+            format!(
+                "{}: {}",
+                session
+                    .document
+                    .failure_kind
+                    .as_deref()
+                    .unwrap_or("Preview unavailable"),
+                session
+                    .document
+                    .failure_detail
+                    .as_deref()
+                    .unwrap_or("see diagnostic")
+            )
+        };
+        if open_sidecar {
+            match preview_host::PreviewHost::serve(&session) {
+                Ok(host) => {
+                    let _ = host.open_sidecar();
+                }
+                Err(err) => {
+                    self.preview_status = format!("{} (viewer host: {err})", self.preview_status);
+                }
+            }
+        }
+        Ok(session)
+    }
+
+    pub fn regenerate_preview(
+        &mut self,
+        app: &mut Application,
+        subject: PreviewSubject,
+        open_sidecar: bool,
+    ) -> Result<rigforge_app::PreviewSession, rigforge_app::AppError> {
+        let existing = app.resolve_preview_for_display(subject.clone());
+        if let Some(artifact) = existing.artifact {
+            let _ = app.delete_preview(&artifact.as_record().id().canonical());
+        }
+        let request = match &subject {
+            PreviewSubject::Character { version_id } => {
+                PreviewGenerationRequest::character(version_id)
+            }
+            PreviewSubject::Motion { version_id } => PreviewGenerationRequest::motion(version_id),
+            PreviewSubject::DerivedVariant { version_id } => {
+                PreviewGenerationRequest::derived_variant(version_id)
+            }
+        };
+        match app.generate_preview(request) {
+            Ok(_) => {}
+            Err(err) => {
+                self.preview.occupied = false;
+                self.preview_valid = false;
+                self.preview_status = format!("Preview generation failed: {err}");
+                return app.materialize_preview_session(subject);
+            }
+        }
+        self.request_preview(app, subject, false, open_sidecar)
+    }
+
     pub fn job_states(&self) -> &[JobStatusView] {
         &self.jobs
     }
@@ -483,8 +623,8 @@ impl WorkbenchApp {
     }
 }
 
-impl eframe::App for WorkbenchApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl WorkbenchApp {
+    pub fn draw(&mut self, ctx: &egui::Context, mut app: Option<&mut Application>) {
         egui::TopBottomPanel::top("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.strong("RigForge Workbench");
@@ -500,24 +640,58 @@ impl eframe::App for WorkbenchApp {
                 ui.heading("Asset Browser");
                 ui.separator();
                 ui.collapsing("Characters", |ui| {
+                    let mut picked = None;
                     for item in &self.characters {
-                        ui.label(&item.display_name);
+                        let id = item
+                            .published_version_id
+                            .clone()
+                            .unwrap_or_else(|| item.logical_id.clone());
+                        let selected = self.selected_character_version.as_deref() == Some(id.as_str());
+                        if ui.selectable_label(selected, &item.display_name).clicked() {
+                            picked = Some(id);
+                        }
+                    }
+                    if let Some(id) = picked {
+                        self.select_character_version(id);
                     }
                     if self.characters.is_empty() {
                         ui.weak("No Character assets");
                     }
                 });
                 ui.collapsing("Motions", |ui| {
+                    let mut picked = None;
                     for item in &self.motions {
-                        ui.label(&item.display_name);
+                        let id = item
+                            .published_version_id
+                            .clone()
+                            .unwrap_or_else(|| item.logical_id.clone());
+                        let selected = self.selected_motion_version.as_deref() == Some(id.as_str());
+                        if ui.selectable_label(selected, &item.display_name).clicked() {
+                            picked = Some(id);
+                        }
+                    }
+                    if let Some(id) = picked {
+                        self.select_motion_version(id);
                     }
                     if self.motions.is_empty() {
                         ui.weak("No Motion assets");
                     }
                 });
                 ui.collapsing("Derived Variants", |ui| {
+                    let mut picked = None;
                     for item in &self.derived {
-                        ui.label(&item.display_name);
+                        let id = item
+                            .published_version_id
+                            .clone()
+                            .unwrap_or_else(|| item.logical_id.clone());
+                        let selected =
+                            self.selected_derived_variant_version.as_deref() == Some(id.as_str());
+                        if ui.selectable_label(selected, &item.display_name).clicked() {
+                            picked = Some(id);
+                        }
+                    }
+                    if let Some(id) = picked {
+                        self.select_derived_variant_version(id);
                     }
                     if self.derived.is_empty() {
                         ui.weak("No Derived Variants");
@@ -533,8 +707,10 @@ impl eframe::App for WorkbenchApp {
                     .unwrap_or("(none)")
             ));
             ui.label(format!(
-                "Motion version: {}",
-                self.selected_motion_version.as_deref().unwrap_or("(none)")
+                "Derived version: {}",
+                self.selected_derived_variant_version
+                    .as_deref()
+                    .unwrap_or("(none)")
             ));
             ui.separator();
             ui.heading("Mapping / Compatibility");
@@ -610,14 +786,126 @@ impl eframe::App for WorkbenchApp {
             }
             ui.separator();
             ui.group(|ui| {
-                ui.strong("Preview slot");
-                ui.label("Embedding boundary only. Viewer library: not selected.");
-                ui.label("Payload format: not selected (V1-6).");
-                ui.label(Self::preview_unavailable_reason());
+                ui.strong("Preview");
+                ui.label(format!(
+                    "Viewer: {} {}",
+                    PreviewEmbeddingSlot::viewer_library().unwrap_or("unset"),
+                    preview_host::VIEWER_VERSION
+                ));
+                ui.label(format!(
+                    "Payload: {} (Preview payload, not Product format)",
+                    PreviewEmbeddingSlot::payload_format().unwrap_or("unset")
+                ));
+                ui.label(format!("status: {}", self.preview_status));
+                ui.label(format!("valid: {}", self.preview_valid));
                 ui.label(format!("occupied: {}", self.preview.occupied));
+                ui.weak("Preview is derived, rebuildable, and non-authoritative.");
+                if let Some(app) = app.as_mut() {
+                    ui.horizontal(|ui| {
+                        if ui.button("Preview Character").clicked() {
+                            if let Some(id) = self.selected_character_version.clone() {
+                                let _ = self.request_preview(
+                                    app,
+                                    PreviewSubject::Character { version_id: id },
+                                    true,
+                                    true,
+                                );
+                            } else {
+                                self.preview_valid = false;
+                                self.preview_status = "no Preview generated".into();
+                            }
+                        }
+                        if ui.button("Preview Motion").clicked() {
+                            if let Some(id) = self.selected_motion_version.clone() {
+                                let _ = self.request_preview(
+                                    app,
+                                    PreviewSubject::Motion { version_id: id },
+                                    true,
+                                    true,
+                                );
+                            } else {
+                                self.preview_valid = false;
+                                self.preview_status = "no Preview generated".into();
+                            }
+                        }
+                        if ui.button("Preview Derived Variant").clicked() {
+                            if let Some(id) = self.selected_derived_variant_version.clone() {
+                                let _ = self.request_preview(
+                                    app,
+                                    PreviewSubject::DerivedVariant { version_id: id },
+                                    true,
+                                    true,
+                                );
+                            } else {
+                                self.preview_valid = false;
+                                self.preview_status = "no Preview generated".into();
+                            }
+                        }
+                        if ui.button("Regenerate Preview").clicked() {
+                            if let Some(id) = self.selected_derived_variant_version.clone() {
+                                let _ = self.regenerate_preview(
+                                    app,
+                                    PreviewSubject::DerivedVariant { version_id: id },
+                                    true,
+                                );
+                            } else if let Some(id) = self.selected_character_version.clone() {
+                                let _ = self.regenerate_preview(
+                                    app,
+                                    PreviewSubject::Character { version_id: id },
+                                    true,
+                                );
+                            } else if let Some(id) = self.selected_motion_version.clone() {
+                                let _ = self.regenerate_preview(
+                                    app,
+                                    PreviewSubject::Motion { version_id: id },
+                                    true,
+                                );
+                            }
+                        }
+                    });
+                } else {
+                    ui.weak("Native Application path is required for click-to-preview.");
+                }
             });
             let _ = JobRunState::Queued;
         });
+    }
+}
+
+impl eframe::App for WorkbenchApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.draw(ctx, None);
+    }
+}
+
+/// Native Workbench path that retains Application for Preview.
+/// Transfer checkbox/button remain presentation-only (GATE-C-OBS-001).
+pub struct WorkbenchHost {
+    pub app: Application,
+    pub shell: WorkbenchApp,
+}
+
+impl WorkbenchHost {
+    pub fn open_default() -> Result<Self, rigforge_app::AppError> {
+        let path = std::env::var_os("RIGFORGE_CATALOG")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                let mut p = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                p.push("rigforge-catalog.sqlite");
+                p
+            });
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let app = Application::open(&path)?;
+        let shell = WorkbenchApp::from_application(&app)?;
+        Ok(Self { app, shell })
+    }
+}
+
+impl eframe::App for WorkbenchHost {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.shell.draw(ctx, Some(&mut self.app));
     }
 }
 

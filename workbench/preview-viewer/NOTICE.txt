@@ -1,0 +1,26 @@
+RigForge V1-6 Preview viewer runtime notice.
+
+This directory vendors `@google/model-viewer` 4.3.1 for offline local
+Preview display. The file `vendor/model-viewer.min.js` is a derived
+Preview viewer implementation detail, not a Product format and not an
+export contract.
+
+Package license (official npm `@google/model-viewer` 4.3.1): Apache-2.0.
+
+The minified bundle also contains Lit (BSD-3-Clause) headers, as recorded
+in the file itself:
+
+  Copyright 2019 Google LLC
+  SPDX-License-Identifier: BSD-3-Clause
+
+npm integrity (official registry, PoC-PREVIEW-01R / V1-6 pin):
+
+  sha512-GP+inXhAtY31E8rILVmByA6z8CZZjdlNajddppyI1/j1eIaSQiZcMRaUqTFe7+jv4mzRzwKIOiKBud0apiv+WQ==
+
+Local SHA-256 of `vendor/model-viewer.min.js`:
+
+  283b0672384614b4847636c306fc93fe4b1fcadc76d668b4e47f0ca76bcf033b
+
+Decoder CDN defaults inside the library are redirected to unused local
+paths by `index.html` so Preview view time does not fetch Draco / KTX2 /
+Lottie from the network. Legal release clearance remains V1-8.

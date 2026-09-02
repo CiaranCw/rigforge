@@ -27,7 +27,10 @@ Gate B: PASS / CLOSED
 V1-4: COMPLETE / PASS / BASELINED
 V1-5: COMPLETE / PASS / BASELINED
 Gate C: PASS / CLOSED
-V1-6: READY / NOT STARTED
+V1-6: COMPLETE / PASS / BASELINED
+V1-7: NOT STARTED / OPTIONAL
+V1-8: NOT STARTED
+Gate D: NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -46,13 +49,16 @@ Gate A is **PASS / CLOSED**. Core language is **Rust**
 V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
 V1-4 is **COMPLETE / PASS / BASELINED**.
 V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
-V1-6 is **READY / NOT STARTED**.
+V1-6 is **COMPLETE / PASS / BASELINED**. Preview viewer/payload/surface is
+**Accepted** ([ADR-0006](../architecture/decisions/ADR-0006-v1-engine-independent-preview.md)).
 Storage: SQLite **Accepted**
 ([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
 GUI: egui/eframe **Accepted**
 ([ADR-0004](../architecture/decisions/ADR-0004-v1-workbench-gui.md)).
 Blender worker process: **Accepted**
 ([ADR-0005](../architecture/decisions/ADR-0005-v1-blender-worker-process.md)).
+Preview viewer/payload/surface: **Accepted**
+([ADR-0006](../architecture/decisions/ADR-0006-v1-engine-independent-preview.md)).
 
 ## Immediate sequence
 
@@ -89,10 +95,11 @@ Transfer, QC, and Derived Variant lifecycle
 Gate C PASS / CLOSED
         ↓
 V1-6
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
 Engine-independent Preview
         ↓
 V1-7
+NOT STARTED / OPTIONAL
 Optional artifact/output support (only if a concrete consumer requires it)
         ↓
 V1-8
@@ -152,7 +159,7 @@ V1-1 is **COMPLETE / PASS / BASELINED**. Gate A is **PASS / CLOSED**.
 V1-2 is **COMPLETE / PASS / BASELINED**. V1-3 is **COMPLETE / PASS / BASELINED**.
 Gate B is **PASS / CLOSED**. V1-4 is **COMPLETE / PASS / BASELINED**.
 V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
-V1-6 is **READY / NOT STARTED**. Names are planning
+V1-6 is **COMPLETE / PASS / BASELINED**. Names are planning
 labels, not frozen lifecycle IDs.
 
 | Stage | Purpose |
@@ -171,7 +178,7 @@ labels, not frozen lifecycle IDs.
 V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is **COMPLETE / PASS /
 BASELINED**. Gate B is **PASS / CLOSED**. Gate C is **PASS / CLOSED**.
 Do not open Gate B2. Do not open Gate C2, a post-Gate-C audit, or a
-V1-5 release audit. V1-6 itself does not get a default independent Gate.
+V1-5 release audit. V1-6 itself did not get a default independent Gate.
 
 ```text
 Gate C:
@@ -220,14 +227,19 @@ are not fully event-wired.
 ```
 
 If V1-6 naturally touches the same native shell, it MAY close this
-observation there if actually wired and tested. Otherwise preserve it
-for V1-8. Do not silently mark it solved.
+observation there if actually wired and tested. V1-6 wired native Preview
+and did **not** close this observation. Preserve it for V1-8. Do not
+silently mark it solved.
 
 ## Current next step
 
 ```text
-V1-6 —
-Engine-independent Preview.
+Decide whether V1-7 has a concrete consumer requirement.
+
+If none:
+skip optional V1-7 and prepare V1-8 real-asset hardening / release qualification.
+
+Do not start Gate D until V1-8 completes.
 ```
 
 ## Historical planned phases (superseded as the active plan)

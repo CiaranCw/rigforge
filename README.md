@@ -58,7 +58,10 @@ Gate B: PASS / CLOSED
 V1-4: COMPLETE / PASS / BASELINED
 V1-5: COMPLETE / PASS / BASELINED
 Gate C: PASS / CLOSED
-V1-6: READY / NOT STARTED
+V1-6: COMPLETE / PASS / BASELINED
+V1-7: NOT STARTED / OPTIONAL
+V1-8: NOT STARTED
+Gate D: NOT STARTED
 ```
 
 W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
@@ -81,8 +84,12 @@ Pinned Blender worker process packaging is **Accepted** in
 [ADR-0005](docs/architecture/decisions/ADR-0005-v1-blender-worker-process.md).
 V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is
 **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**. V1-6 is
-`READY / NOT STARTED`. Do not start V1-6 until that dedicated
-implementation stage is authorized. Do not open Gate C2.
+**COMPLETE / PASS / BASELINED**. Preview viewer/payload/surface is
+**Accepted** in [ADR-0006](docs/architecture/decisions/ADR-0006-v1-engine-independent-preview.md).
+V1-7 is `NOT STARTED / OPTIONAL`. Do not start V1-7 unless a concrete
+Product consumer requires an output artifact/export contract. A GLB Preview
+payload is not that requirement. Do not start V1-8 as part of V1-6 closeout.
+Do not open Gate C2.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
 evidence. They are not a mandate to ship a heavy Canonical runtime or a
@@ -108,7 +115,7 @@ versioning. Blender is a **hidden execution backend**, validated by
 POC-BLENDER-E2E-01 with guards. It is not product authority. V1 work
 proceeds only under the currently authorized dedicated implementation
 stage. V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
-V1-6 is `READY / NOT STARTED`.
+V1-6 is **COMPLETE / PASS / BASELINED**. V1-7 is `NOT STARTED / OPTIONAL`.
 
 ## Roadmap
 

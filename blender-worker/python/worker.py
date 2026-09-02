@@ -17,6 +17,9 @@ from mathutils import Matrix, Quaternion, Vector
 
 WORKER_VERSION = "rigforge-blender-worker/0.1.0"
 ENVELOPE_SCHEMA = "rigforge.blender_worker.envelope.v1"
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 TOL_ROT_RAD = 0.01
 TOL_LOC = 0.001
 SCALE_TOL = 1e-4
@@ -990,6 +993,16 @@ def main() -> int:
             inspect_skeleton(job)
         elif mode == "inspect_qc":
             inspect_qc(job)
+        elif mode in (
+            "preview_character",
+            "preview_motion",
+            "preview_derived",
+            "preview_motion_synthetic",
+        ):
+            from preview_gen import run_preview
+
+            result = run_preview(mode, job)
+            write_json(Path(job["outputs"]["generation_json"]), result)
         else:
             raise SystemExit(f"unknown mode {mode}")
         return 0
@@ -1001,6 +1014,17 @@ def main() -> int:
             workspace / "worker_exception.json",
             {"status": "FAIL", "mode": mode, "traceback": traceback.format_exc()},
         )
+        if mode.startswith("preview_"):
+            gen = (job.get("outputs") or {}).get("generation_json")
+            if gen:
+                write_json(
+                    Path(gen),
+                    {
+                        "status": "FAILURE",
+                        "mode": mode,
+                        "traceback": traceback.format_exc(),
+                    },
+                )
         if mode == "execute":
             payload = fail_envelope(
                 job,

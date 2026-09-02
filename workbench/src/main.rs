@@ -3,6 +3,14 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "RigForge Workbench",
         options,
-        Box::new(|_cc| Ok(Box::new(rigforge_workbench::WorkbenchApp::empty()))),
+        Box::new(|_cc| {
+            match rigforge_workbench::WorkbenchHost::open_default() {
+                Ok(host) => Ok(Box::new(host) as Box<dyn eframe::App>),
+                Err(err) => {
+                    eprintln!("Workbench Application open failed: {err}");
+                    Ok(Box::new(rigforge_workbench::WorkbenchApp::empty()) as Box<dyn eframe::App>)
+                }
+            }
+        }),
     )
 }

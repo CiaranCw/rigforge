@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>RigForge Preview</title>
+  <link rel="stylesheet" href="./app.css" />
+  <script>
+    /* Fail closed: do not use the library's default decoder CDNs. */
+    self.ModelViewerElement = {
+      dracoDecoderLocation: "./vendor/unused-draco/",
+      ktx2TranscoderLocation: "./vendor/unused-ktx2/",
+      lottieLoaderLocation: "./vendor/unused-lottie/"
+    };
+  </script>
+  <script type="module" src="./vendor/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <strong>RigForge Preview</strong>
+    <span>derived / rebuildable / non-authoritative — not Product truth</span>
+  </header>
+  <main>
+    <section id="preview">
+      <h1>Viewer</h1>
+      <div id="preview-wrap">
+        <model-viewer
+          id="viewer"
+          camera-controls
+          touch-action="pan-y"
+          shadow-intensity="0.4"
+          exposure="1.1"
+          environment-image="neutral"
+          interaction-prompt="none"
+        ></model-viewer>
+        <div id="preview-block">No Preview selected</div>
+      </div>
+      <div id="controls">
+        <button type="button" id="btn-orbit">Orbit</button>
+        <button type="button" id="btn-zoom">Zoom</button>
+        <button type="button" id="btn-reset-cam">Reset camera</button>
+        <button type="button" id="btn-play">Play</button>
+        <button type="button" id="btn-pause">Pause</button>
+        <button type="button" id="btn-restart">Restart</button>
+        <label>Seek <input id="seek" type="range" min="0" max="1000" value="0" /></label>
+      </div>
+    </section>
+    <section id="status">
+      <h1>Status</h1>
+      <pre id="status-pre">Loading session…</pre>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

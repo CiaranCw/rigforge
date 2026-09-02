@@ -187,7 +187,7 @@ fn mapping_tray_supports_v1_4_workflow_state() {
     assert!(shell.transfer_eligibility_label().contains("CompatibilityResult"));
     assert_eq!(
         WorkbenchApp::preview_unavailable_reason(),
-        "NOT AVAILABLE — V1-6"
+        "Preview requires an exact Product version and a validated PreviewArtifact"
     );
 }
 
@@ -700,7 +700,7 @@ fn transfer_disabled_until_application_authorizes() {
         .contains("CompatibilityResult"));
     assert_eq!(
         WorkbenchApp::preview_unavailable_reason(),
-        "NOT AVAILABLE — V1-6"
+        "Preview requires an exact Product version and a validated PreviewArtifact"
     );
 }
 
@@ -713,8 +713,14 @@ fn shell_initializes_without_network_or_blender() {
     let _options = WorkbenchApp::native_options();
     let slot = PreviewEmbeddingSlot::default();
     assert!(!slot.occupied);
-    assert_eq!(PreviewEmbeddingSlot::viewer_library(), None);
-    assert_eq!(PreviewEmbeddingSlot::payload_format(), None);
+    assert_eq!(
+        PreviewEmbeddingSlot::viewer_library(),
+        Some("@google/model-viewer")
+    );
+    assert_eq!(
+        PreviewEmbeddingSlot::payload_format(),
+        Some("model/gltf-binary")
+    );
 }
 
 #[test]
@@ -923,7 +929,7 @@ fn transfer_uses_application_authorization_and_displays_publication() {
     assert!(shell.persistence_verification_id().is_some());
     assert_eq!(
         WorkbenchApp::preview_unavailable_reason(),
-        "NOT AVAILABLE — V1-6"
+        "Preview requires an exact Product version and a validated PreviewArtifact"
     );
 }
 

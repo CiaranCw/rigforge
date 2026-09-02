@@ -4,7 +4,8 @@ Current V1 architecture principles. Core language is **Rust** (ADR-0002).
 Local catalog storage is **SQLite / rusqlite bundled** (ADR-0003). Workbench
 GUI is **egui/eframe** (ADR-0004). Production Blender worker process is
 **Accepted** (ADR-0005). Preview viewer library and Preview payload format
-remain OPEN (V1-6). Serialization format is not frozen.
+are **Accepted** in [ADR-0006](decisions/ADR-0006-v1-engine-independent-preview.md)
+(V1-6 focused review / focused closure). Serialization format is not frozen.
 
 Decision: [ADR-0001](decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Blender worker: [V1_BLENDER_BACKED_ARCHITECTURE.md](V1_BLENDER_BACKED_ARCHITECTURE.md).
@@ -44,7 +45,8 @@ remains accepted evidence: [../research/R1_RESEARCH_BASELINE.md](../research/R1_
   Blender at view time, a game engine runtime, or a full RigForge animation
   runtime. Product truth validates Preview; Preview never validates Product
   truth. The viewer is not the Blender UI. Viewer library and Preview payload
-  format remain OPEN.
+  format are **Accepted** for V1 in ADR-0006. GLB remains a Preview payload
+  only; it is not a Product format and not a V1-7 export.
 - **Deterministic-first where practical.** Determinism claims require a
   declared context. Semantic consistency under that context is the V1 bar;
   byte-identical outputs are not assumed.
@@ -77,7 +79,8 @@ Variant set (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Product
 implementation proceeds only under the currently authorized dedicated
 implementation stage. V1-4 is `COMPLETE / PASS / BASELINED`. V1-5 is
 `COMPLETE / PASS / BASELINED`. Gate C is `PASS / CLOSED`. V1-6 is
-`READY / NOT STARTED`.
+`COMPLETE / PASS / BASELINED`. V1-7 is `NOT STARTED / OPTIONAL`.
+V1-8 is `NOT STARTED`. Gate D is `NOT STARTED`.
 
 ## Decisions
 

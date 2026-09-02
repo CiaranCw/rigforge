@@ -18,20 +18,24 @@ Gate B PASS / CLOSED
 V1-4 COMPLETE / PASS / BASELINED
 V1-5 COMPLETE / PASS / BASELINED
 Gate C PASS / CLOSED
-V1-6 READY / NOT STARTED
+V1-6 COMPLETE / PASS / BASELINED
+V1-7 NOT STARTED / OPTIONAL
+V1-8 NOT STARTED
+Gate D NOT STARTED
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
 V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
 V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is
 **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**. V1-6 is
-`READY / NOT STARTED`.
+**COMPLETE / PASS / BASELINED**.
 
 Do not begin arbitrary Product implementation.
 
 Execute V1 work only under the currently authorized dedicated implementation
-stage. V1-6 is `READY / NOT STARTED`. Do not start V1-6 until that dedicated
-stage is authorized. Do not open Gate C2.
+stage. Do not start V1-7 unless a concrete Product consumer requires an
+output artifact/export contract. A GLB Preview payload is not that
+requirement. Do not start V1-8 as part of V1-6 closeout. Do not open Gate C2.
 
 ## Source of Truth
 
@@ -57,9 +61,9 @@ product/architecture/roadmap files are current project truth.
 1. Do not treat a third-party format as product authority.
 2. Do not treat a DCC as product authority. V1 may use a pinned hidden Blender worker (`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`, ADR-0001, validated by POC-BLENDER-E2E-01). Durable product contracts must stay backend-neutral. Do not add further DCC backends in V1.
 3. Core language is **Rust** (ADR-0002 **Accepted** at V1-1 Gate A). Do not reopen Rust vs C++ vs Python. POC-CORE-01 remains `INCONCLUSIVE` historical evidence, not silent C++ selection.
-4. GUI framework is **Accepted: egui/eframe** ([ADR-0004](docs/architecture/decisions/ADR-0004-v1-workbench-gui.md), Accepted at V1-2 focused review). This selection does not choose a Preview viewer or payload (V1-6). Rust Core does not imply a Rust GUI; the GUI decision is independent.
+4. GUI framework is **Accepted: egui/eframe** ([ADR-0004](docs/architecture/decisions/ADR-0004-v1-workbench-gui.md), Accepted at V1-2 focused review). This selection does not choose a Preview viewer or payload. Preview viewer/payload/surface is **Accepted** independently in [ADR-0006](docs/architecture/decisions/ADR-0006-v1-engine-independent-preview.md) at V1-6 focused review / focused closure. Rust Core does not imply a Rust GUI; the GUI decision is independent.
 5. The Domain crate lives at `domain/`. Catalog, persistence, and orchestration live at `app/`. The Workbench shell lives at `workbench/`. The pinned Blender adapter lives at `blender-worker/`. Do not add further DCC backends in V1.
-6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R). Neither is product authority, permanently final, a viewer/payload selection, or coverage of all Characters/Motions.
+6. Do not write a research hypothesis as a confirmed fact. Blender-backed execution is `ACCEPT_BLENDER_BACKEND_WITH_GUARDS` (POC-BLENDER-E2E-01). Derived Preview is `ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS` (POC-PREVIEW-01R) and ADR-0006 **Accepted**. Neither Blender nor Preview is Product authority. GLB is a Preview payload only, not a Product format and not a V1-7 export.
 7. Classify every third-party conclusion as one of: official specification/documentation, source-confirmed, project claim, or RigForge inference. See [docs/research/README.md](docs/research/README.md).
 8. Record architecture decisions as ADRs. Do not leave them only in agent chat.
 9. A derived representation must not become product authority.
@@ -111,17 +115,24 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-V1-6 —
-Engine-independent Preview.
+Decide whether V1-7 has a concrete consumer requirement.
+
+If none:
+skip optional V1-7 and prepare V1-8 real-asset hardening / release qualification.
+
+Do not start Gate D until V1-8 completes.
 ```
 
-Do not start V1-6 until that dedicated implementation stage is authorized.
+Do not start V1-7 unless a concrete Product consumer requires an output
+artifact/export contract. A GLB Preview payload is not that requirement.
 Do not open Gate C2. Do not open a post-Gate-C or V1-5 release audit.
+Do not start Gate D until V1-8 completes.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
 SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is
-**Accepted** (ADR-0005, V1-3 / Gate B Runtime Foundation Audit). Do not infer
-Preview viewer/payload from the GUI crate.
+**Accepted** (ADR-0005, V1-3 / Gate B Runtime Foundation Audit). Preview
+viewer/payload/surface is **Accepted** (ADR-0006, V1-6 focused review /
+focused closure). Do not infer Preview viewer/payload from the GUI crate.
 
 Gate C independent audit (immutable historical evidence):
 [docs/development/audits/GATE_C_PRODUCT_CORE_AUDIT.md](docs/development/audits/GATE_C_PRODUCT_CORE_AUDIT.md),
@@ -130,6 +141,13 @@ Gate C independent audit (immutable historical evidence):
 Independent result remains `GATE_C_PASS_CANDIDATE`. Project acceptance is
 **Gate C PASS / CLOSED**. `GATE-C-OBS-001` is deferred / non-blocking
 (Workbench integration / release hardening).
+
+V1-6 contracts:
+[docs/development/V1_6_IMPLEMENTATION_PLAN.md](docs/development/V1_6_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_6_PREVIEW_ARTIFACT_CONTRACT.md](docs/development/V1_6_PREVIEW_ARTIFACT_CONTRACT.md),
+[docs/development/V1_6_VIEWER_CONTRACT.md](docs/development/V1_6_VIEWER_CONTRACT.md),
+[docs/development/V1_6_PREVIEW_GENERATION.md](docs/development/V1_6_PREVIEW_GENERATION.md).
+ADR-0006 is **Accepted**.
 
 V1-5 contracts:
 [docs/development/V1_5_IMPLEMENTATION_PLAN.md](docs/development/V1_5_IMPLEMENTATION_PLAN.md),
@@ -174,7 +192,7 @@ Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
 
 Gate B is **PASS / CLOSED**. Gate C is **PASS / CLOSED**. Do not open Gate
 B2, Gate C2, or another independent review of V1-3, V1-4, or V1-5. V1-6
-does not get a default independent Gate. Next fixed independent gate is
+did not get a default independent Gate. Next fixed independent gate is
 Gate D after V1-8 (Final Release Readiness Audit).
 
 IA-1 closeout:

@@ -348,6 +348,9 @@ impl PersistenceArtifact {
     pub fn digest(&self) -> &ContentDigest {
         &self.digest
     }
+    pub fn size_bytes(&self) -> u64 {
+        self.size_bytes
+    }
     pub fn producer_id(&self) -> BackendExecutionContextId {
         self.producer_id
     }
@@ -516,8 +519,11 @@ pub struct PreviewArtifact {
 }
 
 impl PreviewArtifact {
-    pub fn for_derived_variant(
-        bound_derived_variant_version_id: DerivedVariantVersionId,
+    fn assemble(
+        bound_product_kind: ProductKind,
+        bound_character_version_id: Option<CharacterAssetVersionId>,
+        bound_motion_version_id: Option<MotionAssetVersionId>,
+        bound_derived_variant_version_id: Option<DerivedVariantVersionId>,
         digest: ContentDigest,
         size_bytes: u64,
         media_type: impl Into<String>,
@@ -527,10 +533,10 @@ impl PreviewArtifact {
             schema_version: SCHEMA_VERSION,
             record_type: RecordType::PreviewArtifact,
             id: PreviewArtifactId::generate(),
-            bound_product_kind: ProductKind::DerivedVariantVersion,
-            bound_character_version_id: None,
-            bound_motion_version_id: None,
-            bound_derived_variant_version_id: Some(bound_derived_variant_version_id),
+            bound_product_kind,
+            bound_character_version_id,
+            bound_motion_version_id,
+            bound_derived_variant_version_id,
             digest,
             size_bytes,
             media_type: media_type.into(),
@@ -544,11 +550,83 @@ impl PreviewArtifact {
         Ok(value)
     }
 
+    pub fn for_character(
+        bound_character_version_id: CharacterAssetVersionId,
+        digest: ContentDigest,
+        size_bytes: u64,
+        media_type: impl Into<String>,
+        producer_id: BackendExecutionContextId,
+    ) -> Result<Self, DomainError> {
+        Self::assemble(
+            ProductKind::CharacterAssetVersion,
+            Some(bound_character_version_id),
+            None,
+            None,
+            digest,
+            size_bytes,
+            media_type,
+            producer_id,
+        )
+    }
+
+    pub fn for_motion(
+        bound_motion_version_id: MotionAssetVersionId,
+        digest: ContentDigest,
+        size_bytes: u64,
+        media_type: impl Into<String>,
+        producer_id: BackendExecutionContextId,
+    ) -> Result<Self, DomainError> {
+        Self::assemble(
+            ProductKind::MotionAssetVersion,
+            None,
+            Some(bound_motion_version_id),
+            None,
+            digest,
+            size_bytes,
+            media_type,
+            producer_id,
+        )
+    }
+
+    pub fn for_derived_variant(
+        bound_derived_variant_version_id: DerivedVariantVersionId,
+        digest: ContentDigest,
+        size_bytes: u64,
+        media_type: impl Into<String>,
+        producer_id: BackendExecutionContextId,
+    ) -> Result<Self, DomainError> {
+        Self::assemble(
+            ProductKind::DerivedVariantVersion,
+            None,
+            None,
+            Some(bound_derived_variant_version_id),
+            digest,
+            size_bytes,
+            media_type,
+            producer_id,
+        )
+    }
+
     pub fn id(&self) -> PreviewArtifactId {
         self.id
     }
     pub fn digest(&self) -> &ContentDigest {
         &self.digest
+    }
+    pub fn size_bytes(&self) -> u64 {
+        self.size_bytes
+    }
+    pub fn media_type(&self) -> &str {
+        &self.media_type
+    }
+    pub fn producer_id(&self) -> BackendExecutionContextId {
+        self.producer_id
+    }
+    pub fn location(&self) -> Option<&LocationEvidence> {
+        self.location.as_ref()
+    }
+    pub fn bound_product_kind(&self) -> ProductKind {
+        self.bound_product_kind
     }
     pub fn derived(&self) -> bool {
         self.derived
@@ -559,8 +637,20 @@ impl PreviewArtifact {
     pub fn authoritative(&self) -> bool {
         self.authoritative
     }
+    pub fn bound_character_version_id(&self) -> Option<CharacterAssetVersionId> {
+        self.bound_character_version_id
+    }
+    pub fn bound_motion_version_id(&self) -> Option<MotionAssetVersionId> {
+        self.bound_motion_version_id
+    }
     pub fn bound_derived_variant_version_id(&self) -> Option<DerivedVariantVersionId> {
         self.bound_derived_variant_version_id
+    }
+
+    pub fn attach_location(&mut self, location: LocationEvidence) -> Result<(), DomainError> {
+        location.validate()?;
+        self.location = Some(location);
+        self.validate()
     }
 
     pub fn validate(&self) -> Result<(), DomainError> {
@@ -621,18 +711,61 @@ impl PreviewArtifact {
         Ok(())
     }
 
+    pub fn assert_bound_character(
+        &self,
+        expected: CharacterAssetVersionId,
+    ) -> Result<(), DomainError> {
+        self.validate()?;
+        if self.bound_product_kind != ProductKind::CharacterAssetVersion
+            || self.bound_character_version_id != Some(expected)
+        {
+            return Err(DomainError::new(
+                ErrorCode::PreviewBinding,
+                "PreviewArtifact is bound to the wrong CharacterAssetVersion",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn assert_bound_motion(&self, expected: MotionAssetVersionId) -> Result<(), DomainError> {
+        self.validate()?;
+        if self.bound_product_kind != ProductKind::MotionAssetVersion
+            || self.bound_motion_version_id != Some(expected)
+        {
+            return Err(DomainError::new(
+                ErrorCode::PreviewBinding,
+                "PreviewArtifact is bound to the wrong MotionAssetVersion",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn assert_bound_derived_variant(
         &self,
         expected: DerivedVariantVersionId,
     ) -> Result<(), DomainError> {
         self.validate()?;
-        if self.bound_derived_variant_version_id != Some(expected) {
+        if self.bound_product_kind != ProductKind::DerivedVariantVersion
+            || self.bound_derived_variant_version_id != Some(expected)
+        {
             return Err(DomainError::new(
                 ErrorCode::PreviewBinding,
                 "PreviewArtifact is bound to the wrong DerivedVariantVersion",
             ));
         }
         Ok(())
+    }
+
+    pub fn bound_product_version_id(&self) -> Option<String> {
+        match self.bound_product_kind {
+            ProductKind::CharacterAssetVersion => {
+                self.bound_character_version_id.map(|id| id.canonical())
+            }
+            ProductKind::MotionAssetVersion => self.bound_motion_version_id.map(|id| id.canonical()),
+            ProductKind::DerivedVariantVersion => self
+                .bound_derived_variant_version_id
+                .map(|id| id.canonical()),
+        }
     }
 }
 

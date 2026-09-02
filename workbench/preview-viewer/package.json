@@ -1,0 +1,10 @@
+{
+  "name": "rigforge-preview-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "V1-6 engine-independent Preview viewer surface. Not a Product format and not an export contract.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@google/model-viewer": "4.3.1"
+  }
+}

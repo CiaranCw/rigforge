@@ -3,11 +3,12 @@
 use std::path::{Path, PathBuf};
 
 use rigforge_domain::{
-    ingest_validated, to_json, validate_job_inputs, validate_publication_lineage, BoneMappingVersion, CharacterAsset,
-    CharacterAssetVersion, CompatibilityResult, CompatibilitySummary, DerivedVariant, DomainRecord,
-    JobSpec, Lifecycle, MotionAsset, MotionAssetVersion, PersistenceArtifact,
-    PersistenceVerification, ProductVersionStore, RecordType, RetargetPolicyVersion,
-    SourceArtifactEvidence, SourceSkeletonReference, Validated, WorkerResult,
+    ingest_validated, to_json, validate_job_inputs, validate_publication_lineage, BackendExecutionContext,
+    BoneMappingVersion, CharacterAsset, CharacterAssetVersion, CompatibilityResult, CompatibilitySummary,
+    DerivedVariant, DomainRecord, JobSpec, Lifecycle, MotionAsset, MotionAssetVersion,
+    PersistenceArtifact, PersistenceVerification, PreviewArtifact, ProductKind, ProductVersionStore,
+    RecordType, RetargetPolicyVersion, SourceArtifactEvidence, SourceSkeletonReference, Validated,
+    WorkerResult,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction};
 use serde_json::Value;
@@ -49,6 +50,7 @@ pub struct SqliteCatalog {
     conn: Connection,
     path: Option<PathBuf>,
     artifact_root: PathBuf,
+    preview_root: PathBuf,
     #[cfg(test)]
     fail_candidate_after_writes: bool,
 }
@@ -73,12 +75,18 @@ impl SqliteCatalog {
             Some(parent) if !parent.as_os_str().is_empty() => parent.join("rigforge-artifacts"),
             _ => PathBuf::from("rigforge-artifacts"),
         };
+        let preview_root = match path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent.join("rigforge-previews"),
+            _ => PathBuf::from("rigforge-previews"),
+        };
         std::fs::create_dir_all(&artifact_root)?;
+        std::fs::create_dir_all(&preview_root)?;
         let conn = Connection::open(path)?;
         let mut catalog = Self {
             conn,
             path: Some(path.to_path_buf()),
             artifact_root,
+            preview_root,
             #[cfg(test)]
             fail_candidate_after_writes: false,
         };
@@ -91,11 +99,17 @@ impl SqliteCatalog {
             "rigforge-artifacts-{}",
             uuid::Uuid::now_v7()
         ));
+        let preview_root = std::env::temp_dir().join(format!(
+            "rigforge-previews-{}",
+            uuid::Uuid::now_v7()
+        ));
         std::fs::create_dir_all(&artifact_root)?;
+        std::fs::create_dir_all(&preview_root)?;
         let mut catalog = Self {
             conn: Connection::open_in_memory()?,
             path: None,
             artifact_root,
+            preview_root,
             #[cfg(test)]
             fail_candidate_after_writes: false,
         };
@@ -105,6 +119,10 @@ impl SqliteCatalog {
 
     pub fn artifact_root(&self) -> &Path {
         &self.artifact_root
+    }
+
+    pub fn preview_root(&self) -> &Path {
+        &self.preview_root
     }
 
     pub fn durable_artifact_path(
@@ -221,7 +239,7 @@ impl SqliteCatalog {
         find_derived_version_id_for_worker_result_on(&self.conn, worker_result_id)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn seed_succeeded_job_run_for_tests(
         &mut self,
         job_spec_id: &str,
@@ -458,6 +476,68 @@ impl SqliteCatalog {
         id: &str,
     ) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
         self.load_validated(id)
+    }
+
+    pub fn load_preview_artifact(&self, id: &str) -> Result<Validated<PreviewArtifact>, AppError> {
+        self.load_validated(id)
+    }
+
+    pub fn persist_preview_artifact(
+        &mut self,
+        artifact: &PreviewArtifact,
+        payload_path: &Path,
+    ) -> Result<Validated<PreviewArtifact>, AppError> {
+        self.in_transaction(|tx| persist_preview_on(&*tx, artifact, payload_path))
+    }
+
+    pub fn latest_preview_for_exact_version(
+        &self,
+        kind: ProductKind,
+        version_id: &str,
+    ) -> Result<Option<Validated<PreviewArtifact>>, AppError> {
+        let field = match kind {
+            ProductKind::CharacterAssetVersion => "bound_character_version_id",
+            ProductKind::MotionAssetVersion => "bound_motion_version_id",
+            ProductKind::DerivedVariantVersion => "bound_derived_variant_version_id",
+        };
+        let sql = format!(
+            "SELECT product_id FROM records
+             WHERE record_type = 'preview_artifact'
+               AND json_extract(payload_json, '$.{field}') = ?1
+             ORDER BY created_at DESC, product_id DESC
+             LIMIT 1"
+        );
+        let id: Option<String> = self
+            .conn
+            .query_row(&sql, [version_id], |row| row.get(0))
+            .optional()?;
+        match id {
+            Some(id) => Ok(Some(self.load_preview_artifact(&id)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn delete_preview_artifact(&mut self, preview_id: &str) -> Result<(), AppError> {
+        let loaded = self.load_preview_artifact(preview_id)?;
+        let location = loaded
+            .as_record()
+            .location()
+            .map(|l| PathBuf::from(l.value()));
+        self.conn.execute(
+            "DELETE FROM records WHERE product_id = ?1 AND record_type = 'preview_artifact'",
+            [preview_id],
+        )?;
+        self.conn.execute(
+            "DELETE FROM payload_locations WHERE product_id = ?1",
+            [preview_id],
+        )?;
+        if let Some(path) = location {
+            let _ = std::fs::remove_file(&path);
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::remove_dir_all(parent);
+            }
+        }
+        Ok(())
     }
 
     pub fn publish_derived_variant_transaction(
@@ -1485,10 +1565,119 @@ fn reject_public_authority_bypass<T: DomainRecord>(
         RecordType::PersistenceVerification => Err(AppError::Catalog(
             "generic persistence cannot author publication-critical PersistenceVerification; use the Application reopen workflow".into(),
         )),
+        RecordType::PreviewArtifact => reject_preview_graph(conn, record),
         RecordType::DerivedVariant => reject_public_logical_pointer_change(conn, record),
         RecordType::DerivedVariantVersion => reject_public_derived_variant_version(conn, record),
         _ => Ok(()),
     }
+}
+
+fn reject_preview_graph<T: DomainRecord>(
+    conn: &Connection,
+    record: &Validated<T>,
+) -> Result<(), AppError> {
+    let payload = to_json(record)?;
+    let preview = ingest_validated::<PreviewArtifact>(&payload)?;
+    let preview = preview.as_record();
+    if preview.location().is_none() {
+        return Ok(());
+    }
+    require_location_bearing_preview(
+        conn,
+        preview,
+        Path::new(preview.location().unwrap().value()),
+    )
+}
+
+fn require_bound_preview_product(
+    conn: &Connection,
+    preview: &PreviewArtifact,
+) -> Result<(), AppError> {
+    let version_id = preview.bound_product_version_id().ok_or_else(|| {
+        AppError::Catalog("PreviewArtifact is missing a bound Product version".into())
+    })?;
+    match preview.bound_product_kind() {
+        ProductKind::CharacterAssetVersion => {
+            load_validated_on::<CharacterAssetVersion>(conn, &version_id)?;
+        }
+        ProductKind::MotionAssetVersion => {
+            load_validated_on::<MotionAssetVersion>(conn, &version_id)?;
+        }
+        ProductKind::DerivedVariantVersion => {
+            load_validated_on::<rigforge_domain::DerivedVariantVersion>(conn, &version_id)?;
+        }
+    }
+    Ok(())
+}
+
+fn require_preview_producer(
+    conn: &Connection,
+    preview: &PreviewArtifact,
+) -> Result<(), AppError> {
+    match load_validated_on::<BackendExecutionContext>(
+        conn,
+        &preview.producer_id().canonical(),
+    ) {
+        Ok(_) => Ok(()),
+        Err(AppError::NotFound { .. }) => Err(AppError::Catalog(format!(
+            "PreviewArtifact.producer_id {} does not resolve to an existing BackendExecutionContext",
+            preview.producer_id().canonical()
+        ))),
+        Err(err) => Err(err),
+    }
+}
+
+fn require_location_bearing_preview(
+    conn: &Connection,
+    preview: &PreviewArtifact,
+    payload_path: &Path,
+) -> Result<(), AppError> {
+    require_bound_preview_product(conn, preview)?;
+    require_preview_producer(conn, preview)?;
+    verify_preview_payload_file(preview, payload_path)
+}
+
+fn verify_preview_payload_file(
+    preview: &PreviewArtifact,
+    payload_path: &Path,
+) -> Result<(), AppError> {
+    if preview.media_type() != "model/gltf-binary" {
+        return Err(AppError::Catalog(format!(
+            "unsupported Preview media type: {}",
+            preview.media_type()
+        )));
+    }
+    if !payload_path.is_file() {
+        return Err(AppError::Catalog(format!(
+            "Preview payload missing: {}",
+            payload_path.display()
+        )));
+    }
+    let size = std::fs::metadata(payload_path)?.len();
+    if size != preview.size_bytes() {
+        return Err(AppError::Catalog(format!(
+            "Preview payload size mismatch: expected {} found {size}",
+            preview.size_bytes()
+        )));
+    }
+    let digest = crate::qc::sha256_file(payload_path)?;
+    if digest != preview.digest().sha256() {
+        return Err(AppError::Catalog(
+            "Preview payload digest mismatch".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn persist_preview_on(
+    conn: &Connection,
+    artifact: &PreviewArtifact,
+    payload_path: &Path,
+) -> Result<Validated<PreviewArtifact>, AppError> {
+    require_location_bearing_preview(conn, artifact, payload_path)?;
+    let validated = Validated::certify(artifact.clone())?;
+    put_validated_on(conn, &validated)?;
+    Ok(validated)
 }
 
 fn reject_public_logical_pointer_change<T: DomainRecord>(
@@ -1797,6 +1986,16 @@ fn put_validated_on<T: DomainRecord>(
         let version = ingest_validated::<rigforge_domain::DerivedVariantVersion>(&payload)?;
         if version.as_record().lifecycle() == Lifecycle::Published {
             validate_published_derived_on(conn, version.as_record())?;
+        }
+    }
+    if T::RECORD_TYPE == RecordType::PreviewArtifact {
+        let preview = ingest_validated::<PreviewArtifact>(&payload)?;
+        if preview.as_record().location().is_some() {
+            require_location_bearing_preview(
+                conn,
+                preview.as_record(),
+                Path::new(preview.as_record().location().unwrap().value()),
+            )?;
         }
     }
     let meta = meta_from_json(&value)?;

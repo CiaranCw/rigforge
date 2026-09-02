@@ -40,3 +40,6 @@ __pycache__/
 
 # V1-2 / V1-3 review evidence is packaged outside git
 /review_evidence/
+
+# Preview viewer npm install; keep vendored model-viewer.min.js
+/workbench/preview-viewer/node_modules/

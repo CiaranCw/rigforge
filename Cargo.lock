@@ -2551,6 +2551,7 @@ version = "0.1.0"
 dependencies = [
  "rigforge_app",
  "rigforge_domain",
+ "rigforge_workbench",
  "serde",
  "serde_json",
  "sha2",
@@ -2573,6 +2574,7 @@ dependencies = [
  "eframe",
  "egui",
  "rigforge_app",
+ "serde_json",
 ]
 
 [[package]]

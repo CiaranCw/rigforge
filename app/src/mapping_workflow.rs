@@ -34,7 +34,7 @@ impl MappingWorkflowSnapshot {
     }
 
     pub fn preview_unavailable_reason() -> &'static str {
-        "NOT AVAILABLE — V1-6"
+        "Preview requires an exact Product version and a validated PreviewArtifact"
     }
 }
 
