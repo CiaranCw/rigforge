@@ -70,6 +70,7 @@ pub struct BlenderWorker {
     workspace_root: PathBuf,
     launched: HashMap<String, LaunchedAttempt>,
     test: Option<TestHarness>,
+    last_staged_blend: Option<PathBuf>,
 }
 
 impl BlenderWorker {
@@ -82,6 +83,7 @@ impl BlenderWorker {
             pin,
             launched: HashMap::new(),
             test: None,
+            last_staged_blend: None,
         })
     }
 
@@ -109,7 +111,12 @@ impl BlenderWorker {
                 skip_reopen: false,
                 reopen_executable: None,
             }),
+            last_staged_blend: None,
         }
+    }
+
+    pub fn last_staged_blend(&self) -> Option<&Path> {
+        self.last_staged_blend.as_deref()
     }
 
     pub fn is_production(&self) -> bool {
@@ -860,6 +867,7 @@ impl WorkerCompletionPort for BlenderWorker {
         let mut extra = diagnostics;
         extra.push("phase_reopen=PASS".into());
         extra.push("product_publication=false".into());
+        let staged = attempt.staged_blend.clone();
         let result = self.worker_result(
             &attempt,
             true,
@@ -868,6 +876,7 @@ impl WorkerCompletionPort for BlenderWorker {
             extra,
             vec![digest],
         )?;
+        self.last_staged_blend = Some(staged);
         Ok(TerminalOutcome::Success(result))
     }
 }

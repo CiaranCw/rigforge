@@ -12,6 +12,9 @@ eframe = "0.31.1"
 egui = "0.31.1"
 rigforge_app = { path = "../app" }
 
+[dev-dependencies]
+rigforge_app = { path = "../app", features = ["test-support"] }
+
 [[bin]]
 name = "rigforge_workbench"
 path = "src/main.rs"

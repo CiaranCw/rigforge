@@ -1,6 +1,6 @@
 mod common;
 
-use common::{certify, source, unpublished_graph};
+use common::{certify, persist_core, source, unpublished_graph};
 use rigforge_app::{AppError, JobRunState, SqliteCatalog};
 use rigforge_domain::{
     BoneMappingVersion, CharacterAsset, CharacterAssetVersion, ErrorCode, JobSpec,
@@ -235,14 +235,7 @@ fn invalidated_input_cannot_enqueue() {
 fn valid_exact_graph_enqueues() {
     let mut catalog = SqliteCatalog::open_in_memory().unwrap();
     let g = unpublished_graph();
-    store_inputs(
-        &mut catalog,
-        Some(&g.character_version),
-        Some(&g.motion_version),
-        Some(&g.source_skeleton),
-        Some(&g.mapping_version),
-        Some(&g.policy_version),
-    );
+    persist_core(&mut catalog, &g);
     let spec = certify(g.job.clone());
     let run = catalog.enqueue_job(spec.clone()).unwrap();
     assert_eq!(run.state, JobRunState::Queued);

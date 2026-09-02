@@ -836,6 +836,147 @@ def inspect_skeleton(job: dict) -> dict:
     return payload
 
 
+def inspect_qc(job: dict) -> dict:
+    """Read-only Product QC inspection of persisted bytes. Must not save."""
+    blend = Path(job["artifact_path"])
+    expected = str(job.get("expected_digest") or "").lower()
+    envelope_path = Path(job["outputs"]["inspect_envelope"])
+    if not blend.is_file():
+        payload = {
+            "status": "FAIL",
+            "failure_class": "missing_artifact",
+            "digest_before": None,
+            "digest_after": None,
+            "structurally_readable": False,
+            "finite_transforms": False,
+            "present_joint_keys": [],
+            "baked_animation_present": False,
+            "duration_s": None,
+            "gross_scale_sane": False,
+            "root_trajectory_sane": False,
+            "saved": False,
+            "diagnostics": ["persisted artifact file is missing"],
+        }
+        write_json(envelope_path, payload)
+        raise SystemExit(1)
+    digest_before = sha256_file(blend)
+    if expected and digest_before != expected:
+        payload = {
+            "status": "FAIL",
+            "failure_class": "digest_mismatch",
+            "digest_before": digest_before,
+            "digest_after": digest_before,
+            "structurally_readable": False,
+            "finite_transforms": False,
+            "present_joint_keys": [],
+            "baked_animation_present": False,
+            "duration_s": None,
+            "gross_scale_sane": False,
+            "root_trajectory_sane": False,
+            "saved": False,
+            "diagnostics": [f"digest mismatch expected {expected} found {digest_before}"],
+        }
+        write_json(envelope_path, payload)
+        raise SystemExit(1)
+    bpy.ops.wm.open_mainfile(filepath=str(blend))
+    mapping_entries = list((job.get("mapping") or {}).get("entries") or [])
+    target = None
+    for obj in bpy.data.objects:
+        if obj.type == "ARMATURE" and classify_by_mapping(obj, mapping_entries) == "target":
+            target = obj
+            break
+    if target is None:
+        for obj in bpy.data.objects:
+            if obj.type == "ARMATURE":
+                target = obj
+                break
+    structurally_readable = target is not None
+    present_joint_keys = []
+    finite_transforms = True
+    baked_animation_present = False
+    duration_s = None
+    gross_scale_sane = False
+    root_trajectory_sane = False
+    diagnostics = [
+        "inspect_qc is read-only; must not save the .blend",
+        "QC evaluates persisted bytes, not WorkerResult measurements",
+    ]
+    if target is not None:
+        present_joint_keys = [bone.name for bone in target.data.bones]
+        scene = bpy.context.scene
+        f0 = int(scene.frame_start)
+        f1 = int(scene.frame_end)
+        fps = float(scene.render.fps) / float(max(1, scene.render.fps_base))
+        if fps > 0:
+            duration_s = abs(f1 - f0) / fps
+        action = None
+        if target.animation_data:
+            action = target.animation_data.action
+        baked_animation_present = action is not None
+        if action is not None:
+            assign_action(target, action)
+        bpy.context.view_layer.objects.active = target
+        target.select_set(True)
+        bpy.ops.object.mode_set(mode="POSE")
+        frames = sorted({int(f0), int(f1), int(round((f0 + f1) / 2))})
+        max_scale_err = 0.0
+        root_name = None
+        for bone in target.data.bones:
+            if bone.parent is None:
+                root_name = bone.name
+                break
+        root_locs = []
+        for frame in frames:
+            scene.frame_set(int(frame))
+            bpy.context.view_layer.update()
+            for pb in target.pose.bones:
+                mat = world_pose_matrix(target, pb)
+                if not finite_matrix(mat):
+                    finite_transforms = False
+                loc, _rot, scl = mat.decompose()
+                for component in (loc.x, loc.y, loc.z, scl.x, scl.y, scl.z):
+                    if not math.isfinite(component):
+                        finite_transforms = False
+                pose_err = max(abs(float(pb.scale[i]) - 1.0) for i in range(3))
+                max_scale_err = max(max_scale_err, pose_err)
+                if pb.name == root_name:
+                    root_locs.append((float(loc.x), float(loc.y), float(loc.z)))
+        bpy.ops.object.mode_set(mode="OBJECT")
+        gross_scale_sane = finite_transforms and max_scale_err < 10.0
+        root_trajectory_sane = finite_transforms and len(root_locs) >= 1
+        if root_trajectory_sane and len(root_locs) >= 2:
+            dx = root_locs[-1][0] - root_locs[0][0]
+            dy = root_locs[-1][1] - root_locs[0][1]
+            dz = root_locs[-1][2] - root_locs[0][2]
+            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+            root_trajectory_sane = math.isfinite(dist) and dist < 1.0e6
+        diagnostics.append(f"target={target.name}")
+        diagnostics.append(f"baked_action={action.name if action else None}")
+        diagnostics.append(f"max_pose_scale_error={round(max_scale_err, 8)}")
+    digest_after = sha256_file(blend)
+    if digest_after != digest_before:
+        finite_transforms = False
+        diagnostics.append("digest changed during inspect_qc; inspection must not mutate bytes")
+    payload = {
+        "status": "SUCCESS" if structurally_readable else "FAIL",
+        "digest_before": digest_before,
+        "digest_after": digest_after,
+        "structurally_readable": structurally_readable,
+        "finite_transforms": finite_transforms,
+        "present_joint_keys": present_joint_keys,
+        "baked_animation_present": baked_animation_present,
+        "duration_s": duration_s,
+        "gross_scale_sane": gross_scale_sane,
+        "root_trajectory_sane": root_trajectory_sane,
+        "saved": False,
+        "diagnostics": diagnostics,
+    }
+    write_json(envelope_path, payload)
+    if digest_after != digest_before:
+        raise SystemExit(1)
+    return payload
+
+
 def main() -> int:
     args = parse_after_dash()
     mode = args[0]
@@ -847,6 +988,8 @@ def main() -> int:
             reopen(job)
         elif mode == "inspect":
             inspect_skeleton(job)
+        elif mode == "inspect_qc":
+            inspect_qc(job)
         else:
             raise SystemExit(f"unknown mode {mode}")
         return 0

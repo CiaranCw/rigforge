@@ -34,6 +34,8 @@ pub enum ErrorCode {
     SubjectUnion,
     CompatibilityContradiction,
     InvalidatedInput,
+    WriteOnceBinding,
+    QcChecksIncomplete,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

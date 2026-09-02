@@ -2,6 +2,11 @@
 
 use rigforge_domain::*;
 
+#[cfg(feature = "test-support")]
+use rigforge_app::{sha256_file, ArtifactInspector, PersistenceReopener};
+#[cfg(feature = "test-support")]
+use std::path::Path;
+
 pub fn digest(n: u8) -> ContentDigest {
     ContentDigest::parse(&format!("{n:x}").repeat(64)).unwrap()
 }
@@ -67,6 +72,7 @@ pub struct Graph {
     pub policy_version: RetargetPolicyVersion,
     pub job: JobSpec,
     pub worker: WorkerResult,
+    pub compatibility: CompatibilityResult,
     pub derived: DerivedVariant,
     pub derived_version: DerivedVariantVersion,
     pub qc: QcReport,
@@ -130,6 +136,20 @@ pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
     policy_version.publish().unwrap();
     policy.bind_published(policy_version.id());
 
+    let compatibility = CompatibilityResult::from_preflight(
+        character_version.id(),
+        motion_version.id(),
+        mapping_version.id(),
+        policy_version.id(),
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["fixture Ready preflight".to_string()],
+    )
+    .unwrap();
+
     let job = JobSpec::new(
         character_version.id(),
         motion_version.id(),
@@ -144,6 +164,8 @@ pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
         RequestedCapability::PersistenceArtifact,
         RequestedCapability::PreviewPayload,
     ])
+    .unwrap()
+    .with_compatibility_authorization(compatibility.id(), false)
     .unwrap();
 
     let persist_digest = digest(3);
@@ -169,17 +191,8 @@ pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
         job.id(),
         backend.id(),
         worker.id(),
-        QcReportId::generate(),
     )
     .unwrap();
-    let qc = QcReport::for_derived_variant(
-        derived_version.id(),
-        policy_version.id(),
-        worker.id(),
-        QcVerdict::Pass,
-    )
-    .unwrap();
-    derived_version.bind_qc_report(qc.id()).unwrap();
 
     let persistence = PersistenceArtifact::new(
         derived_version.id(),
@@ -192,6 +205,17 @@ pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
     derived_version
         .bind_persistence_artifact(persistence.id())
         .unwrap();
+    let qc = QcReport::for_derived_variant(
+        derived_version.id(),
+        policy_version.id(),
+        worker.id(),
+        persistence.id(),
+        persistence.instance_id(),
+        persistence.digest().clone(),
+        passing_structural_qc_checks(),
+    )
+    .unwrap();
+    derived_version.bind_qc_report(qc.id()).unwrap();
     let preview = PreviewArtifact::for_derived_variant(
         derived_version.id(),
         digest(4),
@@ -226,6 +250,7 @@ pub fn unpublished_graph_with_time(time: TimeDomainProvenance) -> Graph {
         policy_version,
         job,
         worker,
+        compatibility,
         derived,
         derived_version,
         qc,
@@ -256,6 +281,7 @@ impl Graph {
                 worker: &self.worker,
                 qc: &self.qc,
                 backend: &self.backend,
+                compatibility: &self.compatibility,
                 persistence: Some(&self.persistence),
                 verification: Some(&self.verification),
             },
@@ -263,6 +289,27 @@ impl Graph {
         )
         .unwrap();
     }
+}
+
+pub fn persist_core(catalog: &mut rigforge_app::SqliteCatalog, g: &Graph) {
+    catalog
+        .put_validated_pair(&certify(g.character.clone()), &certify(g.character_version.clone()))
+        .unwrap();
+    catalog
+        .put_validated(&certify(g.source_skeleton.clone()))
+        .unwrap();
+    catalog
+        .put_validated_pair(&certify(g.motion.clone()), &certify(g.motion_version.clone()))
+        .unwrap();
+    catalog
+        .put_validated_pair(&certify(g.mapping.clone()), &certify(g.mapping_version.clone()))
+        .unwrap();
+    catalog
+        .put_validated_pair(&certify(g.policy.clone()), &certify(g.policy_version.clone()))
+        .unwrap();
+    catalog
+        .put_validated(&certify(g.compatibility.clone()))
+        .unwrap();
 }
 
 pub fn certify<T: DomainRecord>(record: T) -> Validated<T> {
@@ -331,4 +378,105 @@ pub fn mutate_json_field<T: DomainRecord>(record: &T, field: &str, value: serde_
         .unwrap()
         .insert(field.to_string(), value);
     ingest_validated(&parsed.to_string()).unwrap()
+}
+
+/// Test-only inspector. Not part of the production Application surface.
+#[cfg(feature = "test-support")]
+#[derive(Clone, Debug)]
+pub struct MemoryArtifactInspector {
+    pub evidence: rigforge_app::ArtifactInspectionEvidence,
+}
+
+#[cfg(feature = "test-support")]
+impl MemoryArtifactInspector {
+    pub fn passing(expected_duration_s: Option<f64>) -> Self {
+        let duration = expected_duration_s.or(Some(2.0));
+        Self {
+            evidence: rigforge_app::ArtifactInspectionEvidence {
+                digest_before: String::new(),
+                digest_after: String::new(),
+                structurally_readable: true,
+                finite_transforms: true,
+                present_joint_keys: vec!["Bone".into(), "Body".into()],
+                baked_animation_present: true,
+                duration_s: duration,
+                expected_duration_s: duration,
+                gross_scale_sane: true,
+                root_trajectory_sane: true,
+            },
+        }
+    }
+
+    pub fn with_joints(mut self, joints: Vec<String>) -> Self {
+        self.evidence.present_joint_keys = joints;
+        self
+    }
+
+    pub fn failing_finite_transforms(expected_duration_s: Option<f64>) -> Self {
+        let mut inspector = Self::passing(expected_duration_s);
+        inspector.evidence.finite_transforms = false;
+        inspector
+    }
+}
+
+#[cfg(feature = "test-support")]
+impl ArtifactInspector for MemoryArtifactInspector {
+    fn inspect(
+        &self,
+        artifact_path: &Path,
+        expected_sha256: &str,
+    ) -> Result<rigforge_app::ArtifactInspectionEvidence, rigforge_app::AppError> {
+        if !artifact_path.is_file() {
+            return Err(rigforge_app::AppError::Worker(
+                "QC inspect: artifact file is missing".into(),
+            ));
+        }
+        let found = sha256_file(artifact_path)?;
+        if found != expected_sha256 {
+            return Err(rigforge_app::AppError::Worker(format!(
+                "QC inspect digest mismatch: expected {expected_sha256} found {found}"
+            )));
+        }
+        let after = sha256_file(artifact_path)?;
+        let mut evidence = self.evidence.clone();
+        evidence.digest_before = found;
+        evidence.digest_after = after;
+        Ok(evidence)
+    }
+}
+
+/// Test-only reopener. Not part of the production Application surface.
+#[cfg(feature = "test-support")]
+#[derive(Clone, Debug)]
+pub struct MemoryPersistenceReopener {
+    pub fresh_reopen: VerificationOutcome,
+    pub structural: VerificationOutcome,
+}
+
+#[cfg(feature = "test-support")]
+impl Default for MemoryPersistenceReopener {
+    fn default() -> Self {
+        Self {
+            fresh_reopen: VerificationOutcome::Pass,
+            structural: VerificationOutcome::Pass,
+        }
+    }
+}
+
+#[cfg(feature = "test-support")]
+impl PersistenceReopener for MemoryPersistenceReopener {
+    fn reopen(
+        &self,
+        artifact_path: &Path,
+        expected_sha256: &str,
+    ) -> Result<(VerificationOutcome, VerificationOutcome), rigforge_app::AppError> {
+        if !artifact_path.is_file() {
+            return Ok((VerificationOutcome::Missing, VerificationOutcome::Missing));
+        }
+        let found = sha256_file(artifact_path)?;
+        if found != expected_sha256 {
+            return Ok((VerificationOutcome::Fail, VerificationOutcome::Fail));
+        }
+        Ok((self.fresh_reopen, self.structural))
+    }
 }

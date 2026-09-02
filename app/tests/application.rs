@@ -1,12 +1,12 @@
 mod common;
 
-use common::{certify, unpublished_graph, valid_graph};
+use common::{certify, unpublished_graph};
 use rigforge_app::{Application, FakeWorker, JobRunState};
 
 #[test]
 fn application_queries_keep_asset_kinds_separate() {
     let mut app = Application::open_in_memory().unwrap();
-    let g = valid_graph();
+    let g = unpublished_graph();
     app.catalog_mut()
         .put_validated_pair(
             &certify(g.character.clone()),
@@ -23,10 +23,7 @@ fn application_queries_keep_asset_kinds_separate() {
         )
         .unwrap();
     app.catalog_mut()
-        .put_validated_pair(
-            &certify(g.derived.clone()),
-            &certify(g.derived_version.clone()),
-        )
+        .put_validated(&certify(g.derived.clone()))
         .unwrap();
 
     let characters = app.list_characters().unwrap();
@@ -73,6 +70,9 @@ fn selected_version_is_exact_and_job_status_does_not_mutate_product() {
         .unwrap();
     app.catalog_mut()
         .put_validated(&certify(g.policy_version.clone()))
+        .unwrap();
+    app.catalog_mut()
+        .put_validated(&certify(g.compatibility.clone()))
         .unwrap();
     let spec = certify(g.job.clone());
     let spec_json = rigforge_domain::to_json(&spec).unwrap();

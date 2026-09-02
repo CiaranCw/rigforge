@@ -65,6 +65,18 @@ impl DerivedVariant {
         self.published_version_id = Some(version_id);
     }
 
+    pub fn bind_draft(&mut self, version_id: DerivedVariantVersionId) {
+        self.draft_version_id = Some(version_id);
+    }
+
+    pub fn published_version_id(&self) -> Option<DerivedVariantVersionId> {
+        self.published_version_id
+    }
+
+    pub fn draft_version_id(&self) -> Option<DerivedVariantVersionId> {
+        self.draft_version_id
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
         expect_record_type(self.record_type, RecordType::DerivedVariant)?;
@@ -95,7 +107,8 @@ pub struct DerivedVariantVersion {
     job_spec_id: JobSpecId,
     backend_id: BackendExecutionContextId,
     worker_result_id: WorkerResultId,
-    qc_report_id: QcReportId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    qc_report_id: Option<QcReportId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     persistence_artifact_id: Option<PersistenceArtifactId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -116,7 +129,6 @@ impl DerivedVariantVersion {
         job_spec_id: JobSpecId,
         backend_id: BackendExecutionContextId,
         worker_result_id: WorkerResultId,
-        qc_report_id: QcReportId,
     ) -> Result<Self, DomainError> {
         let value = Self {
             schema_version: SCHEMA_VERSION,
@@ -132,7 +144,7 @@ impl DerivedVariantVersion {
             job_spec_id,
             backend_id,
             worker_result_id,
-            qc_report_id,
+            qc_report_id: None,
             persistence_artifact_id: None,
             persistence_verification_id: None,
             preview_artifact_ids: Vec::new(),
@@ -171,7 +183,7 @@ impl DerivedVariantVersion {
     pub fn worker_result_id(&self) -> WorkerResultId {
         self.worker_result_id
     }
-    pub fn qc_report_id(&self) -> QcReportId {
+    pub fn qc_report_id(&self) -> Option<QcReportId> {
         self.qc_report_id
     }
     pub fn persistence_artifact_id(&self) -> Option<PersistenceArtifactId> {
@@ -181,9 +193,31 @@ impl DerivedVariantVersion {
         self.persistence_verification_id
     }
 
+    pub fn variant_id(&self) -> DerivedVariantId {
+        self.variant_id
+    }
+
+    fn bind_once_id<T: Copy + PartialEq + std::fmt::Debug>(
+        slot: &mut Option<T>,
+        value: T,
+        field: &str,
+    ) -> Result<(), DomainError> {
+        match slot {
+            Some(existing) if *existing == value => Ok(()),
+            Some(_) => Err(DomainError::new(
+                ErrorCode::WriteOnceBinding,
+                format!("{field} is write-once and cannot be replaced on this candidate"),
+            )),
+            None => {
+                *slot = Some(value);
+                Ok(())
+            }
+        }
+    }
+
     pub fn bind_qc_report(&mut self, qc_report_id: QcReportId) -> Result<(), DomainError> {
         self.lifecycle.assert_mutable()?;
-        self.qc_report_id = qc_report_id;
+        Self::bind_once_id(&mut self.qc_report_id, qc_report_id, "qc_report_id")?;
         self.validate()
     }
 
@@ -192,7 +226,11 @@ impl DerivedVariantVersion {
         persistence_artifact_id: PersistenceArtifactId,
     ) -> Result<(), DomainError> {
         self.lifecycle.assert_mutable()?;
-        self.persistence_artifact_id = Some(persistence_artifact_id);
+        Self::bind_once_id(
+            &mut self.persistence_artifact_id,
+            persistence_artifact_id,
+            "persistence_artifact_id",
+        )?;
         self.validate()
     }
 
@@ -201,7 +239,11 @@ impl DerivedVariantVersion {
         persistence_verification_id: PersistenceVerificationId,
     ) -> Result<(), DomainError> {
         self.lifecycle.assert_mutable()?;
-        self.persistence_verification_id = Some(persistence_verification_id);
+        Self::bind_once_id(
+            &mut self.persistence_verification_id,
+            persistence_verification_id,
+            "persistence_verification_id",
+        )?;
         self.validate()
     }
 
@@ -217,11 +259,25 @@ impl DerivedVariantVersion {
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
         expect_record_type(self.record_type, RecordType::DerivedVariantVersion)?;
-        if self.lifecycle == Lifecycle::Published && self.persistence_verification_id.is_none() {
-            return Err(DomainError::new(
-                ErrorCode::MissingProvenance,
-                "Published DerivedVariantVersion must retain the exact PersistenceVerification that authorized publication",
-            ));
+        if self.lifecycle == Lifecycle::Published {
+            if self.qc_report_id.is_none() {
+                return Err(DomainError::new(
+                    ErrorCode::MissingProvenance,
+                    "Published DerivedVariantVersion must retain the exact QCReport",
+                ));
+            }
+            if self.persistence_artifact_id.is_none() {
+                return Err(DomainError::new(
+                    ErrorCode::MissingProvenance,
+                    "Published DerivedVariantVersion must retain the exact Persistence Artifact",
+                ));
+            }
+            if self.persistence_verification_id.is_none() {
+                return Err(DomainError::new(
+                    ErrorCode::MissingProvenance,
+                    "Published DerivedVariantVersion must retain the exact PersistenceVerification that authorized publication",
+                ));
+            }
         }
         Ok(())
     }

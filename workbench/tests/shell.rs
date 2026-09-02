@@ -1,6 +1,10 @@
+mod common;
+
+use common::{MemoryArtifactInspector, MemoryPersistenceReopener};
 use rigforge_app::rigforge_domain::*;
 use rigforge_app::{
-    generate_mapping_proposal, Application, MappingAssistProfile, WorkerCapabilityProfile,
+    generate_mapping_proposal, sha256_file, Application, FakeWorker, MappingAssistProfile,
+    TransferOutcomeKind, WorkerCapabilityProfile,
 };
 use rigforge_workbench::{PreviewEmbeddingSlot, WorkbenchApp};
 
@@ -179,8 +183,12 @@ fn mapping_tray_supports_v1_4_workflow_state() {
     );
     assert_eq!(shell.compatibility_summary(), Some("ready"));
     assert!(shell.compatibility_id().is_none());
-    assert!(!WorkbenchApp::transfer_available());
-    assert!(WorkbenchApp::transfer_placeholder().contains("V1-5"));
+    assert!(!shell.transfer_available());
+    assert!(shell.transfer_eligibility_label().contains("CompatibilityResult"));
+    assert_eq!(
+        WorkbenchApp::preview_unavailable_reason(),
+        "NOT AVAILABLE — V1-6"
+    );
 }
 
 #[test]
@@ -266,6 +274,21 @@ fn workbench_compatibility_display_uses_actual_result() {
         .any(|(n, _)| n == "result_acceptability"));
     let expected = format!("{:?}", result.as_record().summary());
     assert_eq!(shell.compatibility_summary(), Some(expected.as_str()));
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    match result.as_record().summary() {
+        CompatibilitySummary::Ready => assert!(shell.transfer_available()),
+        CompatibilitySummary::ReadyWithWarnings => {
+            assert!(!shell.transfer_available());
+            assert!(shell.transfer_requires_acknowledgement());
+            assert!(!shell.warnings_acknowledged());
+            shell
+                .acknowledge_compatibility_warnings(&seeded.app)
+                .unwrap();
+            assert!(shell.warnings_acknowledged());
+            assert!(shell.transfer_available());
+        }
+        other => panic!("unexpected summary {other:?}"),
+    }
 }
 
 #[test]
@@ -669,9 +692,16 @@ fn multiple_published_mappings_do_not_use_arbitrary_unrelated_first() {
 }
 
 #[test]
-fn transfer_remains_disabled() {
-    assert!(!WorkbenchApp::transfer_available());
-    assert!(WorkbenchApp::transfer_placeholder().contains("V1-5"));
+fn transfer_disabled_until_application_authorizes() {
+    let shell = WorkbenchApp::empty();
+    assert!(!shell.transfer_available());
+    assert!(shell
+        .transfer_eligibility_label()
+        .contains("CompatibilityResult"));
+    assert_eq!(
+        WorkbenchApp::preview_unavailable_reason(),
+        "NOT AVAILABLE — V1-6"
+    );
 }
 
 #[test]
@@ -694,4 +724,249 @@ fn workbench_reads_application_lists_without_blender() {
     assert!(shell.selected_character_version().is_none());
     assert!(shell.job_states().is_empty());
     assert!(!shell.mapping_accepted());
+}
+
+fn write_staged(bytes: &[u8]) -> std::path::PathBuf {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "rf-v15-wb-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos(),
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("derived_result.blend");
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+fn complete_shell_success(app: &mut Application, run_id: &str, bytes: &[u8]) -> std::path::PathBuf {
+    app.mark_dispatchable(run_id).unwrap();
+    let mut worker = FakeWorker::default();
+    app.dispatch(run_id, &mut worker).unwrap();
+    let running = app.job_status(run_id).unwrap();
+    let spec = app.load_job_spec(&running.job_spec_id).unwrap();
+    let path = write_staged(bytes);
+    let sha = sha256_file(&path).unwrap();
+    assert_ne!(
+        sha, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "staged fixture must not be empty: {}",
+        path.display()
+    );
+    let result = WorkerResult::new(
+        spec.as_record().id(),
+        backend(),
+        true,
+        "completed",
+        ExecutionCorrelation::new(
+            &running.attempt_id,
+            running.worker_execution_ref.as_deref().unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .with_staged_artifact_digests(vec![ContentDigest::parse(&sha).unwrap()])
+    .unwrap();
+    app.complete_success(run_id, &Validated::certify(result).unwrap())
+        .unwrap();
+    path
+}
+
+#[test]
+fn transfer_disabled_for_unaccepted_mapping_confirmation() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    let result = seeded
+        .app
+        .run_compatibility_preflight(
+            &seeded.character_version,
+            &seeded.motion_version,
+            &seeded.draft_id,
+            &seeded.policy_version,
+            &WorkerCapabilityProfile::v1_3_isolated_worker(),
+        )
+        .unwrap();
+    shell.apply_compatibility_result(result.as_record());
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    assert_eq!(
+        result.as_record().summary(),
+        CompatibilitySummary::MappingConfirmationRequired
+    );
+    assert!(!shell.transfer_available());
+}
+
+#[test]
+fn transfer_disabled_for_unsupported() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let mapping_version = shell.accepted_mapping_version_id().unwrap();
+    let result = CompatibilityResult::from_preflight(
+        CharacterAssetVersionId::parse(&seeded.character_version).unwrap(),
+        MotionAssetVersionId::parse(&seeded.motion_version).unwrap(),
+        BoneMappingVersionId::parse(mapping_version).unwrap(),
+        RetargetPolicyVersionId::parse(&seeded.policy_version).unwrap(),
+        Judgment::Fail,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["unsupported fixture".into()],
+    )
+    .unwrap();
+    assert_eq!(result.summary(), CompatibilitySummary::Unsupported);
+    seeded
+        .app
+        .catalog_mut()
+        .put_validated(&Validated::certify(result.clone()).unwrap())
+        .unwrap();
+    shell.apply_compatibility_result(&result);
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    assert!(!shell.transfer_available());
+    assert!(shell.transfer_eligibility_label().contains("Unsupported"));
+}
+
+#[test]
+fn ready_with_warnings_requires_explicit_acknowledgement() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let mapping_version = shell.accepted_mapping_version_id().unwrap();
+    let result = CompatibilityResult::from_preflight(
+        CharacterAssetVersionId::parse(&seeded.character_version).unwrap(),
+        MotionAssetVersionId::parse(&seeded.motion_version).unwrap(),
+        BoneMappingVersionId::parse(mapping_version).unwrap(),
+        RetargetPolicyVersionId::parse(&seeded.policy_version).unwrap(),
+        Judgment::PassWithWarnings,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["optional helper remains unmapped".into()],
+    )
+    .unwrap();
+    assert_eq!(result.summary(), CompatibilitySummary::ReadyWithWarnings);
+    seeded
+        .app
+        .catalog_mut()
+        .put_validated(&Validated::certify(result.clone()).unwrap())
+        .unwrap();
+    shell.apply_compatibility_result(&result);
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    assert!(shell.transfer_requires_acknowledgement());
+    assert!(!shell.warnings_acknowledged());
+    assert!(!shell.transfer_available());
+    shell
+        .acknowledge_compatibility_warnings(&seeded.app)
+        .unwrap();
+    assert!(shell.warnings_acknowledged());
+    assert!(shell.transfer_available());
+}
+
+#[test]
+fn transfer_uses_application_authorization_and_displays_publication() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let result = seeded
+        .app
+        .run_compatibility_preflight(
+            &seeded.character_version,
+            &seeded.motion_version,
+            shell.accepted_mapping_version_id().unwrap(),
+            &seeded.policy_version,
+            &WorkerCapabilityProfile::v1_3_isolated_worker(),
+        )
+        .unwrap();
+    shell.apply_compatibility_result(result.as_record());
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    if shell.transfer_requires_acknowledgement() {
+        assert!(!shell.warnings_acknowledged());
+        shell
+            .acknowledge_compatibility_warnings(&seeded.app)
+            .unwrap();
+    }
+    assert!(shell.transfer_available());
+    let run_id = shell.request_transfer(&mut seeded.app, None).unwrap();
+    let staged = complete_shell_success(&mut seeded.app, &run_id, b"wb-published");
+    let outcome = seeded
+        .app
+        .finalize_transfer_for_test(
+            &run_id,
+            &staged,
+            &MemoryArtifactInspector::passing(None).with_joints(vec![
+                "Bone".into(),
+                "Head".into(),
+            ]),
+            &MemoryPersistenceReopener::default(),
+        )
+        .unwrap();
+    assert_eq!(outcome.kind, TransferOutcomeKind::Published);
+    shell.apply_transfer_outcome(&outcome);
+    assert_eq!(
+        shell.derived_variant_version_id(),
+        Some(outcome.derived_variant_version_id.as_str())
+    );
+    assert_eq!(shell.publication_state(), Some("Published"));
+    assert_eq!(shell.qc_verdict(), Some("Pass"));
+    assert!(shell.persistence_verification_id().is_some());
+    assert_eq!(
+        WorkbenchApp::preview_unavailable_reason(),
+        "NOT AVAILABLE — V1-6"
+    );
+}
+
+#[test]
+fn qc_fail_displays_publication_denied() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let result = seeded
+        .app
+        .run_compatibility_preflight(
+            &seeded.character_version,
+            &seeded.motion_version,
+            shell.accepted_mapping_version_id().unwrap(),
+            &seeded.policy_version,
+            &WorkerCapabilityProfile::v1_3_isolated_worker(),
+        )
+        .unwrap();
+    shell.apply_compatibility_result(result.as_record());
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    if shell.transfer_requires_acknowledgement() {
+        shell
+            .acknowledge_compatibility_warnings(&seeded.app)
+            .unwrap();
+    }
+    let run_id = shell.request_transfer(&mut seeded.app, None).unwrap();
+    let staged = complete_shell_success(&mut seeded.app, &run_id, b"wb-qc-fail");
+    let outcome = seeded
+        .app
+        .finalize_transfer_for_test(
+            &run_id,
+            &staged,
+            &MemoryArtifactInspector::failing_finite_transforms(None).with_joints(vec![
+                "Bone".into(),
+                "Head".into(),
+            ]),
+            &MemoryPersistenceReopener::default(),
+        )
+        .unwrap();
+    assert_eq!(outcome.kind, TransferOutcomeKind::PublicationDenied);
+    shell.apply_transfer_outcome(&outcome);
+    assert_eq!(shell.publication_state(), Some("Publication denied"));
+    assert_eq!(shell.qc_verdict(), Some("Fail"));
 }

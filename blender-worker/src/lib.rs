@@ -10,6 +10,7 @@ pub mod isolation;
 pub mod pin;
 pub mod policy;
 pub mod projection;
+pub mod qc;
 
 pub use adapter::{
     bundled_worker_script, diagnostic_tail, production_worker_script, BlenderWorker,
@@ -27,3 +28,4 @@ pub use pin::{
 };
 pub use policy::{project_supported_policy, PolicyProjection};
 pub use projection::{job_document, project_mapping, SOURCE_REST_ACTION_CANDIDATES};
+pub use qc::{BlenderPersistenceReopener, BlenderQcInspector};

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use rigforge_domain::{
-    ingest_validated, to_json, validate_job_inputs, BoneMappingVersion, CharacterAsset,
+    ingest_validated, to_json, validate_job_inputs, validate_publication_lineage, BoneMappingVersion, CharacterAsset,
     CharacterAssetVersion, CompatibilityResult, CompatibilitySummary, DerivedVariant, DomainRecord,
     JobSpec, Lifecycle, MotionAsset, MotionAssetVersion, PersistenceArtifact,
     PersistenceVerification, ProductVersionStore, RecordType, RetargetPolicyVersion,
@@ -48,6 +48,9 @@ struct RecordMeta {
 pub struct SqliteCatalog {
     conn: Connection,
     path: Option<PathBuf>,
+    artifact_root: PathBuf,
+    #[cfg(test)]
+    fail_candidate_after_writes: bool,
 }
 
 impl fmt::Debug for SqliteCatalog {
@@ -66,22 +69,52 @@ impl SqliteCatalog {
                 return Err(AppError::MissingDirectory(parent.display().to_string()));
             }
         }
+        let artifact_root = match path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent.join("rigforge-artifacts"),
+            _ => PathBuf::from("rigforge-artifacts"),
+        };
+        std::fs::create_dir_all(&artifact_root)?;
         let conn = Connection::open(path)?;
         let mut catalog = Self {
             conn,
             path: Some(path.to_path_buf()),
+            artifact_root,
+            #[cfg(test)]
+            fail_candidate_after_writes: false,
         };
         catalog.configure()?;
         Ok(catalog)
     }
 
     pub fn open_in_memory() -> Result<Self, AppError> {
+        let artifact_root = std::env::temp_dir().join(format!(
+            "rigforge-artifacts-{}",
+            uuid::Uuid::now_v7()
+        ));
+        std::fs::create_dir_all(&artifact_root)?;
         let mut catalog = Self {
             conn: Connection::open_in_memory()?,
             path: None,
+            artifact_root,
+            #[cfg(test)]
+            fail_candidate_after_writes: false,
         };
         catalog.configure()?;
         Ok(catalog)
+    }
+
+    pub fn artifact_root(&self) -> &Path {
+        &self.artifact_root
+    }
+
+    pub fn durable_artifact_path(
+        &self,
+        artifact: &PersistenceArtifact,
+    ) -> PathBuf {
+        self.artifact_root
+            .join(artifact.id().canonical())
+            .join(artifact.instance_id().canonical())
+            .join("derived_result.blend")
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -111,7 +144,9 @@ impl SqliteCatalog {
         apply_migrations(&mut self.conn)
     }
 
-    pub fn in_transaction<F, T>(&mut self, f: F) -> Result<T, AppError>
+    /// Internal SQLite transaction helper. Not part of the public Catalog API.
+    /// Ordinary production callers must not receive a mutable `rusqlite::Transaction`.
+    fn in_transaction<F, T>(&mut self, f: F) -> Result<T, AppError>
     where
         F: FnOnce(&Transaction<'_>) -> Result<T, AppError>,
     {
@@ -129,7 +164,10 @@ impl SqliteCatalog {
         &mut self,
         record: &Validated<T>,
     ) -> Result<(), AppError> {
-        self.in_transaction(|tx| put_validated_on(&*tx, record))
+        self.in_transaction(|tx| {
+            reject_public_authority_bypass(&*tx, record)?;
+            put_validated_on(&*tx, record)
+        })
     }
 
     pub fn put_validated_pair<A: DomainRecord, B: DomainRecord>(
@@ -138,9 +176,145 @@ impl SqliteCatalog {
         second: &Validated<B>,
     ) -> Result<(), AppError> {
         self.in_transaction(|tx| {
+            reject_public_authority_bypass(&*tx, first)?;
+            reject_public_authority_bypass(&*tx, second)?;
             put_validated_on(&*tx, first)?;
             put_validated_on(&*tx, second)?;
             Ok(())
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn put_trusted_qc_report(
+        &mut self,
+        report: &Validated<rigforge_domain::QcReport>,
+    ) -> Result<(), AppError> {
+        self.in_transaction(|tx| put_validated_on(&*tx, report))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn put_trusted_persistence_verification(
+        &mut self,
+        verification: &Validated<PersistenceVerification>,
+    ) -> Result<(), AppError> {
+        self.in_transaction(|tx| put_validated_on(&*tx, verification))
+    }
+
+    pub(crate) fn persist_trusted_qc_binding(
+        &mut self,
+        report: &Validated<rigforge_domain::QcReport>,
+    ) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+        self.in_transaction(|tx| persist_trusted_qc_on(&*tx, report))
+    }
+
+    pub(crate) fn persist_trusted_verification_binding(
+        &mut self,
+        verification: &Validated<PersistenceVerification>,
+    ) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+        self.in_transaction(|tx| persist_trusted_verification_on(&*tx, verification))
+    }
+
+    pub(crate) fn find_derived_version_id_for_worker_result(
+        &self,
+        worker_result_id: &str,
+    ) -> Result<Option<String>, AppError> {
+        find_derived_version_id_for_worker_result_on(&self.conn, worker_result_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seed_succeeded_job_run_for_tests(
+        &mut self,
+        job_spec_id: &str,
+        worker_result_id: &str,
+    ) -> Result<JobRun, AppError> {
+        let now = now_ms();
+        let run = JobRun {
+            run_id: uuid::Uuid::now_v7().hyphenated().to_string(),
+            job_spec_id: job_spec_id.to_string(),
+            state: JobRunState::Succeeded,
+            attempt_id: "test-seed-attempt".into(),
+            worker_execution_ref: Some("test-seed-ref".into()),
+            failure_reason: None,
+            worker_result_id: Some(worker_result_id.to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+        self.conn.execute(
+            "INSERT INTO job_runs (
+                run_id, job_spec_id, state, attempt_id, worker_execution_ref,
+                failure_reason, worker_result_id, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, NULL, ?6, ?7, ?7)",
+            rusqlite::params![
+                run.run_id,
+                run.job_spec_id,
+                run.state.as_db_str(),
+                run.attempt_id,
+                run.worker_execution_ref,
+                run.worker_result_id,
+                now,
+            ],
+        )?;
+        Ok(run)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_record_payload_for_tests(
+        &mut self,
+        product_id: &str,
+        payload_json: &str,
+    ) -> Result<(), AppError> {
+        let n = self.conn.execute(
+            "UPDATE records SET payload_json = ?1, updated_at = ?2 WHERE product_id = ?3",
+            rusqlite::params![payload_json, now_ms(), product_id],
+        )?;
+        if n == 0 {
+            return Err(AppError::NotFound {
+                what: "catalog record".into(),
+                id: product_id.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_candidate_transaction(&mut self) {
+        self.fail_candidate_after_writes = true;
+    }
+
+    pub(crate) fn persist_candidate_graph(
+        &mut self,
+        run_id: &str,
+        version: &Validated<rigforge_domain::DerivedVariantVersion>,
+        artifact: &Validated<PersistenceArtifact>,
+        location: CatalogLocationEvidence,
+    ) -> Result<
+        (
+            Validated<DerivedVariant>,
+            Validated<rigforge_domain::DerivedVariantVersion>,
+        ),
+        AppError,
+    > {
+        #[cfg(test)]
+        let fail_after_writes = {
+            let fail = self.fail_candidate_after_writes;
+            self.fail_candidate_after_writes = false;
+            fail
+        };
+        self.in_transaction(|tx| {
+            let bound = persist_candidate_on(
+                &*tx,
+                run_id,
+                version,
+                artifact,
+                &location,
+            )?;
+            #[cfg(test)]
+            if fail_after_writes {
+                return Err(AppError::Catalog(
+                    "forced candidate transaction failure".into(),
+                ));
+            }
+            Ok(bound)
         })
     }
 
@@ -272,6 +446,27 @@ impl SqliteCatalog {
         self.load_validated(id)
     }
 
+    pub fn load_qc_report(
+        &self,
+        id: &str,
+    ) -> Result<Validated<rigforge_domain::QcReport>, AppError> {
+        self.load_validated(id)
+    }
+
+    pub fn load_derived_variant_version(
+        &self,
+        id: &str,
+    ) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+        self.load_validated(id)
+    }
+
+    pub fn publish_derived_variant_transaction(
+        &mut self,
+        derived_version_id: &str,
+    ) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+        self.in_transaction(|tx| publish_derived_on(&*tx, derived_version_id))
+    }
+
     pub fn load_bone_mapping(
         &self,
         id: &str,
@@ -369,34 +564,7 @@ impl SqliteCatalog {
         &mut self,
         evidence: CatalogLocationEvidence,
     ) -> Result<(), AppError> {
-        let exists: Option<String> = self
-            .conn
-            .query_row(
-                "SELECT product_id FROM records WHERE product_id = ?1 LIMIT 1",
-                [&evidence.product_id],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if exists.is_none() {
-            return Err(AppError::NotFound {
-                what: "catalog record".into(),
-                id: evidence.product_id,
-            });
-        }
-        self.conn.execute(
-            "INSERT INTO payload_locations
-                (product_id, instance_id, location_kind, location_value, observed_at, note)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![
-                evidence.product_id,
-                evidence.instance_id,
-                evidence.location_kind,
-                evidence.location_value,
-                evidence.observed_at,
-                evidence.note,
-            ],
-        )?;
-        Ok(())
+        record_payload_location_on(&self.conn, &evidence)
     }
 
     pub fn list_payload_locations(
@@ -422,8 +590,9 @@ impl SqliteCatalog {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
-    /// Internal SQLite rowid. Never a Product ID. Exposed only to prove independence.
-    pub fn internal_rowid_for_tests(&self, product_id: &str) -> Result<i64, AppError> {
+    /// Internal SQLite rowid. Never a Product ID. Test-only; not a production API.
+    #[cfg(test)]
+    pub(crate) fn internal_rowid_for_tests(&self, product_id: &str) -> Result<i64, AppError> {
         self.conn
             .query_row(
                 "SELECT rowid FROM records WHERE product_id = ?1 LIMIT 1",
@@ -437,7 +606,9 @@ impl SqliteCatalog {
     }
 
     /// Insert Domain-shaped JSON without validation. Used to prove fail-closed load.
-    pub fn insert_unvalidated_payload_for_tests(
+    /// Test-only: must not exist on the ordinary production Catalog surface.
+    #[cfg(test)]
+    pub(crate) fn insert_unvalidated_payload_for_tests(
         &mut self,
         product_id: &str,
         record_type: &str,
@@ -847,7 +1018,42 @@ fn validate_job_graph_on(conn: &Connection, spec: &JobSpec) -> Result<(), AppErr
         policy.as_record(),
         spec,
     )
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+    if let Some(compat_id) = spec.compatibility_result_id() {
+        let result = load_validated_on::<CompatibilityResult>(conn, &compat_id.canonical())?;
+        let rec = result.as_record();
+        crate::transfer::validate_transfer_graph(
+            rec,
+            character.as_record(),
+            motion.as_record(),
+            mapping.as_record(),
+            policy.as_record(),
+        )?;
+        let auth = crate::transfer::transfer_eligibility(
+            rec,
+            spec.compatibility_warnings_acknowledged(),
+        )?;
+        if !auth.eligible {
+            return Err(AppError::Catalog(
+                auth.denial_reason
+                    .unwrap_or_else(|| "JobSpec CompatibilityResult cannot authorize Transfer".into()),
+            ));
+        }
+        if rec.id() != compat_id {
+            return Err(AppError::Catalog(
+                "JobSpec.compatibility_result_id must equal the referenced CompatibilityResult".into(),
+            ));
+        }
+    }
+    if let Some(target_id) = spec.target_derived_variant_id() {
+        let logical = load_validated_on::<DerivedVariant>(conn, &target_id.canonical())?;
+        if logical.as_record().id() != target_id {
+            return Err(AppError::Catalog(
+                "JobSpec.target_derived_variant_id must equal the stored DerivedVariant".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn bind_successful_worker_result(
@@ -934,6 +1140,624 @@ fn reject_worker_result_reuse(
     Ok(())
 }
 
+fn validate_qc_graph_on(
+    conn: &Connection,
+    report: &rigforge_domain::QcReport,
+) -> Result<(), AppError> {
+    let Some(dv_id) = report.subject_derived_variant_version_id() else {
+        return Ok(());
+    };
+    let version = load_validated_on::<rigforge_domain::DerivedVariantVersion>(
+        conn,
+        &dv_id.canonical(),
+    )?;
+    let worker_id = report.worker_result_id().ok_or_else(|| {
+        AppError::Catalog("QcReport must bind an exact WorkerResult".into())
+    })?;
+    let worker = load_validated_on::<WorkerResult>(conn, &worker_id.canonical())?;
+    let _policy = load_validated_on::<RetargetPolicyVersion>(
+        conn,
+        &report.policy_version_id().canonical(),
+    )?;
+    if version.as_record().id() != dv_id {
+        return Err(AppError::Catalog(
+            "QcReport subject is not the stored DerivedVariantVersion".into(),
+        ));
+    }
+    if worker.as_record().id() != worker_id
+        || version.as_record().worker_result_id() != worker_id
+    {
+        return Err(AppError::Catalog(
+            "QcReport WorkerResult is not bound to this DerivedVariantVersion".into(),
+        ));
+    }
+    if report.policy_version_id() != version.as_record().policy_version_id() {
+        return Err(AppError::Catalog(
+            "QcReport policy does not match DerivedVariantVersion".into(),
+        ));
+    }
+    let Some(artifact_id) = report.evaluated_persistence_artifact_id() else {
+        return Err(AppError::Catalog(
+            "QcReport must evaluate an exact PersistenceArtifact".into(),
+        ));
+    };
+    if version.as_record().persistence_artifact_id() != Some(artifact_id) {
+        return Err(AppError::Catalog(
+            "QcReport evaluated PersistenceArtifact is not bound to this DerivedVariantVersion"
+                .into(),
+        ));
+    }
+    let artifact = load_validated_on::<PersistenceArtifact>(conn, &artifact_id.canonical())?;
+    if artifact.as_record().id() != artifact_id
+        || report.evaluated_persistence_artifact_instance_id()
+            != Some(artifact.as_record().instance_id())
+        || report.evaluated_payload_digest() != Some(artifact.as_record().digest())
+    {
+        return Err(AppError::Catalog(
+            "QcReport evaluated artifact instance/digest must match PersistenceArtifact".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_persistence_artifact_graph_on(
+    conn: &Connection,
+    artifact: &PersistenceArtifact,
+) -> Result<(), AppError> {
+    let version = load_validated_on::<rigforge_domain::DerivedVariantVersion>(
+        conn,
+        &artifact.bound_derived_variant_version_id().canonical(),
+    )?;
+    if version.as_record().id() != artifact.bound_derived_variant_version_id() {
+        return Err(AppError::Catalog(
+            "PersistenceArtifact must bind an exact DerivedVariantVersion".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_persistence_verification_graph_on(
+    conn: &Connection,
+    verification: &PersistenceVerification,
+) -> Result<(), AppError> {
+    let artifact = load_validated_on::<PersistenceArtifact>(
+        conn,
+        &verification.persistence_artifact_id().canonical(),
+    )?;
+    if artifact.as_record().instance_id() != verification.persistence_artifact_instance_id()
+        || artifact.as_record().digest() != verification.payload_digest()
+    {
+        return Err(AppError::Catalog(
+            "PersistenceVerification must bind the exact PersistenceArtifact instance and digest"
+                .into(),
+        ));
+    }
+    let version = load_validated_on::<rigforge_domain::DerivedVariantVersion>(
+        conn,
+        &verification.subject_derived_variant_version_id().canonical(),
+    )?;
+    if version.as_record().id() != verification.subject_derived_variant_version_id() {
+        return Err(AppError::Catalog(
+            "PersistenceVerification subject must be the exact DerivedVariantVersion".into(),
+        ));
+    }
+    if artifact.as_record().bound_derived_variant_version_id()
+        != verification.subject_derived_variant_version_id()
+    {
+        return Err(AppError::Catalog(
+            "PersistenceArtifact.bound_derived_variant_version_id must equal PersistenceVerification.subject_derived_variant_version_id".into(),
+        ));
+    }
+    if verification.producer_id() != artifact.as_record().producer_id() {
+        return Err(AppError::Catalog(
+            "PersistenceVerification.producer_id must equal PersistenceArtifact.producer_id".into(),
+        ));
+    }
+    if artifact.as_record().producer_id() != version.as_record().backend_id() {
+        return Err(AppError::Catalog(
+            "PersistenceArtifact.producer_id must equal DerivedVariantVersion.backend_id".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_published_derived_on(
+    conn: &Connection,
+    derived: &rigforge_domain::DerivedVariantVersion,
+) -> Result<(), AppError> {
+    rebuild_publication_evidence(conn, derived)?;
+    Ok(())
+}
+
+fn succeeded_job_run_on(
+    conn: &Connection,
+    job_spec_id: &str,
+    worker_result_id: &str,
+) -> Result<JobRun, AppError> {
+    let run_id: Option<String> = conn
+        .query_row(
+            "SELECT run_id FROM job_runs
+             WHERE job_spec_id = ?1 AND worker_result_id = ?2 AND state = ?3
+             LIMIT 1",
+            rusqlite::params![job_spec_id, worker_result_id, JobRunState::Succeeded.as_db_str()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let run_id = run_id.ok_or_else(|| {
+        AppError::Catalog(
+            "publication requires JobRun SUCCEEDED bound to this JobSpec and WorkerResult".into(),
+        )
+    })?;
+    load_job_run_on(conn, &run_id)
+}
+
+fn rebuild_publication_evidence<'a>(
+    conn: &'a Connection,
+    derived: &rigforge_domain::DerivedVariantVersion,
+) -> Result<(), AppError> {
+    let run = succeeded_job_run_on(
+        conn,
+        &derived.job_spec_id().canonical(),
+        &derived.worker_result_id().canonical(),
+    )?;
+    if run.job_spec_id != derived.job_spec_id().canonical()
+        || run.worker_result_id.as_deref() != Some(&derived.worker_result_id().canonical())
+    {
+        return Err(AppError::Catalog(
+            "JobRun does not match DerivedVariantVersion JobSpec/WorkerResult".into(),
+        ));
+    }
+    let character = load_validated_on::<CharacterAssetVersion>(
+        conn,
+        &derived.character_version_id().canonical(),
+    )?;
+    let motion =
+        load_validated_on::<MotionAssetVersion>(conn, &derived.motion_version_id().canonical())?;
+    let source = load_validated_on::<SourceSkeletonReference>(
+        conn,
+        &derived.source_skeleton_ref_id().canonical(),
+    )?;
+    let mapping =
+        load_validated_on::<BoneMappingVersion>(conn, &derived.mapping_version_id().canonical())?;
+    let policy =
+        load_validated_on::<RetargetPolicyVersion>(conn, &derived.policy_version_id().canonical())?;
+    let job = load_validated_on::<JobSpec>(conn, &derived.job_spec_id().canonical())?;
+    let worker =
+        load_validated_on::<WorkerResult>(conn, &derived.worker_result_id().canonical())?;
+    let qc_id = derived.qc_report_id().ok_or_else(|| {
+        AppError::Catalog("Published DerivedVariantVersion requires QCReport".into())
+    })?;
+    let qc = load_validated_on::<rigforge_domain::QcReport>(conn, &qc_id.canonical())?;
+    let artifact_id = derived.persistence_artifact_id().ok_or_else(|| {
+        AppError::Catalog("Published DerivedVariantVersion requires PersistenceArtifact".into())
+    })?;
+    let persistence =
+        load_validated_on::<PersistenceArtifact>(conn, &artifact_id.canonical())?;
+    let verification_id = derived.persistence_verification_id().ok_or_else(|| {
+        AppError::Catalog("Published DerivedVariantVersion requires PersistenceVerification".into())
+    })?;
+    let verification =
+        load_validated_on::<PersistenceVerification>(conn, &verification_id.canonical())?;
+    let compat_id = job.as_record().compatibility_result_id().ok_or_else(|| {
+        AppError::Catalog("publication requires JobSpec CompatibilityResult authorization".into())
+    })?;
+    let compatibility =
+        load_validated_on::<CompatibilityResult>(conn, &compat_id.canonical())?;
+    let backend = worker.as_record().execution().clone();
+    validate_publication_lineage(
+        &crate::transfer::publication_evidence(
+            character.as_record(),
+            motion.as_record(),
+            source.as_record(),
+            mapping.as_record(),
+            policy.as_record(),
+            job.as_record(),
+            worker.as_record(),
+            qc.as_record(),
+            &backend,
+            compatibility.as_record(),
+            persistence.as_record(),
+            verification.as_record(),
+        ),
+        derived,
+    )
+    .map_err(AppError::from)?;
+    Ok(())
+}
+
+fn publish_derived_on(
+    conn: &Connection,
+    derived_version_id: &str,
+) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+    let mut derived = load_validated_on::<rigforge_domain::DerivedVariantVersion>(
+        conn,
+        derived_version_id,
+    )?
+    .into_record();
+    let character = load_validated_on::<CharacterAssetVersion>(
+        conn,
+        &derived.character_version_id().canonical(),
+    )?;
+    let motion =
+        load_validated_on::<MotionAssetVersion>(conn, &derived.motion_version_id().canonical())?;
+    let source = load_validated_on::<SourceSkeletonReference>(
+        conn,
+        &derived.source_skeleton_ref_id().canonical(),
+    )?;
+    let mapping =
+        load_validated_on::<BoneMappingVersion>(conn, &derived.mapping_version_id().canonical())?;
+    let policy =
+        load_validated_on::<RetargetPolicyVersion>(conn, &derived.policy_version_id().canonical())?;
+    let job = load_validated_on::<JobSpec>(conn, &derived.job_spec_id().canonical())?;
+    let worker =
+        load_validated_on::<WorkerResult>(conn, &derived.worker_result_id().canonical())?;
+    let qc_id = derived.qc_report_id().ok_or_else(|| {
+        AppError::Catalog("publication requires bound QCReport".into())
+    })?;
+    let qc = load_validated_on::<rigforge_domain::QcReport>(conn, &qc_id.canonical())?;
+    let artifact_id = derived.persistence_artifact_id().ok_or_else(|| {
+        AppError::Catalog("publication requires bound PersistenceArtifact".into())
+    })?;
+    let persistence =
+        load_validated_on::<PersistenceArtifact>(conn, &artifact_id.canonical())?;
+    let verification_id = derived.persistence_verification_id().ok_or_else(|| {
+        AppError::Catalog("publication requires bound PersistenceVerification".into())
+    })?;
+    let verification =
+        load_validated_on::<PersistenceVerification>(conn, &verification_id.canonical())?;
+    let compat_id = job.as_record().compatibility_result_id().ok_or_else(|| {
+        AppError::Catalog("publication requires JobSpec CompatibilityResult authorization".into())
+    })?;
+    let compatibility =
+        load_validated_on::<CompatibilityResult>(conn, &compat_id.canonical())?;
+    let _run = succeeded_job_run_on(
+        conn,
+        &derived.job_spec_id().canonical(),
+        &derived.worker_result_id().canonical(),
+    )?;
+    let backend = worker.as_record().execution().clone();
+    if job.as_record().target_derived_variant_id() != Some(derived.variant_id()) {
+        return Err(AppError::Catalog(
+            "publication requires JobSpec.target_derived_variant_id to equal DerivedVariantVersion.variant_id".into(),
+        ));
+    }
+    if let Some(other) = find_other_derived_version_id_for_worker_result_on(
+        conn,
+        &derived.worker_result_id().canonical(),
+        &derived.id().canonical(),
+    )? {
+        return Err(AppError::Catalog(format!(
+            "WorkerResult {} already created DerivedVariantVersion {other}",
+            derived.worker_result_id().canonical()
+        )));
+    }
+    crate::transfer::domain_publish(
+        crate::transfer::publication_evidence(
+            character.as_record(),
+            motion.as_record(),
+            source.as_record(),
+            mapping.as_record(),
+            policy.as_record(),
+            job.as_record(),
+            worker.as_record(),
+            qc.as_record(),
+            &backend,
+            compatibility.as_record(),
+            persistence.as_record(),
+            verification.as_record(),
+        ),
+        &mut derived,
+    )?;
+    let logical_id = derived.variant_id().canonical();
+    let mut logical =
+        load_validated_on::<DerivedVariant>(conn, &logical_id)?.into_record();
+    if logical.draft_version_id() != Some(derived.id()) {
+        return Err(AppError::Catalog(
+            "publication requires DerivedVariant.draft_version_id to equal the exact DerivedVariantVersion".into(),
+        ));
+    }
+    logical.bind_published(derived.id());
+    if derived.lifecycle() != Lifecycle::Published {
+        return Err(AppError::Catalog(
+            "publication transaction requires the DerivedVariantVersion to be Published".into(),
+        ));
+    }
+    if derived.variant_id() != logical.id() {
+        return Err(AppError::Catalog(
+            "published_version_id must refer to a version of this DerivedVariant".into(),
+        ));
+    }
+    let derived = Validated::certify(derived)?;
+    let logical = Validated::certify(logical)?;
+    put_validated_on(conn, &derived)?;
+    put_validated_on(conn, &logical)?;
+    Ok(derived)
+}
+
+fn reject_public_authority_bypass<T: DomainRecord>(
+    conn: &Connection,
+    record: &Validated<T>,
+) -> Result<(), AppError> {
+    match T::RECORD_TYPE {
+        RecordType::QcReport => Err(AppError::Catalog(
+            "generic persistence cannot author publication-critical QcReport; use the Application QC workflow".into(),
+        )),
+        RecordType::PersistenceVerification => Err(AppError::Catalog(
+            "generic persistence cannot author publication-critical PersistenceVerification; use the Application reopen workflow".into(),
+        )),
+        RecordType::DerivedVariant => reject_public_logical_pointer_change(conn, record),
+        RecordType::DerivedVariantVersion => reject_public_derived_variant_version(conn, record),
+        _ => Ok(()),
+    }
+}
+
+fn reject_public_logical_pointer_change<T: DomainRecord>(
+    conn: &Connection,
+    record: &Validated<T>,
+) -> Result<(), AppError> {
+    let payload = to_json(record)?;
+    let incoming = ingest_validated::<DerivedVariant>(&payload)?;
+    let incoming = incoming.as_record();
+    let existing = match load_validated_on::<DerivedVariant>(conn, &incoming.id().canonical()) {
+        Ok(value) => Some(value),
+        Err(AppError::NotFound { .. }) => None,
+        Err(err) => return Err(err),
+    };
+    match existing {
+        None if incoming.published_version_id().is_some() => Err(AppError::Catalog(
+            "generic persistence cannot set DerivedVariant.published_version_id; use the publication transaction".into(),
+        )),
+        Some(old)
+            if old.as_record().published_version_id() != incoming.published_version_id() =>
+        {
+            Err(AppError::Catalog(
+                "generic persistence cannot change DerivedVariant.published_version_id; use the publication transaction".into(),
+            ))
+        }
+        None if incoming.draft_version_id().is_some() => Err(AppError::Catalog(
+            "generic persistence cannot set DerivedVariant.draft_version_id; use the candidate transaction".into(),
+        )),
+        Some(old) if old.as_record().draft_version_id() != incoming.draft_version_id() => {
+            Err(AppError::Catalog(
+                "generic persistence cannot change DerivedVariant.draft_version_id; use the candidate transaction".into(),
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn reject_public_derived_variant_version<T: DomainRecord>(
+    conn: &Connection,
+    record: &Validated<T>,
+) -> Result<(), AppError> {
+    let payload = to_json(record)?;
+    let incoming = ingest_validated::<rigforge_domain::DerivedVariantVersion>(&payload)?;
+    let id = incoming.as_record().id().canonical();
+    match load_validated_on::<rigforge_domain::DerivedVariantVersion>(conn, &id) {
+        Ok(existing) => {
+            let existing_payload = to_json(&existing)?;
+            if existing_payload == payload {
+                Ok(())
+            } else {
+                Err(AppError::Catalog(
+                    "generic persistence cannot change DerivedVariantVersion; use the candidate transaction or trusted QC/verification binding".into(),
+                ))
+            }
+        }
+        Err(AppError::NotFound { .. }) => Err(AppError::Catalog(
+            "generic persistence cannot create DerivedVariantVersion; use the candidate transaction".into(),
+        )),
+        Err(err) => Err(err),
+    }
+}
+
+fn find_derived_version_id_for_worker_result_on(
+    conn: &Connection,
+    worker_result_id: &str,
+) -> Result<Option<String>, AppError> {
+    find_other_derived_version_id_for_worker_result_on(conn, worker_result_id, "")
+}
+
+fn find_other_derived_version_id_for_worker_result_on(
+    conn: &Connection,
+    worker_result_id: &str,
+    except_version_id: &str,
+) -> Result<Option<String>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT product_id FROM records
+         WHERE record_type = 'derived_variant_version'
+           AND json_extract(payload_json, '$.worker_result_id') = ?1
+           AND product_id != ?2
+         LIMIT 1",
+    )?;
+    stmt.query_row([worker_result_id, except_version_id], |row| row.get(0))
+        .optional()
+        .map_err(AppError::from)
+}
+
+fn record_payload_location_on(
+    conn: &Connection,
+    evidence: &CatalogLocationEvidence,
+) -> Result<(), AppError> {
+    let exists: Option<String> = conn
+        .query_row(
+            "SELECT product_id FROM records WHERE product_id = ?1 LIMIT 1",
+            [&evidence.product_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if exists.is_none() {
+        return Err(AppError::NotFound {
+            what: "catalog record".into(),
+            id: evidence.product_id.clone(),
+        });
+    }
+    conn.execute(
+        "INSERT INTO payload_locations
+            (product_id, instance_id, location_kind, location_value, observed_at, note)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![
+            evidence.product_id,
+            evidence.instance_id,
+            evidence.location_kind,
+            evidence.location_value,
+            evidence.observed_at,
+            evidence.note,
+        ],
+    )?;
+    Ok(())
+}
+
+fn persist_candidate_on(
+    conn: &Connection,
+    run_id: &str,
+    version: &Validated<rigforge_domain::DerivedVariantVersion>,
+    artifact: &Validated<PersistenceArtifact>,
+    location: &CatalogLocationEvidence,
+) -> Result<
+    (
+        Validated<DerivedVariant>,
+        Validated<rigforge_domain::DerivedVariantVersion>,
+    ),
+    AppError,
+> {
+    let version_rec = version.as_record();
+    let artifact_rec = artifact.as_record();
+    let run = load_job_run_on(conn, run_id)?;
+    if run.state != JobRunState::Succeeded {
+        return Err(AppError::Catalog(
+            "worker success candidate requires JobRun SUCCEEDED".into(),
+        ));
+    }
+    let spec = load_validated_on::<JobSpec>(conn, &run.job_spec_id)?;
+    let spec_rec = spec.as_record();
+    let worker_id = run.worker_result_id.clone().ok_or_else(|| {
+        AppError::Catalog("SUCCEEDED JobRun is missing worker_result_id".into())
+    })?;
+    let worker = load_validated_on::<WorkerResult>(conn, &worker_id)?;
+    if !worker.as_record().worker_success() {
+        return Err(AppError::Catalog(
+            "WorkerResult.worker_success is false; no Derived Variant publication".into(),
+        ));
+    }
+    let target_id = spec_rec.target_derived_variant_id().ok_or_else(|| {
+        AppError::Catalog("candidate ingestion requires JobSpec target DerivedVariant".into())
+    })?;
+    if let Some(existing) = find_other_derived_version_id_for_worker_result_on(
+        conn,
+        &worker_id,
+        &version_rec.id().canonical(),
+    )? {
+        return Err(AppError::Catalog(format!(
+            "WorkerResult {worker_id} already created DerivedVariantVersion {existing}"
+        )));
+    }
+    let mut logical = load_validated_on::<DerivedVariant>(conn, &target_id.canonical())?.into_record();
+    if version_rec.variant_id() != logical.id() {
+        return Err(AppError::Catalog(
+            "candidate DerivedVariantVersion.variant_id must equal the JobSpec target DerivedVariant".into(),
+        ));
+    }
+    if spec_rec.target_derived_variant_id() != Some(logical.id()) {
+        return Err(AppError::Catalog(
+            "JobSpec.target_derived_variant_id must equal the candidate logical DerivedVariant".into(),
+        ));
+    }
+    if version_rec.job_spec_id().canonical() != run.job_spec_id
+        || spec_rec.id() != version_rec.job_spec_id()
+    {
+        return Err(AppError::Catalog(
+            "candidate version.job_spec_id must equal JobRun.job_spec_id".into(),
+        ));
+    }
+    if version_rec.worker_result_id().canonical() != worker_id {
+        return Err(AppError::Catalog(
+            "candidate version.worker_result_id must equal JobRun.worker_result_id".into(),
+        ));
+    }
+    if artifact_rec.bound_derived_variant_version_id() != version_rec.id() {
+        return Err(AppError::Catalog(
+            "PersistenceArtifact.bound_derived_variant_version_id must equal the candidate version".into(),
+        ));
+    }
+    if version_rec.persistence_artifact_id() != Some(artifact_rec.id()) {
+        return Err(AppError::Catalog(
+            "DerivedVariantVersion.persistence_artifact_id must equal the candidate PersistenceArtifact".into(),
+        ));
+    }
+    if version_rec.character_version_id() != spec_rec.character_version_id()
+        || version_rec.motion_version_id() != spec_rec.motion_version_id()
+        || version_rec.source_skeleton_ref_id() != spec_rec.source_skeleton_ref_id()
+        || version_rec.mapping_version_id() != spec_rec.mapping_version_id()
+        || version_rec.policy_version_id() != spec_rec.policy_version_id()
+        || version_rec.backend_id() != worker.as_record().execution().id()
+    {
+        return Err(AppError::Catalog(
+            "candidate version Character/Motion/Mapping/Policy/backend must match JobSpec and WorkerResult".into(),
+        ));
+    }
+    if location.product_id != artifact_rec.id().canonical()
+        || location.instance_id != artifact_rec.instance_id().canonical()
+    {
+        return Err(AppError::Catalog(
+            "candidate payload location must bind the exact PersistenceArtifact instance".into(),
+        ));
+    }
+    logical.bind_draft(version_rec.id());
+    let logical = Validated::certify(logical)?;
+    put_validated_on(conn, version)?;
+    put_validated_on(conn, artifact)?;
+    record_payload_location_on(conn, location)?;
+    put_validated_on(conn, &logical)?;
+    Ok((logical, version.clone()))
+}
+
+fn persist_trusted_qc_on(
+    conn: &Connection,
+    report: &Validated<rigforge_domain::QcReport>,
+) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+    let subject = report.as_record().subject_derived_variant_version_id().ok_or_else(|| {
+        AppError::Catalog("trusted QC binding requires a DerivedVariantVersion subject".into())
+    })?;
+    let mut version =
+        load_validated_on::<rigforge_domain::DerivedVariantVersion>(conn, &subject.canonical())?
+            .into_record();
+    if version.lifecycle() != Lifecycle::Draft {
+        return Err(AppError::Catalog(
+            "trusted QC binding requires a Draft DerivedVariantVersion".into(),
+        ));
+    }
+    put_validated_on(conn, report)?;
+    version.bind_qc_report(report.as_record().id())?;
+    let version = Validated::certify(version)?;
+    put_validated_on(conn, &version)?;
+    Ok(version)
+}
+
+fn persist_trusted_verification_on(
+    conn: &Connection,
+    verification: &Validated<PersistenceVerification>,
+) -> Result<Validated<rigforge_domain::DerivedVariantVersion>, AppError> {
+    let subject = verification
+        .as_record()
+        .subject_derived_variant_version_id();
+    let mut version = load_validated_on::<rigforge_domain::DerivedVariantVersion>(
+        conn,
+        &subject.canonical(),
+    )?
+    .into_record();
+    if version.lifecycle() != Lifecycle::Draft {
+        return Err(AppError::Catalog(
+            "trusted persistence verification binding requires a Draft DerivedVariantVersion".into(),
+        ));
+    }
+    put_validated_on(conn, verification)?;
+    version.bind_persistence_verification(verification.as_record().id())?;
+    let version = Validated::certify(version)?;
+    put_validated_on(conn, &version)?;
+    Ok(version)
+}
+
 fn put_validated_on<T: DomainRecord>(
     conn: &Connection,
     record: &Validated<T>,
@@ -949,9 +1773,31 @@ fn put_validated_on<T: DomainRecord>(
             expected_type
         )));
     }
+    if T::RECORD_TYPE == RecordType::JobSpec {
+        let spec = ingest_validated::<JobSpec>(&payload)?;
+        validate_job_graph_on(conn, spec.as_record())?;
+    }
     if T::RECORD_TYPE == RecordType::CompatibilityResult {
         let result = ingest_validated::<CompatibilityResult>(&payload)?;
         validate_compatibility_graph_on(conn, result.as_record())?;
+    }
+    if T::RECORD_TYPE == RecordType::QcReport {
+        let report = ingest_validated::<rigforge_domain::QcReport>(&payload)?;
+        validate_qc_graph_on(conn, report.as_record())?;
+    }
+    if T::RECORD_TYPE == RecordType::PersistenceArtifact {
+        let artifact = ingest_validated::<PersistenceArtifact>(&payload)?;
+        validate_persistence_artifact_graph_on(conn, artifact.as_record())?;
+    }
+    if T::RECORD_TYPE == RecordType::PersistenceVerification {
+        let verification = ingest_validated::<PersistenceVerification>(&payload)?;
+        validate_persistence_verification_graph_on(conn, verification.as_record())?;
+    }
+    if T::RECORD_TYPE == RecordType::DerivedVariantVersion {
+        let version = ingest_validated::<rigforge_domain::DerivedVariantVersion>(&payload)?;
+        if version.as_record().lifecycle() == Lifecycle::Published {
+            validate_published_derived_on(conn, version.as_record())?;
+        }
     }
     let meta = meta_from_json(&value)?;
     let now = now_ms();
@@ -1247,3 +2093,141 @@ fn resolve_source_input(
         size_bytes: evidence.size_bytes(),
     })
 }
+
+#[cfg(test)]
+mod authority_tests {
+    use super::*;
+    use crate::test_graph::{
+        certify, persist_unpublished_without_authority, unpublished_graph,
+    };
+    use rigforge_domain::{
+        BackendExecutionContext, PersistenceVerification, VerificationOutcome,
+    };
+
+    #[test]
+    fn verification_subject_must_match_artifact_bound_version() {
+        let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+        let a = unpublished_graph();
+        let b = unpublished_graph();
+        persist_unpublished_without_authority(&mut catalog, &a).unwrap();
+        persist_unpublished_without_authority(&mut catalog, &b).unwrap();
+        let forged = PersistenceVerification::new(
+            a.persistence.id(),
+            a.persistence.instance_id(),
+            a.persistence.digest().clone(),
+            b.derived_version.id(),
+            a.backend.id(),
+            VerificationOutcome::Pass,
+            VerificationOutcome::Pass,
+        )
+        .unwrap();
+        let err = catalog
+            .put_trusted_persistence_verification(&certify(forged))
+            .unwrap_err();
+        match err {
+            AppError::Catalog(msg) => assert!(
+                msg.contains("bound_derived_variant_version_id")
+                    || msg.contains("subject"),
+                "{msg}"
+            ),
+            other => panic!("expected subject/bound-version mismatch, got {other}"),
+        }
+    }
+
+    #[test]
+    fn verification_producer_must_match_artifact_and_version() {
+        let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+        let a = unpublished_graph();
+        persist_unpublished_without_authority(&mut catalog, &a).unwrap();
+        let other = BackendExecutionContext::new(
+            "isolated-worker",
+            "1.0.0",
+            "build-other",
+            "adapter-1",
+            "exec-policy-1",
+        )
+        .unwrap();
+        let forged = PersistenceVerification::new(
+            a.persistence.id(),
+            a.persistence.instance_id(),
+            a.persistence.digest().clone(),
+            a.derived_version.id(),
+            other.id(),
+            VerificationOutcome::Pass,
+            VerificationOutcome::Pass,
+        )
+        .unwrap();
+        let err = catalog
+            .put_trusted_persistence_verification(&certify(forged))
+            .unwrap_err();
+        match err {
+            AppError::Catalog(msg) => assert!(msg.contains("producer_id"), "{msg}"),
+            other => panic!("expected producer mismatch, got {other}"),
+        }
+    }
+
+    #[test]
+    fn trusted_matching_verification_persists_through_put_validated_on() {
+        let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+        let a = unpublished_graph();
+        persist_unpublished_without_authority(&mut catalog, &a).unwrap();
+        catalog
+            .put_trusted_qc_report(&certify(a.qc.clone()))
+            .unwrap();
+        catalog
+            .put_trusted_persistence_verification(&certify(a.verification.clone()))
+            .unwrap();
+        let loaded = catalog
+            .load_persistence_verification(&a.verification.id().canonical())
+            .unwrap();
+        assert_eq!(loaded.as_record(), &a.verification);
+    }
+}
+
+#[cfg(test)]
+mod catalog_surface_tests {
+    use super::*;
+    use crate::test_graph::{certify, unpublished_graph};
+    use rigforge_domain::{to_json, ErrorCode};
+
+    #[test]
+    fn product_ids_are_not_sqlite_rowids() {
+        let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+        let g = unpublished_graph();
+        catalog
+            .put_validated(&certify(g.character.clone()))
+            .unwrap();
+        let product_id = g.character.id().canonical();
+        let rowid = catalog.internal_rowid_for_tests(&product_id).unwrap();
+        assert_ne!(product_id, rowid.to_string());
+        assert!(product_id.contains('-'), "UUIDv7 is hyphenated");
+        assert!(!product_id.chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn unsupported_domain_schema_fails_closed_on_load() {
+        let mut catalog = SqliteCatalog::open_in_memory().unwrap();
+        let g = unpublished_graph();
+        let mut payload: serde_json::Value =
+            serde_json::from_str(&to_json(&g.character_version).unwrap()).unwrap();
+        payload["schema_version"] = serde_json::json!(99);
+        catalog
+            .insert_unvalidated_payload_for_tests(
+                &g.character_version.id().canonical(),
+                "character_asset_version",
+                &payload.to_string(),
+                99,
+            )
+            .unwrap();
+        let err = catalog
+            .load_character_version(&g.character_version.id().canonical())
+            .unwrap_err();
+        match err {
+            AppError::Domain(domain) => {
+                assert_eq!(domain.code, ErrorCode::UnsupportedSchemaVersion);
+            }
+            other => panic!("expected Domain UnsupportedSchemaVersion, got {other}"),
+        }
+    }
+}
+

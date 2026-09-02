@@ -70,7 +70,7 @@ fn derived_variant_version_references_exact_inputs() {
     assert_eq!(g.derived_version.policy_version_id(), g.policy_version.id());
     assert_eq!(g.derived_version.job_spec_id(), g.job.id());
     assert_eq!(g.derived_version.worker_result_id(), g.worker.id());
-    assert_eq!(g.derived_version.qc_report_id(), g.qc.id());
+    assert_eq!(g.derived_version.qc_report_id(), Some(g.qc.id()));
 }
 
 #[test]
@@ -217,14 +217,18 @@ fn round_trip_preview_artifact() {
 #[test]
 fn wrong_product_version_binding_fails_publication() {
     let mut g = unpublished_graph();
-    g.qc = QcReport::for_derived_variant(
-        DerivedVariantVersionId::generate(),
-        g.policy_version.id(),
-        g.worker.id(),
-        QcVerdict::Pass,
-    )
-    .unwrap();
-    g.derived_version.bind_qc_report(g.qc.id()).unwrap();
+    g.replace_qc(
+        QcReport::for_derived_variant(
+            DerivedVariantVersionId::generate(),
+            g.policy_version.id(),
+            g.worker.id(),
+            g.persistence.id(),
+            g.persistence.instance_id(),
+            g.persistence.digest().clone(),
+            passing_structural_qc_checks(),
+        )
+        .unwrap(),
+    );
     let err = g.try_publish().unwrap_err();
     assert_eq!(err.code, ErrorCode::QcSubjectMismatch);
 }
@@ -296,14 +300,20 @@ fn unknown_field_fails_closed() {
 #[test]
 fn worker_result_cannot_publish_without_qc() {
     let mut g = unpublished_graph();
-    g.qc = QcReport::for_derived_variant(
-        g.derived_version.id(),
-        g.policy_version.id(),
-        g.worker.id(),
-        QcVerdict::Fail,
-    )
-    .unwrap();
-    g.derived_version.bind_qc_report(g.qc.id()).unwrap();
+    let mut checks = passing_structural_qc_checks();
+    checks[0] = QcCheck::new(QcCheckName::FiniteTransforms, QcCheckOutcome::Fail);
+    g.replace_qc(
+        QcReport::for_derived_variant(
+            g.derived_version.id(),
+            g.policy_version.id(),
+            g.worker.id(),
+            g.persistence.id(),
+            g.persistence.instance_id(),
+            g.persistence.digest().clone(),
+            checks,
+        )
+        .unwrap(),
+    );
     let err = g.try_publish().unwrap_err();
     assert_eq!(err.code, ErrorCode::WorkerNotPublicationAuthority);
 }

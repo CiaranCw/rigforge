@@ -30,7 +30,11 @@ pub struct MappingWorkflowSnapshot {
 
 impl MappingWorkflowSnapshot {
     pub fn transfer_unavailable_reason() -> &'static str {
-        "Transfer execution is owned by V1-5 and is not available in V1-4"
+        "Transfer is not eligible for this CompatibilityResult"
+    }
+
+    pub fn preview_unavailable_reason() -> &'static str {
+        "NOT AVAILABLE — V1-6"
     }
 }
 

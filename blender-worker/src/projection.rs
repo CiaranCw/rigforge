@@ -20,21 +20,25 @@ pub struct MappingEntryProjection {
     pub required: bool,
 }
 
+pub fn project_mapping_version(
+    mapping: &rigforge_domain::BoneMappingVersion,
+) -> Vec<MappingEntryProjection> {
+    mapping
+        .entries()
+        .iter()
+        .map(|entry| MappingEntryProjection {
+            source: entry.source().joint_key().as_str().to_string(),
+            target: entry.target().joint_key().as_str().to_string(),
+            role: entry.role_profile().unwrap_or("mapped").to_string(),
+            required: entry.participation() == JointParticipation::Required,
+        })
+        .collect()
+}
+
 pub fn project_mapping(
     request: &WorkerDispatchRequest,
 ) -> Result<Vec<MappingEntryProjection>, rigforge_app::AppError> {
-    let mut entries = Vec::new();
-    for entry in request.mapping().as_record().entries() {
-        entries.push(MappingEntryProjection {
-            source: entry.source().joint_key().as_str().to_string(),
-            target: entry.target().joint_key().as_str().to_string(),
-            role: entry
-                .role_profile()
-                .unwrap_or("mapped")
-                .to_string(),
-            required: entry.participation() == JointParticipation::Required,
-        });
-    }
+    let entries = project_mapping_version(request.mapping().as_record());
     if entries.is_empty() {
         return Err(rigforge_app::AppError::Worker(
             "mapping projection is empty; fail before blender mutation".into(),

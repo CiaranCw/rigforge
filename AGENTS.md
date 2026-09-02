@@ -16,20 +16,22 @@ V1-2 COMPLETE / PASS / BASELINED
 V1-3 COMPLETE / PASS / BASELINED
 Gate B PASS / CLOSED
 V1-4 COMPLETE / PASS / BASELINED
-V1-5 READY / NOT STARTED
-Gate C NOT STARTED
+V1-5 COMPLETE / PASS / BASELINED
+Gate C PASS / CLOSED
+V1-6 READY / NOT STARTED
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
 V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
-V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is `READY / NOT STARTED`.
-Gate C is `NOT STARTED`.
+V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is
+**COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**. V1-6 is
+`READY / NOT STARTED`.
 
 Do not begin arbitrary Product implementation.
 
 Execute V1 work only under the currently authorized dedicated implementation
-stage. Current authorized stage is V1-5 (`READY / NOT STARTED`). Do not
-open Gate C until after V1-5.
+stage. V1-6 is `READY / NOT STARTED`. Do not start V1-6 until that dedicated
+stage is authorized. Do not open Gate C2.
 
 ## Source of Truth
 
@@ -109,16 +111,31 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-V1-5 —
-Transfer, QC, and Derived Variant lifecycle.
+V1-6 —
+Engine-independent Preview.
 ```
 
-Do not open Gate C until after V1-5. Gate C remains `NOT STARTED`.
+Do not start V1-6 until that dedicated implementation stage is authorized.
+Do not open Gate C2. Do not open a post-Gate-C or V1-5 release audit.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
 SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is
 **Accepted** (ADR-0005, V1-3 / Gate B Runtime Foundation Audit). Do not infer
 Preview viewer/payload from the GUI crate.
+
+Gate C independent audit (immutable historical evidence):
+[docs/development/audits/GATE_C_PRODUCT_CORE_AUDIT.md](docs/development/audits/GATE_C_PRODUCT_CORE_AUDIT.md),
+[docs/development/audits/GATE_C_FINDINGS.md](docs/development/audits/GATE_C_FINDINGS.md),
+[docs/development/audits/GATE_C_COVERAGE_MATRIX.md](docs/development/audits/GATE_C_COVERAGE_MATRIX.md).
+Independent result remains `GATE_C_PASS_CANDIDATE`. Project acceptance is
+**Gate C PASS / CLOSED**. `GATE-C-OBS-001` is deferred / non-blocking
+(Workbench integration / release hardening).
+
+V1-5 contracts:
+[docs/development/V1_5_IMPLEMENTATION_PLAN.md](docs/development/V1_5_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_5_TRANSFER_LIFECYCLE.md](docs/development/V1_5_TRANSFER_LIFECYCLE.md),
+[docs/development/V1_5_QC_CONTRACT.md](docs/development/V1_5_QC_CONTRACT.md),
+[docs/development/V1_5_DERIVED_VARIANT_PUBLICATION.md](docs/development/V1_5_DERIVED_VARIANT_PUBLICATION.md).
 
 V1-4 contracts:
 [docs/development/V1_4_IMPLEMENTATION_PLAN.md](docs/development/V1_4_IMPLEMENTATION_PLAN.md),
@@ -155,9 +172,10 @@ GPT-5.6 Sol High
 
 Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
 
-Gate B is **PASS / CLOSED**. Do not open Gate B2 or another independent
-review of V1-3 or V1-4. Next fixed independent gate is Gate C after V1-4 +
-V1-5. Do not open Gate C now.
+Gate B is **PASS / CLOSED**. Gate C is **PASS / CLOSED**. Do not open Gate
+B2, Gate C2, or another independent review of V1-3, V1-4, or V1-5. V1-6
+does not get a default independent Gate. Next fixed independent gate is
+Gate D after V1-8 (Final Release Readiness Audit).
 
 IA-1 closeout:
 [docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),

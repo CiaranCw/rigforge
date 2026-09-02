@@ -76,7 +76,8 @@ validated by POC-PREVIEW-01R for one research Character / Motion / Derived
 Variant set (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Product
 implementation proceeds only under the currently authorized dedicated
 implementation stage. V1-4 is `COMPLETE / PASS / BASELINED`. V1-5 is
-`READY / NOT STARTED`. Gate C is `NOT STARTED`.
+`COMPLETE / PASS / BASELINED`. Gate C is `PASS / CLOSED`. V1-6 is
+`READY / NOT STARTED`.
 
 ## Decisions
 

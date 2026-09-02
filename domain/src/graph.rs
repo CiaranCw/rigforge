@@ -8,7 +8,7 @@ use crate::backend::BackendExecutionContext;
 use crate::error::{DomainError, ErrorCode};
 use crate::execution::{JobSpec, QcReport, QcSubjectKind, QcVerdict, WorkerResult};
 use crate::identity::ContentDigest;
-use crate::mapping::{BoneMappingVersion, RetargetPolicyVersion};
+use crate::mapping::{BoneMappingVersion, CompatibilityResult, CompatibilitySummary, RetargetPolicyVersion};
 use crate::record::usable_as_job_input;
 
 pub struct PublicationEvidence<'a> {
@@ -21,6 +21,7 @@ pub struct PublicationEvidence<'a> {
     pub worker: &'a WorkerResult,
     pub qc: &'a QcReport,
     pub backend: &'a BackendExecutionContext,
+    pub compatibility: &'a CompatibilityResult,
     pub persistence: Option<&'a PersistenceArtifact>,
     pub verification: Option<&'a PersistenceVerification>,
 }
@@ -181,7 +182,7 @@ pub fn validate_publication_lineage(
             "worker failure cannot publish a Derived Variant",
         ));
     }
-    if evidence.qc.id() != derived.qc_report_id() {
+    if derived.qc_report_id() != Some(evidence.qc.id()) {
         return Err(DomainError::new(
             ErrorCode::MissingProvenance,
             "publication requires the QCReport bound on DerivedVariantVersion",
@@ -211,6 +212,37 @@ pub fn validate_publication_lineage(
             "QCReport.policy_version_id must equal DerivedVariantVersion.policy_version_id",
         ));
     }
+    evidence.compatibility.validate()?;
+    match evidence.compatibility.summary() {
+        CompatibilitySummary::Ready | CompatibilitySummary::ReadyWithWarnings => {}
+        CompatibilitySummary::MappingConfirmationRequired | CompatibilitySummary::Unsupported => {
+            return Err(DomainError::new(
+                ErrorCode::WorkerNotPublicationAuthority,
+                "Unsupported or MappingConfirmationRequired CompatibilityResult cannot publish a Derived Variant",
+            ));
+        }
+    }
+    if evidence.job.compatibility_result_id() != Some(evidence.compatibility.id()) {
+        return Err(mismatch(
+            "JobSpec.compatibility_result_id must equal the authorizing CompatibilityResult",
+        ));
+    }
+    if evidence.compatibility.character_version_id() != derived.character_version_id()
+        || evidence.compatibility.motion_version_id() != derived.motion_version_id()
+        || evidence.compatibility.mapping_version_id() != derived.mapping_version_id()
+        || evidence.compatibility.policy_version_id() != derived.policy_version_id()
+    {
+        return Err(mismatch(
+            "CompatibilityResult exact Character/Motion/Mapping/Policy must match DerivedVariantVersion",
+        ));
+    }
+    if evidence.compatibility.summary() == CompatibilitySummary::ReadyWithWarnings
+        && !evidence.job.compatibility_warnings_acknowledged()
+    {
+        return Err(mismatch(
+            "ReadyWithWarnings publication requires JobSpec.compatibility_warnings_acknowledged",
+        ));
+    }
     let persistence = evidence
         .persistence
         .ok_or_else(|| missing("publication requires a Persistence Artifact instance"))?;
@@ -235,6 +267,16 @@ pub fn validate_publication_lineage(
             "WorkerResult must stage the Persistence Artifact payload digest",
         ));
     }
+    if evidence.qc.evaluated_persistence_artifact_id() != Some(persistence.id()) {
+        return Err(mismatch(
+            "QcReport evaluated PersistenceArtifact must equal the published PersistenceArtifact",
+        ));
+    }
+    if evidence.qc.evaluated_payload_digest() != Some(persistence.digest()) {
+        return Err(mismatch(
+            "QcReport evaluated payload digest must equal PersistenceArtifact.digest",
+        ));
+    }
     let verification = evidence.verification.ok_or_else(|| {
         missing("publication requires persistence fresh-reopen and structural verification")
     })?;
@@ -247,6 +289,14 @@ pub fn validate_publication_lineage(
     if verification.persistence_artifact_instance_id() != persistence.instance_id() {
         return Err(mismatch(
             "PersistenceVerification must bind the exact Persistence Artifact instance",
+        ));
+    }
+    if evidence.qc.evaluated_persistence_artifact_instance_id() != Some(persistence.instance_id())
+        || evidence.qc.evaluated_persistence_artifact_instance_id()
+            != Some(verification.persistence_artifact_instance_id())
+    {
+        return Err(mismatch(
+            "QcReport evaluated artifact instance must equal PersistenceArtifact and PersistenceVerification instance",
         ));
     }
     if verification.payload_digest() != persistence.digest() {

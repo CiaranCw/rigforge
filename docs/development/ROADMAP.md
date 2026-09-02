@@ -25,8 +25,9 @@ V1-2: COMPLETE / PASS / BASELINED
 V1-3: COMPLETE / PASS / BASELINED
 Gate B: PASS / CLOSED
 V1-4: COMPLETE / PASS / BASELINED
-V1-5: READY / NOT STARTED
-Gate C: NOT STARTED
+V1-5: COMPLETE / PASS / BASELINED
+Gate C: PASS / CLOSED
+V1-6: READY / NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -44,7 +45,8 @@ Gate A is **PASS / CLOSED**. Core language is **Rust**
 **Accepted**). V1-2 is **COMPLETE / PASS / BASELINED**.
 V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
 V1-4 is **COMPLETE / PASS / BASELINED**.
-V1-5 is **READY / NOT STARTED**. Gate C is **NOT STARTED**.
+V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
+V1-6 is **READY / NOT STARTED**.
 Storage: SQLite **Accepted**
 ([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
 GUI: egui/eframe **Accepted**
@@ -82,10 +84,12 @@ COMPLETE / PASS / BASELINED
 Skeleton Mapping and compatibility workflow
         ↓
 V1-5
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
 Transfer, QC, and Derived Variant lifecycle
+Gate C PASS / CLOSED
         ↓
 V1-6
+READY / NOT STARTED
 Engine-independent Preview
         ↓
 V1-7
@@ -147,7 +151,8 @@ later V1 hardening. See [../research/poc/README.md](../research/poc/README.md).
 V1-1 is **COMPLETE / PASS / BASELINED**. Gate A is **PASS / CLOSED**.
 V1-2 is **COMPLETE / PASS / BASELINED**. V1-3 is **COMPLETE / PASS / BASELINED**.
 Gate B is **PASS / CLOSED**. V1-4 is **COMPLETE / PASS / BASELINED**.
-V1-5 is **READY / NOT STARTED**. Gate C is **NOT STARTED**. Names are planning
+V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
+V1-6 is **READY / NOT STARTED**. Names are planning
 labels, not frozen lifecycle IDs.
 
 | Stage | Purpose |
@@ -163,16 +168,27 @@ labels, not frozen lifecycle IDs.
 
 ## Independent gates
 
-V1-4 is **COMPLETE / PASS / BASELINED**. Routine V1-5 work uses the Main
-Agent workflow. Gate B is **PASS / CLOSED**. Do not open Gate B2. Do not
-open Gate C until after V1-4 + V1-5.
+V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is **COMPLETE / PASS /
+BASELINED**. Gate B is **PASS / CLOSED**. Gate C is **PASS / CLOSED**.
+Do not open Gate B2. Do not open Gate C2, a post-Gate-C audit, or a
+V1-5 release audit. V1-6 itself does not get a default independent Gate.
 
 ```text
 Gate C:
-NOT STARTED
-after V1-4 + V1-5
+PASS / CLOSED
 Purpose: Product Core E2E Audit
-Model: NEW independent GPT-5.6 Sol High Agent
+Independent result: GATE_C_PASS_CANDIDATE
+OPEN MAJOR: 0
+OPEN MINOR: 0
+OBSERVATION: 1 (GATE-C-OBS-001, NON-BLOCKING)
+```
+
+Next fixed independent gate:
+
+```text
+Gate D
+after V1-8
+Final Release Readiness Audit
 ```
 
 ## Deferred Gate B observations
@@ -192,11 +208,26 @@ GPL/legal release qualification
 broader asset coverage
 ```
 
+## Deferred Gate C observations
+
+These are accepted future Workbench integration / release hardening, not
+unresolved V1-5 Product-Core blockers:
+
+```text
+GATE-C-OBS-001
+Native Workbench controls / Application retention
+are not fully event-wired.
+```
+
+If V1-6 naturally touches the same native shell, it MAY close this
+observation there if actually wired and tested. Otherwise preserve it
+for V1-8. Do not silently mark it solved.
+
 ## Current next step
 
 ```text
-V1-5 —
-Transfer, QC, and Derived Variant lifecycle.
+V1-6 —
+Engine-independent Preview.
 ```
 
 ## Historical planned phases (superseded as the active plan)

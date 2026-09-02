@@ -14,6 +14,11 @@ fn mismatched_job(g: &Graph, character: CharacterAssetVersionId) -> JobSpec {
         "one isolated process; staged output unpublished on error",
     )
     .unwrap()
+    .with_compatibility_authorization(
+        g.job.compatibility_result_id().expect("fixture JobSpec binds CompatibilityResult"),
+        g.job.compatibility_warnings_acknowledged(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -178,14 +183,18 @@ fn job_spec_policy_mismatch_fails_publication() {
 #[test]
 fn qc_worker_result_mismatch_fails_publication() {
     let mut g = unpublished_graph();
-    g.qc = QcReport::for_derived_variant(
-        g.derived_version.id(),
-        g.policy_version.id(),
-        WorkerResultId::generate(),
-        QcVerdict::Pass,
-    )
-    .unwrap();
-    g.derived_version.bind_qc_report(g.qc.id()).unwrap();
+    g.replace_qc(
+        QcReport::for_derived_variant(
+            g.derived_version.id(),
+            g.policy_version.id(),
+            WorkerResultId::generate(),
+            g.persistence.id(),
+            g.persistence.instance_id(),
+            g.persistence.digest().clone(),
+            passing_structural_qc_checks(),
+        )
+        .unwrap(),
+    );
     let err = g.try_publish().unwrap_err();
     assert_eq!(err.code, ErrorCode::GraphMismatch);
 }
@@ -193,14 +202,18 @@ fn qc_worker_result_mismatch_fails_publication() {
 #[test]
 fn qc_policy_mismatch_fails_publication() {
     let mut g = unpublished_graph();
-    g.qc = QcReport::for_derived_variant(
-        g.derived_version.id(),
-        RetargetPolicyVersionId::generate(),
-        g.worker.id(),
-        QcVerdict::Pass,
-    )
-    .unwrap();
-    g.derived_version.bind_qc_report(g.qc.id()).unwrap();
+    g.replace_qc(
+        QcReport::for_derived_variant(
+            g.derived_version.id(),
+            RetargetPolicyVersionId::generate(),
+            g.worker.id(),
+            g.persistence.id(),
+            g.persistence.instance_id(),
+            g.persistence.digest().clone(),
+            passing_structural_qc_checks(),
+        )
+        .unwrap(),
+    );
     let err = g.try_publish().unwrap_err();
     assert_eq!(err.code, ErrorCode::GraphMismatch);
 }

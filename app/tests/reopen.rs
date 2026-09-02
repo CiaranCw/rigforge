@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use common::{certify, matching_success, unpublished_graph, valid_graph};
+use common::{certify, matching_success, unpublished_graph};
 use rigforge_app::{FakeWorker, JobRunState, SqliteCatalog};
 
 fn temp_db() -> PathBuf {
@@ -20,10 +20,9 @@ fn temp_db() -> PathBuf {
 #[test]
 fn reopen_preserves_catalog_and_job_state() {
     let path = temp_db();
-    let g = valid_graph();
+    let g = unpublished_graph();
     let spec_id;
     let character_version_id = g.character_version.id().canonical();
-    let artifact_id = g.persistence.id().canonical();
     let run_id;
     let queued_run_id;
     let spec_json;
@@ -50,13 +49,11 @@ fn reopen_preserves_catalog_and_job_state() {
         catalog
             .put_validated(&certify(g.policy_version.clone()))
             .unwrap();
+        catalog
+            .put_validated(&certify(g.compatibility.clone()))
+            .unwrap();
+        catalog.put_validated(&certify(g.derived.clone())).unwrap();
         catalog.put_validated(&certify(g.job.clone())).unwrap();
-        catalog
-            .put_validated(&certify(g.persistence.clone()))
-            .unwrap();
-        catalog
-            .put_validated(&certify(g.verification.clone()))
-            .unwrap();
         spec_json = rigforge_domain::to_json(&g.job).unwrap();
         spec_id = g.job.id().canonical();
         let spec = certify(g.job.clone());
@@ -80,8 +77,6 @@ fn reopen_preserves_catalog_and_job_state() {
     assert_eq!(loaded_version.as_record(), &g.character_version);
     let loaded_spec = catalog.load_job_spec(&spec_id).unwrap();
     assert_eq!(rigforge_domain::to_json(&loaded_spec).unwrap(), spec_json);
-    let artifact = catalog.load_artifact_metadata(&artifact_id).unwrap();
-    assert_eq!(artifact.as_record(), &g.persistence);
     let succeeded = catalog.load_job_run(&run_id).unwrap();
     assert_eq!(succeeded.state, JobRunState::Succeeded);
     let queued = catalog.load_job_run(&queued_run_id).unwrap();

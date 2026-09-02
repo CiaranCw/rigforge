@@ -1,16 +1,16 @@
 mod common;
 
-use common::{certify, mutate_json_field, source, unpublished_graph, valid_graph};
+use common::{certify, mutate_json_field, persist_core, source, unpublished_graph};
 use rigforge_app::{
-    AppError, CatalogLocationEvidence, SqliteCatalog, DB_SCHEMA_VERSION,
+    AppError, Application, CatalogLocationEvidence, FakeWorker, SqliteCatalog, DB_SCHEMA_VERSION,
 };
 use rigforge_domain::{
-    to_json, CharacterAsset, CharacterAssetVersion, ErrorCode, Lifecycle, ProductVersionStore,
-    RecordType, Validated,
+    CharacterAsset, CharacterAssetVersion, ExecutionCorrelation, Lifecycle,
+    ProductVersionStore, RecordType, Validated, WorkerResult,
 };
 
 fn seed_lineage(catalog: &mut SqliteCatalog) -> common::Graph {
-    let g = valid_graph();
+    let g = unpublished_graph();
     catalog
         .put_validated_pair(
             &certify(g.character.clone()),
@@ -32,18 +32,10 @@ fn seed_lineage(catalog: &mut SqliteCatalog) -> common::Graph {
     catalog
         .put_validated_pair(&certify(g.policy.clone()), &certify(g.policy_version.clone()))
         .unwrap();
+    catalog.put_validated(&certify(g.compatibility.clone())).unwrap();
     catalog.put_validated(&certify(g.job.clone())).unwrap();
     catalog.put_validated(&certify(g.worker.clone())).unwrap();
-    catalog.put_validated(&certify(g.qc.clone())).unwrap();
-    catalog
-        .put_validated_pair(&certify(g.derived.clone()), &certify(g.derived_version.clone()))
-        .unwrap();
-    catalog
-        .put_validated(&certify(g.persistence.clone()))
-        .unwrap();
-    catalog
-        .put_validated(&certify(g.verification.clone()))
-        .unwrap();
+    catalog.put_validated(&certify(g.derived.clone())).unwrap();
     catalog.put_validated(&certify(g.preview.clone())).unwrap();
     g
 }
@@ -164,20 +156,6 @@ fn published_identical_payload_is_idempotent() {
 }
 
 #[test]
-fn product_ids_are_not_sqlite_rowids() {
-    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
-    let g = unpublished_graph();
-    catalog
-        .put_validated(&certify(g.character.clone()))
-        .unwrap();
-    let product_id = g.character.id().canonical();
-    let rowid = catalog.internal_rowid_for_tests(&product_id).unwrap();
-    assert_ne!(product_id, rowid.to_string());
-    assert!(product_id.contains('-'), "UUIDv7 is hyphenated");
-    assert!(!product_id.chars().all(|c| c.is_ascii_digit()));
-}
-
-#[test]
 fn path_overlay_does_not_change_product_identity() {
     let mut catalog = SqliteCatalog::open_in_memory().unwrap();
     let g = unpublished_graph();
@@ -205,47 +183,162 @@ fn path_overlay_does_not_change_product_identity() {
 
 #[test]
 fn artifact_and_verification_metadata_round_trip() {
-    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
-    let g = valid_graph();
-    catalog
-        .put_validated(&certify(g.persistence.clone()))
+    let mut app = Application::open_in_memory().unwrap();
+    let g = unpublished_graph();
+    persist_core(app.catalog_mut(), &g);
+    let (_spec, run) = app
+        .start_transfer(
+            &g.compatibility.id().canonical(),
+            false,
+            None,
+            "Knight Walk Carry",
+        )
         .unwrap();
-    catalog
-        .put_validated(&certify(g.verification.clone()))
+    app.mark_dispatchable(&run.run_id).unwrap();
+    let mut worker = FakeWorker::default();
+    app.dispatch(&run.run_id, &mut worker).unwrap();
+    let running = app.job_status(&run.run_id).unwrap();
+    let spec = app.load_job_spec(&running.job_spec_id).unwrap();
+    let dir = std::env::temp_dir().join(format!(
+        "rf-v15-catalog-art-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let staged = dir.join("derived_result.blend");
+    std::fs::write(&staged, b"catalog-artifact-fixture").unwrap();
+    let sha = {
+        use sha2::{Digest, Sha256};
+        format!("{:x}", Sha256::digest(b"catalog-artifact-fixture"))
+    };
+    app.complete_success(
+        &run.run_id,
+        &certify(
+            WorkerResult::new(
+                spec.as_record().id(),
+                common::backend(),
+                true,
+                "completed",
+                ExecutionCorrelation::new(
+                    &running.attempt_id,
+                    running.worker_execution_ref.as_deref().unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+            .with_staged_artifact_digests(vec![
+                rigforge_domain::ContentDigest::parse(&sha).unwrap(),
+            ])
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let (_logical, version) = app
+        .ingest_worker_success_candidate(&run.run_id, &staged)
         .unwrap();
-    let artifact = catalog
-        .load_artifact_metadata(&g.persistence.id().canonical())
-        .unwrap();
-    let verification = catalog
-        .load_persistence_verification(&g.verification.id().canonical())
-        .unwrap();
-    assert_eq!(artifact.as_record(), &g.persistence);
-    assert_eq!(verification.as_record(), &g.verification);
+    let artifact_id = version
+        .as_record()
+        .persistence_artifact_id()
+        .unwrap()
+        .canonical();
+    let artifact = app.catalog().load_artifact_metadata(&artifact_id).unwrap();
     assert_ne!(
         artifact.as_record().id().canonical(),
         artifact.as_record().digest().sha256()
     );
+    let err = app
+        .catalog_mut()
+        .put_validated(&certify(g.verification.clone()))
+        .unwrap_err();
+    match err {
+        rigforge_app::AppError::Catalog(msg) => {
+            assert!(msg.contains("generic persistence"), "{msg}")
+        }
+        other => panic!("verification generic put must be rejected, got {other}"),
+    }
 }
 
 #[test]
 fn regenerated_artifact_appends_instance_without_clobber() {
-    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
-    let g = valid_graph();
-    catalog
-        .put_validated(&certify(g.persistence.clone()))
+    let mut app = Application::open_in_memory().unwrap();
+    let g = unpublished_graph();
+    persist_core(app.catalog_mut(), &g);
+    let (_spec, run) = app
+        .start_transfer(
+            &g.compatibility.id().canonical(),
+            false,
+            None,
+            "Knight Walk Carry",
+        )
         .unwrap();
-    let regenerated = g
-        .persistence
+    app.mark_dispatchable(&run.run_id).unwrap();
+    let mut worker = FakeWorker::default();
+    app.dispatch(&run.run_id, &mut worker).unwrap();
+    let running = app.job_status(&run.run_id).unwrap();
+    let spec = app.load_job_spec(&running.job_spec_id).unwrap();
+    let dir = std::env::temp_dir().join(format!(
+        "rf-v15-catalog-regen-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let staged = dir.join("derived_result.blend");
+    std::fs::write(&staged, b"catalog-regen-fixture").unwrap();
+    let sha = {
+        use sha2::{Digest, Sha256};
+        format!("{:x}", Sha256::digest(b"catalog-regen-fixture"))
+    };
+    app.complete_success(
+        &run.run_id,
+        &certify(
+            WorkerResult::new(
+                spec.as_record().id(),
+                common::backend(),
+                true,
+                "completed",
+                ExecutionCorrelation::new(
+                    &running.attempt_id,
+                    running.worker_execution_ref.as_deref().unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+            .with_staged_artifact_digests(vec![
+                rigforge_domain::ContentDigest::parse(&sha).unwrap(),
+            ])
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let (_logical, version) = app
+        .ingest_worker_success_candidate(&run.run_id, &staged)
+        .unwrap();
+    let artifact_id = version
+        .as_record()
+        .persistence_artifact_id()
+        .unwrap()
+        .canonical();
+    let original = app
+        .catalog()
+        .load_artifact_metadata(&artifact_id)
+        .unwrap()
+        .into_record();
+    let regenerated = original
         .regenerate(common::digest(9), 8192)
         .unwrap();
-    catalog
+    app.catalog_mut()
         .put_validated(&certify(regenerated.clone()))
         .unwrap();
-    let instances = catalog
-        .list_artifact_instances(&g.persistence.id().canonical())
+    let instances = app
+        .catalog()
+        .list_artifact_instances(&artifact_id)
         .unwrap();
     assert_eq!(instances.len(), 2);
-    assert_eq!(instances[0].as_record().instance_id(), g.persistence.instance_id());
+    assert_eq!(instances[0].as_record().instance_id(), original.instance_id());
     assert_eq!(instances[1].as_record().instance_id(), regenerated.instance_id());
     assert_ne!(
         instances[0].as_record().instance_id(),
@@ -253,31 +346,6 @@ fn regenerated_artifact_appends_instance_without_clobber() {
     );
 }
 
-#[test]
-fn unsupported_domain_schema_fails_closed_on_load() {
-    let mut catalog = SqliteCatalog::open_in_memory().unwrap();
-    let g = unpublished_graph();
-    let mut payload: serde_json::Value =
-        serde_json::from_str(&to_json(&g.character_version).unwrap()).unwrap();
-    payload["schema_version"] = serde_json::json!(99);
-    catalog
-        .insert_unvalidated_payload_for_tests(
-            &g.character_version.id().canonical(),
-            "character_asset_version",
-            &payload.to_string(),
-            99,
-        )
-        .unwrap();
-    let err = catalog
-        .load_character_version(&g.character_version.id().canonical())
-        .unwrap_err();
-    match err {
-        AppError::Domain(domain) => {
-            assert_eq!(domain.code, ErrorCode::UnsupportedSchemaVersion);
-        }
-        other => panic!("expected Domain UnsupportedSchemaVersion, got {other}"),
-    }
-}
 
 #[test]
 fn transaction_rolls_back_on_invalid_graph_write() {

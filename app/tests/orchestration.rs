@@ -33,6 +33,9 @@ fn seeded_spec(catalog: &mut SqliteCatalog) -> Validated<JobSpec> {
     catalog
         .put_validated(&certify(g.policy_version.clone()))
         .unwrap();
+    catalog
+        .put_validated(&certify(g.compatibility.clone()))
+        .unwrap();
     certify(g.job)
 }
 

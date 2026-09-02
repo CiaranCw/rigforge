@@ -4,9 +4,11 @@ use crate::backend::{BackendExecutionContext, RequestedCapability};
 use crate::error::{DomainError, ErrorCode};
 use crate::identity::{
     assert_backend_neutral_text, expect_record_type, expect_schema_version, BoneMappingVersionId,
-    CharacterAssetVersionId, ContentDigest, DerivedVariantVersionId, JobSpecId, MotionAssetVersionId,
-    PersistenceArtifactId, QcReportId, RecordType, RetargetPolicyVersionId, SkeletonSummaryId,
-    SourceSkeletonReferenceId, WorkerResultId, SCHEMA_VERSION,
+    CharacterAssetVersionId, CompatibilityResultId, ContentDigest, DerivedVariantId,
+    DerivedVariantVersionId, JobSpecId, MotionAssetVersionId, PersistenceArtifactId,
+    PersistenceArtifactInstanceId,
+    QcReportId, RecordType, RetargetPolicyVersionId, SkeletonSummaryId, SourceSkeletonReferenceId,
+    WorkerResultId, SCHEMA_VERSION,
 };
 use crate::record::DomainRecord;
 use serde::{Deserialize, Serialize};
@@ -80,6 +82,12 @@ pub struct JobSpec {
     requested_capabilities: Vec<RequestedCapability>,
     determinism_context: String,
     isolation_limits: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    compatibility_result_id: Option<CompatibilityResultId>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    compatibility_warnings_acknowledged: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target_derived_variant_id: Option<DerivedVariantId>,
 }
 
 impl JobSpec {
@@ -106,6 +114,9 @@ impl JobSpec {
             requested_capabilities: Vec::new(),
             determinism_context: determinism_context.into(),
             isolation_limits: isolation_limits.into(),
+            compatibility_result_id: None,
+            compatibility_warnings_acknowledged: false,
+            target_derived_variant_id: None,
         };
         value.validate()?;
         Ok(value)
@@ -138,6 +149,35 @@ impl JobSpec {
     pub fn isolation_limits(&self) -> &str {
         &self.isolation_limits
     }
+    pub fn compatibility_result_id(&self) -> Option<CompatibilityResultId> {
+        self.compatibility_result_id
+    }
+    pub fn compatibility_warnings_acknowledged(&self) -> bool {
+        self.compatibility_warnings_acknowledged
+    }
+    pub fn target_derived_variant_id(&self) -> Option<DerivedVariantId> {
+        self.target_derived_variant_id
+    }
+
+    pub fn with_compatibility_authorization(
+        mut self,
+        compatibility_result_id: CompatibilityResultId,
+        warnings_acknowledged: bool,
+    ) -> Result<Self, DomainError> {
+        self.compatibility_result_id = Some(compatibility_result_id);
+        self.compatibility_warnings_acknowledged = warnings_acknowledged;
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn with_target_derived_variant(
+        mut self,
+        target_derived_variant_id: DerivedVariantId,
+    ) -> Result<Self, DomainError> {
+        self.target_derived_variant_id = Some(target_derived_variant_id);
+        self.validate()?;
+        Ok(self)
+    }
 
     pub fn with_requested_capabilities(
         mut self,
@@ -155,6 +195,12 @@ impl JobSpec {
         require_nonempty(&self.isolation_limits, "isolation_limits")?;
         assert_backend_neutral_text(&self.determinism_context, "determinism_context")?;
         assert_backend_neutral_text(&self.isolation_limits, "isolation_limits")?;
+        if self.compatibility_warnings_acknowledged && self.compatibility_result_id.is_none() {
+            return Err(DomainError::new(
+                ErrorCode::MissingProvenance,
+                "compatibility_warnings_acknowledged requires an exact CompatibilityResult",
+            ));
+        }
         Ok(())
     }
 }
@@ -372,6 +418,100 @@ pub enum QcSubjectKind {
     PersistenceArtifact,
 }
 
+pub const V1_STRUCTURAL_QC_RULE_SET: &str = "rigforge-v1-structural-qc/1";
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QcCheckName {
+    FiniteTransforms,
+    RequiredMappedJointsPresent,
+    ExpectedBakedAnimationPresent,
+    TimeRangeDurationSane,
+    GrossScaleTransformSane,
+    RootTrajectorySane,
+    PersistenceDigestStable,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QcCheckOutcome {
+    Pass,
+    Fail,
+    Missing,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QcCheck {
+    name: QcCheckName,
+    outcome: QcCheckOutcome,
+}
+
+impl QcCheck {
+    pub fn new(name: QcCheckName, outcome: QcCheckOutcome) -> Self {
+        Self { name, outcome }
+    }
+
+    pub fn name(&self) -> QcCheckName {
+        self.name
+    }
+
+    pub fn outcome(&self) -> QcCheckOutcome {
+        self.outcome
+    }
+}
+
+pub fn required_structural_qc_checks() -> [QcCheckName; 7] {
+    [
+        QcCheckName::FiniteTransforms,
+        QcCheckName::RequiredMappedJointsPresent,
+        QcCheckName::ExpectedBakedAnimationPresent,
+        QcCheckName::TimeRangeDurationSane,
+        QcCheckName::GrossScaleTransformSane,
+        QcCheckName::RootTrajectorySane,
+        QcCheckName::PersistenceDigestStable,
+    ]
+}
+
+pub fn passing_structural_qc_checks() -> Vec<QcCheck> {
+    required_structural_qc_checks()
+        .into_iter()
+        .map(|name| QcCheck::new(name, QcCheckOutcome::Pass))
+        .collect()
+}
+
+pub fn derive_qc_verdict(checks: &[QcCheck]) -> Result<QcVerdict, DomainError> {
+    let mut seen = std::collections::HashSet::new();
+    for check in checks {
+        if !seen.insert(check.name) {
+            return Err(DomainError::new(
+                ErrorCode::QcChecksIncomplete,
+                format!("duplicate QC check {:?}", check.name),
+            ));
+        }
+    }
+    for required in required_structural_qc_checks() {
+        match checks.iter().find(|c| c.name == required) {
+            None => {
+                return Err(DomainError::new(
+                    ErrorCode::QcChecksIncomplete,
+                    format!("missing required QC check {required:?}"),
+                ));
+            }
+            Some(check)
+                if matches!(
+                    check.outcome,
+                    QcCheckOutcome::Fail | QcCheckOutcome::Missing
+                ) =>
+            {
+                return Ok(QcVerdict::Fail);
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(QcVerdict::Pass)
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QcReport {
@@ -391,15 +531,30 @@ pub struct QcReport {
     measurements: Vec<NamedMeasurement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     worker_result_id: Option<WorkerResultId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rule_set_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    checks: Vec<QcCheck>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    evaluated_persistence_artifact_id: Option<PersistenceArtifactId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    evaluated_persistence_artifact_instance_id: Option<PersistenceArtifactInstanceId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    evaluated_payload_digest: Option<ContentDigest>,
 }
 
 impl QcReport {
+    #[allow(clippy::too_many_arguments)]
     pub fn for_derived_variant(
         subject_derived_variant_version_id: DerivedVariantVersionId,
         policy_version_id: RetargetPolicyVersionId,
         worker_result_id: WorkerResultId,
-        verdict: QcVerdict,
+        evaluated_persistence_artifact_id: PersistenceArtifactId,
+        evaluated_persistence_artifact_instance_id: PersistenceArtifactInstanceId,
+        evaluated_payload_digest: ContentDigest,
+        checks: Vec<QcCheck>,
     ) -> Result<Self, DomainError> {
+        let verdict = derive_qc_verdict(&checks)?;
         let value = Self {
             schema_version: SCHEMA_VERSION,
             record_type: RecordType::QcReport,
@@ -412,6 +567,13 @@ impl QcReport {
             diagnostics: Vec::new(),
             measurements: Vec::new(),
             worker_result_id: Some(worker_result_id),
+            rule_set_id: Some(V1_STRUCTURAL_QC_RULE_SET.to_string()),
+            checks,
+            evaluated_persistence_artifact_id: Some(evaluated_persistence_artifact_id),
+            evaluated_persistence_artifact_instance_id: Some(
+                evaluated_persistence_artifact_instance_id,
+            ),
+            evaluated_payload_digest: Some(evaluated_payload_digest),
         };
         value.validate()?;
         Ok(value)
@@ -435,6 +597,23 @@ impl QcReport {
     pub fn worker_result_id(&self) -> Option<WorkerResultId> {
         self.worker_result_id
     }
+    pub fn rule_set_id(&self) -> Option<&str> {
+        self.rule_set_id.as_deref()
+    }
+    pub fn checks(&self) -> &[QcCheck] {
+        &self.checks
+    }
+    pub fn evaluated_persistence_artifact_id(&self) -> Option<PersistenceArtifactId> {
+        self.evaluated_persistence_artifact_id
+    }
+    pub fn evaluated_persistence_artifact_instance_id(
+        &self,
+    ) -> Option<PersistenceArtifactInstanceId> {
+        self.evaluated_persistence_artifact_instance_id
+    }
+    pub fn evaluated_payload_digest(&self) -> Option<&ContentDigest> {
+        self.evaluated_payload_digest.as_ref()
+    }
 
     pub fn validate(&self) -> Result<(), DomainError> {
         expect_schema_version(self.schema_version)?;
@@ -454,6 +633,31 @@ impl QcReport {
                         ErrorCode::QcSubjectMismatch,
                         "worker-backed QC requires worker_result_id",
                     ));
+                }
+                if self.rule_set_id.as_deref() != Some(V1_STRUCTURAL_QC_RULE_SET) {
+                    return Err(DomainError::new(
+                        ErrorCode::QcChecksIncomplete,
+                        "publication-critical QC must record rigforge-v1-structural-qc/1",
+                    ));
+                }
+                let derived = derive_qc_verdict(&self.checks)?;
+                if derived != self.verdict {
+                    return Err(DomainError::new(
+                        ErrorCode::CompatibilityContradiction,
+                        "QcReport.verdict must equal the verdict derived from typed checks",
+                    ));
+                }
+                if self.evaluated_persistence_artifact_id.is_none()
+                    || self.evaluated_persistence_artifact_instance_id.is_none()
+                    || self.evaluated_payload_digest.is_none()
+                {
+                    return Err(DomainError::new(
+                        ErrorCode::MissingProvenance,
+                        "publication-critical QC must bind the exact PersistenceArtifact instance and digest",
+                    ));
+                }
+                if let Some(digest) = &self.evaluated_payload_digest {
+                    digest.validate()?;
                 }
             }
             QcSubjectKind::PersistenceArtifact => {

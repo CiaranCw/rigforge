@@ -7,7 +7,10 @@ use eframe::egui;
 use rigforge_app::rigforge_domain::{
     BoneMappingVersion, CompatibilityResult, Lifecycle,
 };
-use rigforge_app::{Application, AssetListItem, JobRunState};
+use rigforge_app::{
+    Application, AssetListItem, JobRunState, TransferAuthorization, TransferOutcome,
+    TransferOutcomeKind,
+};
 
 /// Future Preview embedding boundary. Viewer library and payload remain V1-6.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -49,6 +52,15 @@ pub struct WorkbenchApp {
     mapping_version_id: Option<String>,
     accepted_mapping_version_id: Option<String>,
     compatibility_id: Option<String>,
+    compatibility_notes: Vec<String>,
+    warnings_acknowledged: bool,
+    transfer_auth: Option<TransferAuthorization>,
+    transfer_phase: Option<String>,
+    derived_variant_id: Option<String>,
+    derived_variant_version_id: Option<String>,
+    publication_state: Option<String>,
+    qc_verdict: Option<String>,
+    persistence_verification: Option<String>,
 }
 
 impl WorkbenchApp {
@@ -70,6 +82,15 @@ impl WorkbenchApp {
             mapping_version_id: None,
             accepted_mapping_version_id: None,
             compatibility_id: None,
+            compatibility_notes: Vec::new(),
+            warnings_acknowledged: false,
+            transfer_auth: None,
+            transfer_phase: None,
+            derived_variant_id: None,
+            derived_variant_version_id: None,
+            publication_state: None,
+            qc_verdict: None,
+            persistence_verification: None,
         }
     }
 
@@ -264,6 +285,144 @@ impl WorkbenchApp {
         ];
         self.compatibility_summary = Some(format!("{:?}", result.summary()));
         self.compatibility_id = Some(result.id().canonical());
+        self.compatibility_notes = result.notes().to_vec();
+        self.warnings_acknowledged = false;
+        self.transfer_auth = None;
+    }
+
+    pub fn refresh_transfer_authorization(
+        &mut self,
+        app: &Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let Some(id) = self.compatibility_id.clone() else {
+            self.transfer_auth = None;
+            return Ok(());
+        };
+        self.transfer_auth = Some(app.authorize_transfer(&id, self.warnings_acknowledged)?);
+        Ok(())
+    }
+
+    pub fn acknowledge_compatibility_warnings(
+        &mut self,
+        app: &Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        self.warnings_acknowledged = true;
+        self.refresh_transfer_authorization(app)
+    }
+
+    pub fn warnings_acknowledged(&self) -> bool {
+        self.warnings_acknowledged
+    }
+
+    pub fn compatibility_notes(&self) -> &[String] {
+        &self.compatibility_notes
+    }
+
+    pub fn transfer_authorization(&self) -> Option<&TransferAuthorization> {
+        self.transfer_auth.as_ref()
+    }
+
+    pub fn transfer_available(&self) -> bool {
+        self.transfer_auth
+            .as_ref()
+            .map(|auth| auth.eligible)
+            .unwrap_or(false)
+    }
+
+    pub fn transfer_requires_acknowledgement(&self) -> bool {
+        self.transfer_auth
+            .as_ref()
+            .map(|auth| auth.requires_acknowledgement && !self.warnings_acknowledged)
+            .unwrap_or(false)
+    }
+
+    pub fn transfer_eligibility_label(&self) -> String {
+        match &self.transfer_auth {
+            Some(auth) if auth.eligible => "eligible".into(),
+            Some(auth) => auth
+                .denial_reason
+                .clone()
+                .unwrap_or_else(|| rigforge_app::MappingWorkflowSnapshot::transfer_unavailable_reason().into()),
+            None => "Transfer requires an exact CompatibilityResult from Application".into(),
+        }
+    }
+
+    pub fn request_transfer(
+        &mut self,
+        app: &mut Application,
+        existing_derived_variant_id: Option<&str>,
+    ) -> Result<String, rigforge_app::AppError> {
+        let id = self.compatibility_id.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Workbench Transfer requires an exact CompatibilityResult".into(),
+            )
+        })?;
+        self.refresh_transfer_authorization(app)?;
+        if !self.transfer_available() {
+            return Err(rigforge_app::AppError::Catalog(self.transfer_eligibility_label()));
+        }
+        let (_spec, run) = app.start_transfer(
+            &id,
+            self.warnings_acknowledged,
+            existing_derived_variant_id,
+            "Workbench Derived",
+        )?;
+        self.transfer_phase = Some("queued".into());
+        self.jobs.insert(
+            0,
+            JobStatusView {
+                run_id: run.run_id.clone(),
+                job_spec_id: run.job_spec_id.clone(),
+                state: run.state.as_db_str().to_string(),
+            },
+        );
+        Ok(run.run_id)
+    }
+
+    pub fn apply_transfer_outcome(&mut self, outcome: &TransferOutcome) {
+        self.derived_variant_id = Some(outcome.derived_variant_id.clone()).filter(|s| !s.is_empty());
+        self.derived_variant_version_id =
+            Some(outcome.derived_variant_version_id.clone()).filter(|s| !s.is_empty());
+        self.qc_verdict = outcome.qc_verdict.clone();
+        self.persistence_verification = outcome.persistence_verification_id.clone();
+        match outcome.kind {
+            TransferOutcomeKind::Published => {
+                self.publication_state = Some("Published".into());
+                self.transfer_phase = Some("published".into());
+            }
+            TransferOutcomeKind::PublicationDenied => {
+                self.publication_state = Some("Publication denied".into());
+                self.transfer_phase = Some("publication_denied".into());
+            }
+        }
+        if let Some(reason) = &outcome.reason {
+            self.transfer_phase = Some(format!(
+                "{} ({reason})",
+                self.transfer_phase.clone().unwrap_or_default()
+            ));
+        }
+    }
+
+    pub fn derived_variant_id(&self) -> Option<&str> {
+        self.derived_variant_id.as_deref()
+    }
+    pub fn derived_variant_version_id(&self) -> Option<&str> {
+        self.derived_variant_version_id.as_deref()
+    }
+    pub fn publication_state(&self) -> Option<&str> {
+        self.publication_state.as_deref()
+    }
+    pub fn qc_verdict(&self) -> Option<&str> {
+        self.qc_verdict.as_deref()
+    }
+    pub fn persistence_verification_id(&self) -> Option<&str> {
+        self.persistence_verification.as_deref()
+    }
+    pub fn transfer_phase(&self) -> Option<&str> {
+        self.transfer_phase.as_deref()
+    }
+    pub fn preview_unavailable_reason() -> &'static str {
+        rigforge_app::MappingWorkflowSnapshot::preview_unavailable_reason()
     }
 
     pub fn mapping_entries(&self) -> &[String] {
@@ -292,9 +451,6 @@ impl WorkbenchApp {
     }
     pub fn compatibility_id(&self) -> Option<&str> {
         self.compatibility_id.as_deref()
-    }
-    pub fn transfer_available() -> bool {
-        false
     }
     pub fn transfer_placeholder() -> &'static str {
         rigforge_app::MappingWorkflowSnapshot::transfer_unavailable_reason()
@@ -409,8 +565,41 @@ impl eframe::App for WorkbenchApp {
                 "overall: {}",
                 self.compatibility_summary.as_deref().unwrap_or("(none)")
             ));
-            ui.add_enabled(false, egui::Button::new("Transfer"));
-            ui.weak(Self::transfer_placeholder());
+            for note in &self.compatibility_notes {
+                ui.label(format!("warning: {note}"));
+            }
+            ui.label(format!(
+                "Transfer eligibility: {}",
+                self.transfer_eligibility_label()
+            ));
+            if self.transfer_auth.as_ref().map(|a| a.requires_acknowledgement).unwrap_or(false) {
+                ui.checkbox(
+                    &mut self.warnings_acknowledged,
+                    "I acknowledge these Compatibility warnings",
+                );
+            }
+            ui.add_enabled(self.transfer_available(), egui::Button::new("Transfer"));
+            if !self.transfer_available() {
+                ui.weak(self.transfer_eligibility_label());
+            }
+            if let Some(phase) = &self.transfer_phase {
+                ui.label(format!("Transfer phase: {phase}"));
+            }
+            if let Some(id) = &self.derived_variant_id {
+                ui.label(format!("DerivedVariant: {id}"));
+            }
+            if let Some(id) = &self.derived_variant_version_id {
+                ui.label(format!("DerivedVariantVersion: {id}"));
+            }
+            if let Some(state) = &self.publication_state {
+                ui.label(format!("publication: {state}"));
+            }
+            if let Some(verdict) = &self.qc_verdict {
+                ui.label(format!("QC verdict: {verdict}"));
+            }
+            if let Some(id) = &self.persistence_verification {
+                ui.label(format!("PersistenceVerification: {id}"));
+            }
             ui.separator();
             ui.heading("Job status");
             if self.jobs.is_empty() {
@@ -424,6 +613,7 @@ impl eframe::App for WorkbenchApp {
                 ui.strong("Preview slot");
                 ui.label("Embedding boundary only. Viewer library: not selected.");
                 ui.label("Payload format: not selected (V1-6).");
+                ui.label(Self::preview_unavailable_reason());
                 ui.label(format!("occupied: {}", self.preview.occupied));
             });
             let _ = JobRunState::Queued;

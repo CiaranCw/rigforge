@@ -66,6 +66,7 @@ pub struct Graph {
     pub policy_version: RetargetPolicyVersion,
     pub job: JobSpec,
     pub worker: WorkerResult,
+    pub compatibility: CompatibilityResult,
     pub derived: DerivedVariant,
     pub derived_version: DerivedVariantVersion,
     pub qc: QcReport,
@@ -89,6 +90,7 @@ impl Graph {
                 worker: &self.worker,
                 qc: &self.qc,
                 backend: &self.backend,
+                compatibility: &self.compatibility,
                 persistence: Some(&self.persistence),
                 verification: Some(&self.verification),
             },
@@ -108,6 +110,7 @@ impl Graph {
                 worker: &self.worker,
                 qc: &self.qc,
                 backend: &self.backend,
+                compatibility: &self.compatibility,
                 persistence: None,
                 verification: Some(&self.verification),
             },
@@ -127,11 +130,20 @@ impl Graph {
                 worker: &self.worker,
                 qc: &self.qc,
                 backend: &self.backend,
+                compatibility: &self.compatibility,
                 persistence: Some(&self.persistence),
                 verification: None,
             },
             &mut self.derived_version,
         )
+    }
+
+    pub fn replace_qc(&mut self, qc: QcReport) {
+        let mut value = serde_json::to_value(&self.derived_version).unwrap();
+        value["qc_report_id"] = serde_json::Value::Null;
+        self.derived_version = from_json_validated(&value.to_string()).unwrap();
+        self.qc = qc;
+        self.derived_version.bind_qc_report(self.qc.id()).unwrap();
     }
 }
 
@@ -185,6 +197,20 @@ pub fn unpublished_graph() -> Graph {
     policy_version.publish().unwrap();
     policy.bind_published(policy_version.id());
 
+    let compatibility = CompatibilityResult::from_preflight(
+        character_version.id(),
+        motion_version.id(),
+        mapping_version.id(),
+        policy_version.id(),
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["fixture Ready preflight".to_string()],
+    )
+    .unwrap();
+
     let job = JobSpec::new(
         character_version.id(),
         motion_version.id(),
@@ -199,6 +225,8 @@ pub fn unpublished_graph() -> Graph {
         RequestedCapability::PersistenceArtifact,
         RequestedCapability::PreviewPayload,
     ])
+    .unwrap()
+    .with_compatibility_authorization(compatibility.id(), false)
     .unwrap();
 
     let persist_digest = digest(3);
@@ -224,17 +252,8 @@ pub fn unpublished_graph() -> Graph {
         job.id(),
         backend.id(),
         worker.id(),
-        QcReportId::generate(),
     )
     .unwrap();
-    let qc = QcReport::for_derived_variant(
-        derived_version.id(),
-        policy_version.id(),
-        worker.id(),
-        QcVerdict::Pass,
-    )
-    .unwrap();
-    derived_version.bind_qc_report(qc.id()).unwrap();
 
     let persistence = PersistenceArtifact::new(
         derived_version.id(),
@@ -247,6 +266,17 @@ pub fn unpublished_graph() -> Graph {
     derived_version
         .bind_persistence_artifact(persistence.id())
         .unwrap();
+    let qc = QcReport::for_derived_variant(
+        derived_version.id(),
+        policy_version.id(),
+        worker.id(),
+        persistence.id(),
+        persistence.instance_id(),
+        persistence.digest().clone(),
+        passing_structural_qc_checks(),
+    )
+    .unwrap();
+    derived_version.bind_qc_report(qc.id()).unwrap();
     let preview = PreviewArtifact::for_derived_variant(
         derived_version.id(),
         digest(4),
@@ -281,6 +311,7 @@ pub fn unpublished_graph() -> Graph {
         policy_version,
         job,
         worker,
+        compatibility,
         derived,
         derived_version,
         qc,

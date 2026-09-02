@@ -29,6 +29,9 @@ fn seed_graph(catalog: &mut SqliteCatalog, g: &common::Graph) -> Validated<rigfo
     catalog
         .put_validated(&certify(g.policy_version.clone()))
         .unwrap();
+    catalog
+        .put_validated(&certify(g.compatibility.clone()))
+        .unwrap();
     certify(g.job.clone())
 }
 
