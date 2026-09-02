@@ -2,8 +2,9 @@
 
 use rigforge_domain::{
     BoneMapping, BoneMappingEntry, BoneMappingVersion, CompatibilityResult, JointKey,
-    JointParticipation, JointRef, MappingReviewKind, MappingReviewProvenance, SkeletonSubjectKind,
-    SkeletonSummary, UnmappedDisposition, UnmappedJoint, Validated,
+    JointParticipation, JointRef, Lifecycle, MappingReviewKind, MappingReviewProvenance,
+    RetargetPolicy, RetargetPolicyVersion, SkeletonSubjectKind, SkeletonSummary,
+    UnmappedDisposition, UnmappedJoint, Validated,
 };
 
 use crate::candidates::{generate_mapping_proposal, MappingAssistProfile, MappingProposal};
@@ -117,6 +118,91 @@ impl Application {
             ));
         }
         generate_mapping_proposal(source.as_record(), target.as_record(), profile)
+    }
+
+    pub fn propose_and_store_mapping_for_selection<I: SkeletonEvidenceProvider>(
+        &mut self,
+        character_version_id: &str,
+        motion_version_id: &str,
+        inspector: &I,
+        profile: MappingAssistProfile,
+        display_name: impl Into<String>,
+    ) -> Result<(Validated<BoneMapping>, Validated<BoneMappingVersion>), AppError> {
+        let motion = self.catalog.load_motion_version(motion_version_id)?;
+        let source_id = motion.as_record().source_skeleton_ref_id().canonical();
+        let source_summary = self.inspect_and_store_source_summary(
+            &source_id,
+            inspector,
+            motion_version_id,
+        )?;
+        let target_summary =
+            self.inspect_and_store_character_summary(character_version_id, inspector)?;
+        let proposal = self.propose_mapping(
+            &source_summary.as_record().id().canonical(),
+            &target_summary.as_record().id().canonical(),
+            profile,
+        )?;
+        self.store_mapping_draft(
+            display_name,
+            character_version_id,
+            &source_id,
+            &proposal,
+            &source_summary.as_record().id().canonical(),
+            &target_summary.as_record().id().canonical(),
+        )
+    }
+
+    /// Resolve a Published RetargetPolicyVersion without arbitrary-first choice.
+    ///
+    /// - zero Published policies: create the V1 proven rest-relative default
+    /// - exactly one: return that exact version
+    /// - more than one: fail closed; caller must select an exact version
+    pub fn ensure_published_proven_policy(&mut self) -> Result<String, AppError> {
+        let published = self.published_policy_version_ids()?;
+        match published.len() {
+            0 => {
+                let mut policy = RetargetPolicy::new("V1 proven rest-relative")?;
+                let mut version = RetargetPolicyVersion::proven_draft(policy.id())?;
+                version.publish()?;
+                policy.bind_published(version.id());
+                let policy = Validated::certify(policy)?;
+                let version = Validated::certify(version)?;
+                let id = version.as_record().id().canonical();
+                self.catalog.put_validated_pair(&policy, &version)?;
+                Ok(id)
+            }
+            1 => Ok(published[0].clone()),
+            _ => Err(AppError::Catalog(
+                "policy selection required: multiple Published RetargetPolicy versions exist; choose an exact RetargetPolicyVersion".into(),
+            )),
+        }
+    }
+
+    pub fn published_policy_version_ids(&self) -> Result<Vec<String>, AppError> {
+        let mut published = Vec::new();
+        for item in self.list_policies()? {
+            let Some(version_id) = item.published_version_id else {
+                continue;
+            };
+            let version = self.catalog.load_policy_version(&version_id)?;
+            if version.as_record().lifecycle() == Lifecycle::Published {
+                published.push(version_id);
+            }
+        }
+        Ok(published)
+    }
+
+    pub fn require_published_policy_version(
+        &self,
+        policy_version_id: &str,
+    ) -> Result<String, AppError> {
+        let version = self.catalog.load_policy_version(policy_version_id)?;
+        if version.as_record().lifecycle() != Lifecycle::Published {
+            return Err(AppError::Catalog(format!(
+                "policy selection rejected: RetargetPolicyVersion {policy_version_id} is not Published"
+            )));
+        }
+        Ok(version.as_record().id().canonical())
     }
 
     pub fn store_mapping_draft(

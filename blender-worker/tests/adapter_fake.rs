@@ -384,6 +384,7 @@ fn success_without_staged_file_is_not_success() {
 
 #[test]
 fn production_worker_cannot_disable_pin_verification() {
+    common::ensure_test_runtime();
     let mut worker = BlenderWorker::production().unwrap();
     assert!(worker.is_production());
     assert!(worker.pin_verification_is_mandatory());
@@ -395,6 +396,7 @@ fn production_worker_cannot_disable_pin_verification() {
 
 #[test]
 fn production_worker_cannot_disable_source_verification() {
+    common::ensure_test_runtime();
     let mut worker = BlenderWorker::production().unwrap();
     assert!(worker.source_verification_is_mandatory());
     let err = worker

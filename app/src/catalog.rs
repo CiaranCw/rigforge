@@ -25,6 +25,9 @@ use crate::worker::{
 
 pub use crate::migrate::{DB_SCHEMA_NAME, DB_SCHEMA_VERSION};
 
+/// Catalog-adjacent dispatch intent files. Not Product identity.
+pub const DISPATCH_INTENT_DIRNAME: &str = "rigforge-dispatch-intents";
+
 /// Catalog-side location evidence. Paths here are not Product identity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogLocationEvidence {
@@ -91,6 +94,7 @@ impl SqliteCatalog {
             fail_candidate_after_writes: false,
         };
         catalog.configure()?;
+        catalog.reconcile_interrupted_runtime()?;
         Ok(catalog)
     }
 
@@ -114,6 +118,7 @@ impl SqliteCatalog {
             fail_candidate_after_writes: false,
         };
         catalog.configure()?;
+        catalog.reconcile_interrupted_runtime()?;
         Ok(catalog)
     }
 
@@ -137,6 +142,74 @@ impl SqliteCatalog {
 
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
+    }
+
+    fn sidecar_dir(&self) -> PathBuf {
+        match &self.path {
+            Some(path) => match path.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+                _ => PathBuf::from("."),
+            },
+            None => self.artifact_root.clone(),
+        }
+    }
+
+    pub fn dispatch_intent_dir(&self) -> PathBuf {
+        self.sidecar_dir().join(DISPATCH_INTENT_DIRNAME)
+    }
+
+    fn dispatch_intent_path(&self, run_id: &str) -> PathBuf {
+        self.dispatch_intent_dir()
+            .join(format!("{run_id}.intent.json"))
+    }
+
+    fn write_dispatch_intent(&self, run_id: &str, attempt_id: &str) -> Result<(), AppError> {
+        std::fs::create_dir_all(self.dispatch_intent_dir())?;
+        let body = serde_json::json!({
+            "run_id": run_id,
+            "attempt_id": attempt_id,
+            "written_at_ms": now_ms(),
+        });
+        let bytes = serde_json::to_vec_pretty(&body).map_err(|err| {
+            AppError::Catalog(format!("dispatch intent serialize failed: {err}"))
+        })?;
+        std::fs::write(self.dispatch_intent_path(run_id), bytes)?;
+        Ok(())
+    }
+
+    fn clear_dispatch_intent(&self, run_id: &str) {
+        let _ = std::fs::remove_file(self.dispatch_intent_path(run_id));
+    }
+
+    /// Fail closed leftover DISPATCHABLE+intent and RUNNING-without-handle state.
+    /// Does not publish and does not attach to orphan processes.
+    pub fn reconcile_interrupted_runtime(&mut self) -> Result<Vec<JobRun>, AppError> {
+        let mut changed = Vec::new();
+        for run in self.list_job_runs()? {
+            let has_intent = self.dispatch_intent_path(&run.run_id).is_file();
+            match run.state {
+                JobRunState::Dispatchable if has_intent => {
+                    let failed = self.fail_dispatch(
+                        &run.run_id,
+                        "interrupted after dispatch intent; RUNNING was not durable; spawn-to-RUNNING crash window failed closed",
+                    )?;
+                    self.clear_dispatch_intent(&run.run_id);
+                    changed.push(failed);
+                }
+                JobRunState::Running => {
+                    let failed = self.complete_terminal_failure(
+                        &run.run_id,
+                        "application restarted while JobRun was RUNNING; in-process worker handle was not retained; Product publication remains blocked",
+                        None,
+                    )?;
+                    self.clear_dispatch_intent(&run.run_id);
+                    changed.push(failed);
+                }
+                _ if has_intent => self.clear_dispatch_intent(&run.run_id),
+                _ => {}
+            }
+        }
+        Ok(changed)
     }
 
     pub fn db_schema_version(&self) -> Result<i32, AppError> {
@@ -768,16 +841,18 @@ impl SqliteCatalog {
                 return Err(err);
             }
         };
+        self.write_dispatch_intent(run_id, &run.attempt_id)?;
         match worker.dispatch_resolved(&request) {
             Ok(receipt) => {
                 if receipt.attempt_id != run.attempt_id {
                     let reason =
                         "worker receipt attempt_id does not match orchestrator attempt_id";
+                    self.clear_dispatch_intent(run_id);
                     self.fail_dispatch(run_id, reason)?;
                     return Err(AppError::Worker(reason.into()));
                 }
                 let now = now_ms();
-                self.conn.execute(
+                let updated = self.conn.execute(
                     "UPDATE job_runs
                      SET state = ?1, worker_execution_ref = ?2, updated_at = ?3
                      WHERE run_id = ?4",
@@ -787,10 +862,21 @@ impl SqliteCatalog {
                         now,
                         run_id
                     ],
-                )?;
-                Ok((self.load_job_run(run_id)?, receipt))
+                );
+                match updated {
+                    Ok(_) => {
+                        self.clear_dispatch_intent(run_id);
+                        Ok((self.load_job_run(run_id)?, receipt))
+                    }
+                    Err(err) => {
+                        self.fail_dispatch(run_id, &err.to_string())?;
+                        self.clear_dispatch_intent(run_id);
+                        Err(err.into())
+                    }
+                }
             }
             Err(err) => {
+                self.clear_dispatch_intent(run_id);
                 self.fail_dispatch(run_id, &err.to_string())?;
                 Err(err)
             }

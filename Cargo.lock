@@ -2574,7 +2574,9 @@ dependencies = [
  "eframe",
  "egui",
  "rigforge_app",
+ "rigforge_blender_worker",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

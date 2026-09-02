@@ -17,11 +17,11 @@ use uuid::Uuid;
 use crate::command::{assert_safety_flags, blender_argv, blender_command};
 use crate::isolation::{attempt_workspace_root, AttemptWorkspace};
 use crate::pin::{
-    enforce_pin, sha256_file, ADAPTER_VERSION, BACKEND_KIND, BLENDER_BUILD, BLENDER_VERSION,
-    BlenderPin, EXECUTION_POLICY_VERSION,
+    enforce_pin, sha256_file, verify_worker_package_integrity, ADAPTER_VERSION, BACKEND_KIND,
+    BLENDER_BUILD, BLENDER_VERSION, BlenderPin, EXECUTION_POLICY_VERSION,
 };
 
-use crate::adapter::production_worker_script;
+use rigforge_app::RuntimeLayout;
 
 #[derive(Debug, Deserialize)]
 struct InspectEnvelope {
@@ -51,10 +51,13 @@ pub struct BlenderSkeletonInspector {
 
 impl BlenderSkeletonInspector {
     pub fn production() -> Result<Self, AppError> {
-        let pin = BlenderPin::accepted();
+        let layout = RuntimeLayout::resolve()?;
+        let pin = BlenderPin::accepted().with_executable(layout.blender_executable());
+        let script = layout.worker_script();
+        verify_worker_package_integrity(&script)?;
         Ok(Self {
             pin,
-            script: production_worker_script(),
+            script,
             workspace_root: std::env::temp_dir().join("rigforge-v14-inspect"),
         })
     }
@@ -68,6 +71,7 @@ impl BlenderSkeletonInspector {
         subject_source_skeleton_ref_id: Option<SourceSkeletonReferenceId>,
     ) -> Result<Validated<SkeletonSummary>, AppError> {
         enforce_pin(&self.pin.executable, &self.pin)?;
+        verify_worker_package_integrity(&self.script)?;
         let found = sha256_file(source_path)?;
         if found != expected_sha256 {
             return Err(AppError::Worker(format!(

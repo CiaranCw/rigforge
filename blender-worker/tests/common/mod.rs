@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
-use rigforge_app::SqliteCatalog;
+use rigforge_app::{materialize_runtime_bundle, SqliteCatalog, RuntimeLayout, RUNTIME_ROOT_ENV};
 use rigforge_domain::*;
 use sha2::{Digest, Sha256};
 
@@ -74,6 +75,7 @@ pub fn graph_with_sources_time(
     motion_path: &str,
     time: TimeDomainProvenance,
 ) -> Graph {
+    ensure_test_runtime();
     let mut character = CharacterAsset::new("Knight").unwrap();
     let mut character_version =
         CharacterAssetVersion::draft(character.id(), "Knight v1", source_at(character_path, 1))
@@ -163,7 +165,86 @@ pub fn seed(catalog: &mut SqliteCatalog, g: &Graph) -> Validated<JobSpec> {
     Validated::certify(g.job.clone()).unwrap()
 }
 
+pub fn local_pinned_blender_dir() -> PathBuf {
+    if let Ok(path) = std::env::var("RIGFORGE_PINNED_BLENDER_DIR") {
+        if !path.is_empty() {
+            return PathBuf::from(path);
+        }
+    }
+    PathBuf::from(r"F:\NewResearch\rigforge_w0p_work\toolchains\blender-5.2.1-windows-x64")
+}
+
+pub fn local_blender_archive() -> PathBuf {
+    local_pinned_blender_dir()
+        .parent()
+        .map(|parent| parent.join(rigforge_blender_worker::BLENDER_ARCHIVE_NAME))
+        .unwrap_or_else(|| PathBuf::from("blender-5.2.1-windows-x64.zip"))
+}
+
+pub fn crate_worker_script() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("python")
+        .join("worker.py")
+}
+
+pub fn crate_preview_gen_script() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("python")
+        .join("preview_gen.py")
+}
+
+pub fn crate_preview_viewer() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("workbench")
+        .join("preview-viewer")
+}
+
+pub fn same_volume_runtime_dest(tag: &str) -> PathBuf {
+    let path = local_pinned_blender_dir()
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("rigforge-v18-scratch")
+        .join(format!(
+            "{}-{}-{}",
+            tag,
+            std::process::id(),
+            uuid::Uuid::now_v7()
+        ));
+    std::fs::create_dir_all(&path).unwrap();
+    path
+}
+
+pub fn ensure_test_runtime() {
+    static ROOT: OnceLock<PathBuf> = OnceLock::new();
+    ROOT.get_or_init(|| {
+        let dest = local_pinned_blender_dir()
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(format!(
+                "rigforge-v18-test-runtime-{}",
+                std::process::id()
+            ));
+        let layout = materialize_runtime_bundle(
+            &dest,
+            &crate_worker_script(),
+            &crate_preview_gen_script(),
+            Some(&crate_preview_viewer()),
+            Some(&local_pinned_blender_dir()),
+        )
+        .expect("materialize V1-8 test runtime bundle");
+        std::env::set_var(RUNTIME_ROOT_ENV, layout.root());
+        layout.root().to_path_buf()
+    });
+}
+
+pub fn test_runtime_layout() -> RuntimeLayout {
+    ensure_test_runtime();
+    RuntimeLayout::resolve().expect("test runtime layout")
+}
+
 pub fn temp_dir() -> PathBuf {
+    ensure_test_runtime();
     let path = std::env::temp_dir().join(format!("rf-v13-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&path).unwrap();
     path
@@ -177,6 +258,7 @@ pub fn write_file(path: &Path, bytes: &[u8]) {
 }
 
 pub fn sha256_file(path: &Path) -> String {
+    ensure_test_runtime();
     let bytes = std::fs::read(path).unwrap();
     Sha256::digest(&bytes)
         .iter()

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use rigforge_app::AppError;
+use rigforge_app::{AppError, RuntimeLayout};
 use sha2::{Digest, Sha256};
 
 pub const BLENDER_VERSION: &str = "5.2.1 LTS";
@@ -11,11 +11,10 @@ pub const BLENDER_BUILD: &str = "9e2066aef7ef";
 pub const BLENDER_ARCHIVE_NAME: &str = "blender-5.2.1-windows-x64.zip";
 pub const BLENDER_ARCHIVE_SHA256: &str =
     "0e631dad7d0cad6d5d18abdd2e2550f6c0213215334eda00ddbd3d22b96ecb2c";
-pub const DEFAULT_BLENDER_DIR: &str =
-    r"F:\NewResearch\rigforge_w0p_work\toolchains\blender-5.2.1-windows-x64";
 pub const ADAPTER_VERSION: &str = "rigforge-blender-worker/0.1.0";
 pub const EXECUTION_POLICY_VERSION: &str = "v1-1-proven-unexecuted";
 pub const BACKEND_KIND: &str = "Blender";
+pub use rigforge_app::runtime::{PREVIEW_GEN_SCRIPT_SHA256, WORKER_SCRIPT_SHA256};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlenderPin {
@@ -42,14 +41,9 @@ impl BlenderPin {
 }
 
 pub fn default_blender_executable() -> PathBuf {
-    if let Ok(path) = std::env::var("RIGFORGE_BLENDER_EXECUTABLE") {
-        return PathBuf::from(path);
-    }
-    PathBuf::from(DEFAULT_BLENDER_DIR).join("blender.exe")
-}
-
-pub fn default_archive_path() -> PathBuf {
-    PathBuf::from(r"F:\NewResearch\rigforge_w0p_work\toolchains").join(BLENDER_ARCHIVE_NAME)
+    RuntimeLayout::resolve()
+        .map(|layout| layout.blender_executable())
+        .unwrap_or_else(|_| rigforge_app::runtime::unresolved_blender_executable())
 }
 
 pub fn sha256_file(path: &Path) -> Result<String, AppError> {
@@ -122,4 +116,8 @@ pub fn enforce_pin(executable: &Path, expected: &BlenderPin) -> Result<(String, 
         )));
     }
     Ok((version, build))
+}
+
+pub fn verify_worker_package_integrity(worker_script: &Path) -> Result<(), AppError> {
+    rigforge_app::runtime::verify_runtime_worker_package(worker_script)
 }

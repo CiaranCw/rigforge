@@ -4,7 +4,7 @@ use common::{MemoryArtifactInspector, MemoryPersistenceReopener};
 use rigforge_app::rigforge_domain::*;
 use rigforge_app::{
     generate_mapping_proposal, sha256_file, Application, FakeWorker, MappingAssistProfile,
-    TransferOutcomeKind, WorkerCapabilityProfile,
+    MemorySkeletonInspector, TransferOutcomeKind, WorkerCapabilityProfile,
 };
 use rigforge_workbench::{PreviewEmbeddingSlot, WorkbenchApp};
 
@@ -975,4 +975,219 @@ fn qc_fail_displays_publication_denied() {
     shell.apply_transfer_outcome(&outcome);
     assert_eq!(shell.publication_state(), Some("Publication denied"));
     assert_eq!(shell.qc_verdict(), Some("Fail"));
+}
+
+fn inspector_from_seed(seeded: &Seeded) -> MemorySkeletonInspector {
+    let motion = seeded
+        .app
+        .catalog()
+        .load_motion_version(&seeded.motion_version)
+        .unwrap();
+    let source_id = motion.as_record().source_skeleton_ref_id().canonical();
+    let target_ids = seeded
+        .app
+        .catalog()
+        .list_skeleton_summaries_for_character(&seeded.character_version)
+        .unwrap();
+    let source_ids = seeded
+        .app
+        .catalog()
+        .list_skeleton_summaries_for_source_skeleton(&source_id)
+        .unwrap();
+    let loaded_target = seeded
+        .app
+        .load_skeleton_summary(&target_ids[0])
+        .unwrap()
+        .into_record();
+    let loaded_source = seeded
+        .app
+        .load_skeleton_summary(&source_ids[0])
+        .unwrap()
+        .into_record();
+    MemorySkeletonInspector {
+        character: SkeletonSummary::new(
+            loaded_target.subject_kind(),
+            loaded_target.subject_character_version_id(),
+            loaded_target.subject_source_skeleton_ref_id(),
+            loaded_target.producer().clone(),
+            loaded_target.joints().to_vec(),
+            loaded_target.diagnostics().to_vec(),
+        )
+        .unwrap(),
+        source: SkeletonSummary::new(
+            loaded_source.subject_kind(),
+            loaded_source.subject_character_version_id(),
+            loaded_source.subject_source_skeleton_ref_id(),
+            loaded_source.producer().clone(),
+            loaded_source.joints().to_vec(),
+            loaded_source.diagnostics().to_vec(),
+        )
+        .unwrap(),
+    }
+}
+
+#[test]
+fn native_draw_source_wires_product_actions() {
+    let src = include_str!("../src/lib.rs");
+    assert!(src.contains("on_propose_mapping_clicked"));
+    assert!(src.contains("on_accept_mapping_clicked"));
+    assert!(src.contains("on_evaluate_compatibility_clicked"));
+    assert!(src.contains("on_warnings_checkbox_changed"));
+    assert!(src.contains("on_transfer_action"));
+    assert!(src.contains("Propose Mapping"));
+    assert!(src.contains("Accept Mapping"));
+    assert!(src.contains("Evaluate Compatibility"));
+    assert!(!src.contains("Transfer checkbox/button remain presentation-only"));
+}
+
+#[test]
+fn native_handlers_propose_accept_evaluate_and_queue_transfer() {
+    let mut seeded = seed();
+    let inspector = inspector_from_seed(&seeded);
+    let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
+    shell
+        .propose_mapping_with(&mut seeded.app, &inspector)
+        .unwrap();
+    assert!(!shell.mapping_accepted());
+    shell.on_accept_mapping_clicked(&mut seeded.app).unwrap();
+    assert!(shell.mapping_accepted());
+    shell
+        .on_evaluate_compatibility_clicked(&mut seeded.app)
+        .unwrap();
+    assert!(shell.compatibility_id().is_some());
+    let compat = seeded
+        .app
+        .catalog()
+        .load_compatibility_result(shell.compatibility_id().unwrap())
+        .unwrap();
+    assert_eq!(
+        compat.as_record().policy_version_id().canonical(),
+        seeded.policy_version
+    );
+    if shell.transfer_requires_acknowledgement() {
+        shell
+            .on_warnings_checkbox_changed(&mut seeded.app, true)
+            .unwrap();
+    }
+    assert!(shell.transfer_available());
+    let run_id = shell.on_transfer_clicked(&mut seeded.app).unwrap();
+    let run = seeded.app.job_status(&run_id).unwrap();
+    assert_eq!(run.state, rigforge_app::JobRunState::Queued);
+    assert_eq!(shell.transfer_phase(), Some("queued"));
+}
+
+#[test]
+fn warnings_checkbox_handler_refreshes_authorization() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let mapping_version = shell.accepted_mapping_version_id().unwrap();
+    let result = CompatibilityResult::from_preflight(
+        CharacterAssetVersionId::parse(&seeded.character_version).unwrap(),
+        MotionAssetVersionId::parse(&seeded.motion_version).unwrap(),
+        BoneMappingVersionId::parse(mapping_version).unwrap(),
+        RetargetPolicyVersionId::parse(&seeded.policy_version).unwrap(),
+        Judgment::PassWithWarnings,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["optional helper remains unmapped".into()],
+    )
+    .unwrap();
+    seeded
+        .app
+        .catalog_mut()
+        .put_validated(&Validated::certify(result.clone()).unwrap())
+        .unwrap();
+    shell.apply_compatibility_result(&result);
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    assert!(!shell.transfer_available());
+    shell
+        .on_warnings_checkbox_changed(&mut seeded.app, true)
+        .unwrap();
+    assert!(shell.warnings_acknowledged());
+    assert!(shell.transfer_available());
+    shell
+        .on_warnings_checkbox_changed(&mut seeded.app, false)
+        .unwrap();
+    assert!(!shell.warnings_acknowledged());
+    assert!(!shell.transfer_available());
+}
+
+fn publish_extra_policy(app: &mut Application, name: &str) -> String {
+    let mut policy = RetargetPolicy::new(name).unwrap();
+    let mut version = RetargetPolicyVersion::proven_draft(policy.id()).unwrap();
+    version.publish().unwrap();
+    policy.bind_published(version.id());
+    let id = version.id().canonical();
+    app.catalog_mut()
+        .put_validated_pair(
+            &Validated::certify(policy).unwrap(),
+            &Validated::certify(version).unwrap(),
+        )
+        .unwrap();
+    id
+}
+
+#[test]
+fn multiple_published_policies_do_not_select_arbitrary_first() {
+    let mut seeded = seed();
+    let extra = publish_extra_policy(&mut seeded.app, "second-published-policy");
+    let listed = seeded.app.published_policy_version_ids().unwrap();
+    assert_eq!(listed.len(), 2);
+    assert!(listed.contains(&seeded.policy_version));
+    assert!(listed.contains(&extra));
+    let inspector = inspector_from_seed(&seeded);
+    let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
+    shell
+        .propose_mapping_with(&mut seeded.app, &inspector)
+        .unwrap();
+    shell.on_accept_mapping_clicked(&mut seeded.app).unwrap();
+    let err = shell
+        .on_evaluate_compatibility_clicked(&mut seeded.app)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("policy selection required"), "{err}");
+    assert!(shell.compatibility_id().is_none());
+}
+
+#[test]
+fn explicit_policy_selection_binds_compatibility_and_transfer() {
+    let mut seeded = seed();
+    let extra = publish_extra_policy(&mut seeded.app, "selected-published-policy");
+    let inspector = inspector_from_seed(&seeded);
+    let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
+    shell.select_policy_version(&extra);
+    shell
+        .propose_mapping_with(&mut seeded.app, &inspector)
+        .unwrap();
+    shell.on_accept_mapping_clicked(&mut seeded.app).unwrap();
+    shell
+        .on_evaluate_compatibility_clicked(&mut seeded.app)
+        .unwrap();
+    let compat_id = shell.compatibility_id().expect("compatibility recorded");
+    let compat = seeded
+        .app
+        .catalog()
+        .load_compatibility_result(compat_id)
+        .unwrap();
+    assert_eq!(compat.as_record().policy_version_id().canonical(), extra);
+    if shell.transfer_requires_acknowledgement() {
+        shell
+            .on_warnings_checkbox_changed(&mut seeded.app, true)
+            .unwrap();
+    }
+    let run_id = shell.on_transfer_clicked(&mut seeded.app).unwrap();
+    let run = seeded.app.job_status(&run_id).unwrap();
+    let spec = seeded.app.load_job_spec(&run.job_spec_id).unwrap();
+    assert_eq!(spec.as_record().policy_version_id().canonical(), extra);
 }

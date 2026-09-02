@@ -41,6 +41,7 @@ struct SeededProduct {
 }
 
 fn seed_frozen_product() -> SeededProduct {
+    common::ensure_test_runtime();
     let pin = BlenderPin::accepted();
     enforce_pin(&pin.executable, &pin).unwrap();
     assert_eq!(sha256_file(Path::new(KNIGHT)), KNIGHT_SHA);

@@ -30,6 +30,7 @@ fn evidence(path: &str, sha: &str) -> SourceArtifactEvidence {
 
 #[test]
 fn real_frozen_pair_mapping_and_preflight() {
+    common::ensure_test_runtime();
     let pin = BlenderPin::accepted();
     enforce_pin(&pin.executable, &pin).unwrap();
     assert_eq!(sha256_file(Path::new(KNIGHT)), KNIGHT_SHA);

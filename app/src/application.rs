@@ -74,6 +74,11 @@ impl Application {
             .list_assets(rigforge_domain::RecordType::DerivedVariant)
     }
 
+    pub fn list_policies(&self) -> Result<Vec<AssetListItem>, AppError> {
+        self.catalog
+            .list_assets(rigforge_domain::RecordType::RetargetPolicy)
+    }
+
     pub fn list_mappings(&self) -> Result<Vec<AssetListItem>, AppError> {
         self.catalog
             .list_assets(rigforge_domain::RecordType::BoneMapping)

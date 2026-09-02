@@ -2,10 +2,10 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use common::{mapping_entry, sha256_file, temp_dir};
+use common::{local_blender_archive, mapping_entry, sha256_file, temp_dir};
 use rigforge_app::{JobRunState, SqliteCatalog, TerminalOutcome};
 use rigforge_blender_worker::{
-    default_archive_path, default_blender_executable, enforce_pin, sha256_file as worker_sha,
+    default_blender_executable, enforce_pin, sha256_file as worker_sha,
     verify_archive_sha256, BlenderPin, BlenderWorker, BLENDER_ARCHIVE_SHA256, BLENDER_BUILD,
 };
 use rigforge_domain::*;
@@ -179,6 +179,7 @@ fn run_production(
     spec: JobSpec,
     workspace: PathBuf,
 ) -> RealRunEvidence {
+    common::ensure_test_runtime();
     let spec = Validated::certify(spec).unwrap();
     let run = catalog.enqueue_job(spec.clone()).unwrap();
     catalog.mark_dispatchable(&run.run_id).unwrap();
@@ -234,6 +235,7 @@ fn run_production(
 
 #[test]
 fn pinned_blender_version_and_archive() {
+    common::ensure_test_runtime();
     assert!(Path::new(KNIGHT).is_file(), "Knight_Male.fbx missing");
     assert!(Path::new(UAL2).is_file(), "UAL2_Standard.fbx missing");
     let exe = default_blender_executable();
@@ -241,7 +243,7 @@ fn pinned_blender_version_and_archive() {
     let (version, build) = enforce_pin(&exe, &pin).unwrap();
     assert!(version.contains("5.2.1"), "{version}");
     assert_eq!(build, BLENDER_BUILD);
-    let archive = default_archive_path();
+    let archive = local_blender_archive();
     if archive.is_file() {
         verify_archive_sha256(&archive).unwrap();
         assert_eq!(worker_sha(&archive).unwrap(), BLENDER_ARCHIVE_SHA256);

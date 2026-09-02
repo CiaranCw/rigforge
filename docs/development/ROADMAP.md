@@ -28,9 +28,10 @@ V1-4: COMPLETE / PASS / BASELINED
 V1-5: COMPLETE / PASS / BASELINED
 Gate C: PASS / CLOSED
 V1-6: COMPLETE / PASS / BASELINED
-V1-7: NOT STARTED / OPTIONAL
-V1-8: NOT STARTED
-Gate D: NOT STARTED
+V1-7: SKIPPED / OPTIONAL
+NO CONCRETE PRODUCT CONSUMER REQUIREMENT
+V1-8: COMPLETE / PASS / BASELINED
+Gate D: READY / NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -51,6 +52,10 @@ V1-4 is **COMPLETE / PASS / BASELINED**.
 V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
 V1-6 is **COMPLETE / PASS / BASELINED**. Preview viewer/payload/surface is
 **Accepted** ([ADR-0006](../architecture/decisions/ADR-0006-v1-engine-independent-preview.md)).
+V1-7 is **SKIPPED / OPTIONAL** (no concrete Product consumer for an
+output/export artifact contract; the V1-6 GLB Preview payload is not that
+consumer). V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is
+**READY / NOT STARTED**. Do not start V1-7 export. Do not mark Gate D PASS.
 Storage: SQLite **Accepted**
 ([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
 GUI: egui/eframe **Accepted**
@@ -99,21 +104,16 @@ COMPLETE / PASS / BASELINED
 Engine-independent Preview
         ↓
 V1-7
-NOT STARTED / OPTIONAL
-Optional artifact/output support (only if a concrete consumer requires it)
+SKIPPED / OPTIONAL
+No concrete Product consumer for an output/export artifact contract.
+The V1-6 GLB Preview payload is not that consumer.
         ↓
 V1-8
-Real-asset hardening and release audit
+COMPLETE / PASS / BASELINED
+Real-asset hardening and release qualification
         ↓
-Mapping / Compatibility validation
-        ↓
-Worker reliability
-        ↓
-Transfer / QC validation
-        ↓
-Real-asset + non-humanoid hardening
-        ↓
-Release qualification
+Gate D
+READY / NOT STARTED
 ```
 
 ## Historical research — COMPLETE
@@ -194,8 +194,9 @@ Next fixed independent gate:
 
 ```text
 Gate D
-after V1-8
+READY / NOT STARTED
 Final Release Readiness Audit
+independent GPT-5.6 Sol High Agent
 ```
 
 ## Deferred Gate B observations
@@ -217,30 +218,33 @@ broader asset coverage
 
 ## Deferred Gate C observations
 
-These are accepted future Workbench integration / release hardening, not
-unresolved V1-5 Product-Core blockers:
+`GATE-C-OBS-001` remains **historical** Gate C evidence. Do not rewrite
+Gate C audit reports.
 
 ```text
-GATE-C-OBS-001
+GATE-C-OBS-001 (historical)
 Native Workbench controls / Application retention
 are not fully event-wired.
 ```
 
-If V1-6 naturally touches the same native shell, it MAY close this
-observation there if actually wired and tested. V1-6 wired native Preview
-and did **not** close this observation. Preserve it for V1-8. Do not
-silently mark it solved.
+V1-6 wired native Preview and did not close this observation.
+V1-8 wires Mapping / Compatibility / Transfer acknowledgement / Transfer
+through Application-backed Workbench handlers. Current disposition is
+recorded in [V1_8_IMPLEMENTATION_PLAN.md](V1_8_IMPLEMENTATION_PLAN.md)
+and review evidence. Historical Gate C text stays historical.
 
 ## Current next step
 
 ```text
-Decide whether V1-7 has a concrete consumer requirement.
+Start Gate D in a NEW clean independent GPT-5.6 Sol High Agent.
 
-If none:
-skip optional V1-7 and prepare V1-8 real-asset hardening / release qualification.
+Final Release Readiness Audit.
 
-Do not start Gate D until V1-8 completes.
+Do not use the Main implementation context as the independent Gate.
 ```
+
+Historical GATE-C-OBS-001 remains historical Gate C evidence. V1-8 owns
+current native Workbench event-wiring disposition.
 
 ## Historical planned phases (superseded as the active plan)
 

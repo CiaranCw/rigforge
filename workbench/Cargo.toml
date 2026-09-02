@@ -11,6 +11,8 @@ license = "UNLICENSED"
 eframe = "0.31.1"
 egui = "0.31.1"
 rigforge_app = { path = "../app" }
+rigforge_blender_worker = { path = "../blender-worker" }
+sha2 = "0.10.9"
 
 [dev-dependencies]
 rigforge_app = { path = "../app", features = ["test-support"] }

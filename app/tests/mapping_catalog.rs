@@ -3,7 +3,7 @@ mod common;
 use common::{certify, mapping_entry, source, unpublished_graph};
 use rigforge_app::{
     evaluate_compatibility, generate_mapping_proposal, Application, MappingAssistProfile,
-    WorkerCapabilityProfile,
+    MemorySkeletonInspector, WorkerCapabilityProfile,
 };
 use rigforge_domain::*;
 
@@ -1469,5 +1469,90 @@ fn latest_compatibility_for_exact_set_cannot_return_forged_draft_ready() {
         CompatibilitySummary::MappingConfirmationRequired
     );
     assert_ne!(latest.as_record().summary(), CompatibilitySummary::Ready);
+}
+
+#[test]
+fn propose_and_store_mapping_for_selection_persists_draft() {
+    let mut app = Application::open_in_memory().unwrap();
+    let ids = seed_pair(&mut app);
+    let (source, target) = pair_summaries(&ids);
+    let inspector = MemorySkeletonInspector {
+        character: target,
+        source,
+    };
+    let (logical, draft) = app
+        .propose_and_store_mapping_for_selection(
+            &ids.character_version.canonical(),
+            &ids.motion_version.canonical(),
+            &inspector,
+            MappingAssistProfile::None,
+            "from-selection",
+        )
+        .unwrap();
+    assert_eq!(draft.as_record().lifecycle(), Lifecycle::Draft);
+    assert_eq!(
+        draft.as_record().mapping_id(),
+        logical.as_record().id()
+    );
+}
+
+#[test]
+fn ensure_published_proven_policy_is_idempotent() {
+    let mut app = Application::open_in_memory().unwrap();
+    let first = app.ensure_published_proven_policy().unwrap();
+    let second = app.ensure_published_proven_policy().unwrap();
+    assert_eq!(first, second);
+    let loaded = app.catalog().load_policy_version(&first).unwrap();
+    assert_eq!(loaded.as_record().lifecycle(), Lifecycle::Published);
+}
+
+fn publish_policy(app: &mut Application, name: &str) -> String {
+    let mut policy = RetargetPolicy::new(name).unwrap();
+    let mut version = RetargetPolicyVersion::proven_draft(policy.id()).unwrap();
+    version.publish().unwrap();
+    policy.bind_published(version.id());
+    let id = version.id().canonical();
+    app.catalog_mut()
+        .put_validated_pair(
+            &Validated::certify(policy).unwrap(),
+            &Validated::certify(version).unwrap(),
+        )
+        .unwrap();
+    id
+}
+
+#[test]
+fn one_published_policy_selects_that_exact_version() {
+    let mut app = Application::open_in_memory().unwrap();
+    let only = publish_policy(&mut app, "only-published");
+    let resolved = app.ensure_published_proven_policy().unwrap();
+    assert_eq!(resolved, only);
+}
+
+#[test]
+fn two_published_policies_fail_closed_without_arbitrary_first() {
+    let mut app = Application::open_in_memory().unwrap();
+    let first = publish_policy(&mut app, "policy-a");
+    let second = publish_policy(&mut app, "policy-b");
+    let listed = app.published_policy_version_ids().unwrap();
+    assert_eq!(listed.len(), 2);
+    assert!(listed.contains(&first));
+    assert!(listed.contains(&second));
+    let err = app.ensure_published_proven_policy().unwrap_err().to_string();
+    assert!(
+        err.contains("policy selection required"),
+        "{err}"
+    );
+    assert!(!err.contains(&first), "must not silently choose {first}: {err}");
+    assert!(!err.contains(&second), "must not silently choose {second}: {err}");
+}
+
+#[test]
+fn require_published_policy_version_returns_exact_id() {
+    let mut app = Application::open_in_memory().unwrap();
+    let a = publish_policy(&mut app, "policy-a");
+    let b = publish_policy(&mut app, "policy-b");
+    assert_eq!(app.require_published_policy_version(&b).unwrap(), b);
+    assert_eq!(app.require_published_policy_version(&a).unwrap(), a);
 }
 

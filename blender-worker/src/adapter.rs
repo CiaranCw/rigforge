@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Stdio};
 
 use rigforge_app::{
-    AppError, DispatchReceipt, TerminalOutcome, WorkerCompletionPort, WorkerDispatchRequest,
-    WorkerFailureClass, WorkerPort,
+    AppError, DispatchReceipt, RuntimeLayout, TerminalOutcome, WorkerCompletionPort,
+    WorkerDispatchRequest, WorkerFailureClass, WorkerPort,
 };
 use rigforge_domain::{
     ingest_validated, BackendExecutionContext, ContentDigest, ExecutionCorrelation, JobSpec,
@@ -20,8 +20,8 @@ use crate::command::{assert_safety_flags, blender_argv, blender_command};
 use crate::envelope::{ReopenEnvelope, WorkerEnvelope, ENVELOPE_SCHEMA};
 use crate::isolation::{attempt_workspace_root, AttemptWorkspace};
 use crate::pin::{
-    enforce_pin, sha256_file, ADAPTER_VERSION, BACKEND_KIND, BLENDER_BUILD, BLENDER_VERSION,
-    BlenderPin, EXECUTION_POLICY_VERSION,
+    enforce_pin, sha256_file, verify_worker_package_integrity, ADAPTER_VERSION, BACKEND_KIND,
+    BLENDER_BUILD, BLENDER_VERSION, BlenderPin, EXECUTION_POLICY_VERSION,
 };
 use crate::policy::project_supported_policy;
 use crate::projection::job_document;
@@ -75,10 +75,13 @@ pub struct BlenderWorker {
 
 impl BlenderWorker {
     pub fn production() -> Result<Self, AppError> {
-        let pin = BlenderPin::accepted();
+        let layout = RuntimeLayout::resolve()?;
+        let pin = BlenderPin::accepted().with_executable(layout.blender_executable());
+        let script = layout.worker_script();
+        verify_worker_package_integrity(&script)?;
         Ok(Self {
             blender: pin.executable.clone(),
-            script: production_worker_script(),
+            script,
             workspace_root: std::env::temp_dir().join("rigforge-v1-3-attempts"),
             pin,
             launched: HashMap::new(),
@@ -101,7 +104,7 @@ impl BlenderWorker {
         let pin = BlenderPin::accepted().with_executable(executable.clone());
         Self {
             blender: executable,
-            script: production_worker_script(),
+            script: harness_worker_script(),
             workspace_root,
             pin,
             launched: HashMap::new(),
@@ -522,6 +525,7 @@ impl WorkerPort for BlenderWorker {
         project_supported_policy(request.policy().as_record())?;
         if self.pin_verification_is_mandatory() {
             enforce_pin(&self.blender, &self.pin)?;
+            verify_worker_package_integrity(&self.script)?;
         }
         self.verify_request_sources(request).map_err(|err| {
             if err.to_string().contains("digest mismatch") {
@@ -882,13 +886,20 @@ impl WorkerCompletionPort for BlenderWorker {
 }
 
 pub fn production_worker_script() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("python")
-        .join("worker.py")
+    RuntimeLayout::resolve()
+        .map(|layout| layout.worker_script())
+        .unwrap_or_else(|_| rigforge_app::runtime::unresolved_worker_script())
 }
 
 pub fn bundled_worker_script() -> PathBuf {
     production_worker_script()
+}
+
+/// Test-harness script path. Not production resolution.
+fn harness_worker_script() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("python")
+        .join("worker.py")
 }
 
 fn blender_version_matches_pin(found: &str) -> bool {

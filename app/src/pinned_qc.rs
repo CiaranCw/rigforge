@@ -3,6 +3,9 @@
 //! This is the concrete pinned Blender inspect/reopen path owned by Application.
 //! It is not a caller-replaceable port. Worker execute/collect remains in
 //! `blender-worker`. Product QC verdicts remain backend-neutral.
+//! Transfer/Preview/QC share one relocatable runtime root and the same
+//! worker-package integrity contract. This path does not honor an arbitrary
+//! unpinned `RIGFORGE_BLENDER_EXECUTABLE` fallback.
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -16,11 +19,10 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::qc::{interpret_qc_inspect, sha256_file, ArtifactInspectionEvidence, QcInspectEnvelope};
+use crate::runtime::RuntimeLayout;
 
 const BLENDER_VERSION: &str = "5.2.1 LTS";
 const BLENDER_BUILD: &str = "9e2066aef7ef";
-const DEFAULT_BLENDER_DIR: &str =
-    r"F:\NewResearch\rigforge_w0p_work\toolchains\blender-5.2.1-windows-x64";
 
 const BACKGROUND: &str = "--background";
 const FACTORY_STARTUP: &str = "--factory-startup";
@@ -30,18 +32,21 @@ const PYTHON: &str = "--python";
 
 /// Sealed production executable for publication-critical inspect/reopen.
 ///
-/// Worker execute/collect may still honor `RIGFORGE_BLENDER_EXECUTABLE` (V1-3).
-/// This path must not. Release installer integrity remains V1-8.
-fn blender_executable() -> PathBuf {
-    PathBuf::from(DEFAULT_BLENDER_DIR).join("blender.exe")
+/// Transfer, Preview, and QC resolve Blender from the same runtime root.
+/// This path must not honor `RIGFORGE_BLENDER_EXECUTABLE`.
+fn blender_executable() -> Result<PathBuf, AppError> {
+    Ok(RuntimeLayout::resolve()?.blender_executable())
 }
 
-fn production_worker_script() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("blender-worker")
-        .join("python")
-        .join("worker.py")
+fn production_worker_script() -> Result<PathBuf, AppError> {
+    Ok(RuntimeLayout::resolve()?.worker_script())
+}
+
+fn production_blender_and_verified_worker() -> Result<(PathBuf, PathBuf), AppError> {
+    let blender = blender_executable()?;
+    let script = production_worker_script()?;
+    crate::runtime::verify_runtime_worker_package(&script)?;
+    Ok((blender, script))
 }
 
 fn blender_argv(blender: &Path, script: &Path, mode: &str, job_json: &Path) -> Vec<OsString> {
@@ -205,8 +210,7 @@ pub fn inspect_durable_persistence_artifact(
     expected_sha256: &str,
     mapping: Option<&BoneMappingVersion>,
 ) -> Result<ArtifactInspectionEvidence, AppError> {
-    let blender = blender_executable();
-    let script = production_worker_script();
+    let (blender, script) = production_blender_and_verified_worker()?;
     enforce_pin(&blender)?;
     if !artifact_path.is_file() {
         return Err(AppError::Worker(
@@ -283,8 +287,7 @@ pub fn reopen_durable_persistence_artifact(
     if !artifact_path.is_file() {
         return Ok((VerificationOutcome::Missing, VerificationOutcome::Missing));
     }
-    let blender = blender_executable();
-    let script = production_worker_script();
+    let (blender, script) = production_blender_and_verified_worker()?;
     enforce_pin(&blender)?;
     let found = sha256_file(artifact_path)?;
     if found != expected_sha256 {

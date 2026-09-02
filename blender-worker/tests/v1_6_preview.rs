@@ -91,6 +91,7 @@ fn persist_frozen_character_motion(app: &mut Application) -> (String, String) {
 }
 
 fn seed_sources_only() -> Seeded {
+    common::ensure_test_runtime();
     let pin = BlenderPin::accepted();
     enforce_pin(&pin.executable, &pin).unwrap();
     assert_eq!(sha256_file(Path::new(KNIGHT)), KNIGHT_SHA);
@@ -229,17 +230,28 @@ fn measure(url: &str, kind: &str) -> serde_json::Value {
         .join("workbench")
         .join("preview-viewer")
         .join("measure_controls.py");
-    let output = Command::new("python")
-        .args([script.to_str().unwrap(), url, kind])
-        .output()
-        .expect("python measure_controls.py");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "viewer measure failed kind={kind} stdout={stdout} stderr={stderr}"
+    let mut last_stdout = String::new();
+    let mut last_stderr = String::new();
+    for attempt in 1..=3 {
+        let output = Command::new("python")
+            .args([script.to_str().unwrap(), url, kind])
+            .output()
+            .expect("python measure_controls.py");
+        last_stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        last_stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        if output.status.success() {
+            return serde_json::from_str(&last_stdout)
+                .unwrap_or_else(|_| serde_json::json!({ "raw": last_stdout }));
+        }
+        let transient = last_stdout.contains("Failed to fetch");
+        if !transient || attempt == 3 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    panic!(
+        "viewer measure failed kind={kind} stdout={last_stdout} stderr={last_stderr}"
     );
-    serde_json::from_str(&stdout).unwrap_or_else(|_| serde_json::json!({ "raw": stdout }))
 }
 
 fn preview_record(

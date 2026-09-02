@@ -10,10 +10,13 @@ use rigforge_app::rigforge_domain::{
     BoneMappingVersion, CompatibilityResult, Lifecycle,
 };
 use rigforge_app::{
-    Application, AssetListItem, JobRunState, PreviewGenerationRequest, PreviewSubject,
-    TransferAuthorization, TransferOutcome, TransferOutcomeKind,
+    Application, AssetListItem, JobRunState, MappingAssistProfile, PreviewGenerationRequest,
+    PreviewSubject, SkeletonEvidenceProvider, TransferAuthorization, TransferOutcome,
+    TransferOutcomeKind, WorkerCapabilityProfile,
 };
+use rigforge_blender_worker::BlenderSkeletonInspector;
 
+pub mod native_exec;
 pub mod preview_host;
 
 /// Preview embedding boundary. Viewer library and payload are V1-6 implementation
@@ -69,6 +72,9 @@ pub struct WorkbenchApp {
     publication_state: Option<String>,
     qc_verdict: Option<String>,
     persistence_verification: Option<String>,
+    workflow_status: Option<String>,
+    selected_policy_version_id: Option<String>,
+    preview_host: Option<preview_host::PreviewHost>,
 }
 
 impl WorkbenchApp {
@@ -102,6 +108,9 @@ impl WorkbenchApp {
             publication_state: None,
             qc_verdict: None,
             persistence_verification: None,
+            workflow_status: None,
+            selected_policy_version_id: None,
+            preview_host: None,
         }
     }
 
@@ -208,9 +217,34 @@ impl WorkbenchApp {
     }
 
     fn clear_preview_presentation(&mut self) {
+        self.preview_host = None;
         self.preview.occupied = false;
         self.preview_valid = false;
         self.preview_status = "selection changed; previous Preview is not valid for this Product version".into();
+    }
+
+    pub fn select_policy_version(&mut self, version_id: impl Into<String>) {
+        self.selected_policy_version_id = Some(version_id.into());
+    }
+
+    pub fn selected_policy_version_id(&self) -> Option<&str> {
+        self.selected_policy_version_id.as_deref()
+    }
+
+    pub fn replace_preview_host(
+        &mut self,
+        session: &rigforge_app::PreviewSession,
+    ) -> Result<(), String> {
+        self.preview_host = None;
+        self.preview_host = Some(preview_host::PreviewHost::serve(session)?);
+        Ok(())
+    }
+
+    pub fn owned_preview_host_count(&self) -> usize {
+        match &self.preview_host {
+            Some(host) if host.is_serving() => 1,
+            _ => 0,
+        }
     }
 
     /// Non-authoritative presentation helper. Does not accept a Product Mapping.
@@ -418,6 +452,150 @@ impl WorkbenchApp {
         Ok(run.run_id)
     }
 
+    pub fn propose_mapping_with<I: SkeletonEvidenceProvider>(
+        &mut self,
+        app: &mut Application,
+        inspector: &I,
+    ) -> Result<(), rigforge_app::AppError> {
+        let character = self.selected_character_version.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Propose Mapping requires a selected Character version".into(),
+            )
+        })?;
+        let motion = self.selected_motion_version.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Propose Mapping requires a selected Motion version".into(),
+            )
+        })?;
+        let (logical, draft) = app.propose_and_store_mapping_for_selection(
+            &character,
+            &motion,
+            inspector,
+            MappingAssistProfile::OptionalHumanoid,
+            "Workbench Mapping",
+        )?;
+        self.bind_mapping_draft(logical.as_record().id().canonical(), draft.as_record());
+        self.workflow_status = Some("Mapping draft stored; explicit accept is required".into());
+        Ok(())
+    }
+
+    pub fn on_propose_mapping_clicked(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let inspector = BlenderSkeletonInspector::production()?;
+        self.propose_mapping_with(app, &inspector)
+    }
+
+    pub fn on_accept_mapping_clicked(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        self.accept_current_mapping(app)?;
+        self.workflow_status = Some("Mapping accepted".into());
+        Ok(())
+    }
+
+    pub fn on_evaluate_compatibility_clicked(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let character = self.selected_character_version.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Compatibility requires a selected Character version".into(),
+            )
+        })?;
+        let motion = self.selected_motion_version.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Compatibility requires a selected Motion version".into(),
+            )
+        })?;
+        let mapping = self.accepted_mapping_version_id.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Compatibility requires an accepted MappingVersion".into(),
+            )
+        })?;
+        let policy = if let Some(selected) = self.selected_policy_version_id.clone() {
+            app.require_published_policy_version(&selected)?
+        } else {
+            app.ensure_published_proven_policy()?
+        };
+        let result = app.run_compatibility_preflight(
+            &character,
+            &motion,
+            &mapping,
+            &policy,
+            &WorkerCapabilityProfile::v1_3_isolated_worker(),
+        )?;
+        self.apply_compatibility_result(result.as_record());
+        self.refresh_transfer_authorization(app)?;
+        self.workflow_status = Some(format!(
+            "Compatibility {}",
+            self.compatibility_summary.as_deref().unwrap_or("recorded")
+        ));
+        Ok(())
+    }
+
+    pub fn on_warnings_checkbox_changed(
+        &mut self,
+        app: &mut Application,
+        acknowledged: bool,
+    ) -> Result<(), rigforge_app::AppError> {
+        self.warnings_acknowledged = acknowledged;
+        self.refresh_transfer_authorization(app)
+    }
+
+    pub fn on_transfer_clicked(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<String, rigforge_app::AppError> {
+        self.request_transfer(app, None)
+    }
+
+    pub fn on_transfer_action(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let run_id = self.on_transfer_clicked(app)?;
+        match crate::native_exec::complete_native_transfer(app, &run_id) {
+            Ok(outcome) => {
+                self.apply_transfer_outcome(&outcome);
+                self.reload_from_application(app)?;
+                Ok(())
+            }
+            Err(err) => {
+                self.transfer_phase = Some(format!("failed: {err}"));
+                self.workflow_status = Some(err.to_string());
+                let _ = self.reload_from_application(app);
+                Err(err)
+            }
+        }
+    }
+
+    pub fn reload_from_application(
+        &mut self,
+        app: &Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        self.characters = app.list_characters()?;
+        self.motions = app.list_motions()?;
+        self.derived = app.list_derived_variants()?;
+        self.jobs = app
+            .catalog()
+            .list_job_runs()?
+            .into_iter()
+            .map(|run| JobStatusView {
+                run_id: run.run_id,
+                job_spec_id: run.job_spec_id,
+                state: run.state.as_db_str().to_string(),
+            })
+            .collect();
+        Ok(())
+    }
+
+    pub fn workflow_status(&self) -> Option<&str> {
+        self.workflow_status.as_deref()
+    }
+
     pub fn apply_transfer_outcome(&mut self, outcome: &TransferOutcome) {
         self.derived_variant_id = Some(outcome.derived_variant_id.clone()).filter(|s| !s.is_empty());
         self.derived_variant_version_id =
@@ -566,9 +744,15 @@ impl WorkbenchApp {
             )
         };
         if open_sidecar {
+            self.preview_host = None;
             match preview_host::PreviewHost::serve(&session) {
                 Ok(host) => {
-                    let _ = host.open_sidecar();
+                    let opened = host.open_sidecar();
+                    self.preview_host = Some(host);
+                    if let Err(err) = opened {
+                        self.preview_status =
+                            format!("{} (viewer host: {err})", self.preview_status);
+                    }
                 }
                 Err(err) => {
                     self.preview_status = format!("{} (viewer host: {err})", self.preview_status);
@@ -653,6 +837,12 @@ impl WorkbenchApp {
                     }
                     if let Some(id) = picked {
                         self.select_character_version(id);
+                        if let Some(app) = app.as_mut() {
+                            if let Err(err) = self.bind_published_mapping_for_current_selection(app)
+                            {
+                                self.workflow_status = Some(err.to_string());
+                            }
+                        }
                     }
                     if self.characters.is_empty() {
                         ui.weak("No Character assets");
@@ -672,6 +862,12 @@ impl WorkbenchApp {
                     }
                     if let Some(id) = picked {
                         self.select_motion_version(id);
+                        if let Some(app) = app.as_mut() {
+                            if let Err(err) = self.bind_published_mapping_for_current_selection(app)
+                            {
+                                self.workflow_status = Some(err.to_string());
+                            }
+                        }
                     }
                     if self.motions.is_empty() {
                         ui.weak("No Motion assets");
@@ -733,6 +929,38 @@ impl WorkbenchApp {
             if let Some(id) = &self.accepted_mapping_version_id {
                 ui.label(format!("accepted MappingVersion: {id}"));
             }
+            ui.horizontal(|ui| {
+                if ui.button("Propose Mapping").clicked() {
+                    if let Some(app) = app.as_mut() {
+                        if let Err(err) = self.on_propose_mapping_clicked(app) {
+                            self.workflow_status = Some(err.to_string());
+                        }
+                    } else {
+                        self.workflow_status =
+                            Some("Native Application path is required for Mapping".into());
+                    }
+                }
+                if ui.button("Accept Mapping").clicked() {
+                    if let Some(app) = app.as_mut() {
+                        if let Err(err) = self.on_accept_mapping_clicked(app) {
+                            self.workflow_status = Some(err.to_string());
+                        }
+                    } else {
+                        self.workflow_status =
+                            Some("Native Application path is required for Mapping".into());
+                    }
+                }
+                if ui.button("Evaluate Compatibility").clicked() {
+                    if let Some(app) = app.as_mut() {
+                        if let Err(err) = self.on_evaluate_compatibility_clicked(app) {
+                            self.workflow_status = Some(err.to_string());
+                        }
+                    } else {
+                        self.workflow_status =
+                            Some("Native Application path is required for Compatibility".into());
+                    }
+                }
+            });
             ui.heading("Compatibility dimensions");
             for (name, value) in &self.compatibility_dimensions {
                 ui.label(format!("{name}: {value}"));
@@ -749,12 +977,36 @@ impl WorkbenchApp {
                 self.transfer_eligibility_label()
             ));
             if self.transfer_auth.as_ref().map(|a| a.requires_acknowledgement).unwrap_or(false) {
-                ui.checkbox(
-                    &mut self.warnings_acknowledged,
-                    "I acknowledge these Compatibility warnings",
-                );
+                let mut ack = self.warnings_acknowledged;
+                if ui
+                    .checkbox(
+                        &mut ack,
+                        "I acknowledge these Compatibility warnings",
+                    )
+                    .changed()
+                {
+                    if let Some(app) = app.as_mut() {
+                        if let Err(err) = self.on_warnings_checkbox_changed(app, ack) {
+                            self.workflow_status = Some(err.to_string());
+                        }
+                    } else {
+                        self.warnings_acknowledged = ack;
+                    }
+                }
             }
-            ui.add_enabled(self.transfer_available(), egui::Button::new("Transfer"));
+            if ui
+                .add_enabled(self.transfer_available(), egui::Button::new("Transfer"))
+                .clicked()
+            {
+                if let Some(app) = app.as_mut() {
+                    if let Err(err) = self.on_transfer_action(app) {
+                        self.workflow_status = Some(err.to_string());
+                    }
+                } else {
+                    self.workflow_status =
+                        Some("Native Application path is required for Transfer".into());
+                }
+            }
             if !self.transfer_available() {
                 ui.weak(self.transfer_eligibility_label());
             }
@@ -775,6 +1027,9 @@ impl WorkbenchApp {
             }
             if let Some(id) = &self.persistence_verification {
                 ui.label(format!("PersistenceVerification: {id}"));
+            }
+            if let Some(status) = &self.workflow_status {
+                ui.label(format!("workflow: {status}"));
             }
             ui.separator();
             ui.heading("Job status");
@@ -878,8 +1133,9 @@ impl eframe::App for WorkbenchApp {
     }
 }
 
-/// Native Workbench path that retains Application for Preview.
-/// Transfer checkbox/button remain presentation-only (GATE-C-OBS-001).
+/// Native Workbench path that retains Application for Mapping, Compatibility,
+/// Transfer, and Preview. Historical GATE-C-OBS-001 remains historical;
+/// V1-8 wires these actions through Application.
 pub struct WorkbenchHost {
     pub app: Application,
     pub shell: WorkbenchApp,

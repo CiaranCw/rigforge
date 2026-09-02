@@ -19,23 +19,22 @@ V1-4 COMPLETE / PASS / BASELINED
 V1-5 COMPLETE / PASS / BASELINED
 Gate C PASS / CLOSED
 V1-6 COMPLETE / PASS / BASELINED
-V1-7 NOT STARTED / OPTIONAL
-V1-8 NOT STARTED
-Gate D NOT STARTED
+V1-7 SKIPPED / OPTIONAL
+NO CONCRETE PRODUCT CONSUMER REQUIREMENT
+V1-8 COMPLETE / PASS / BASELINED
+Gate D READY / NOT STARTED
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
 V1-3 is **COMPLETE / PASS / BASELINED**. Gate B is **PASS / CLOSED**.
 V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is
 **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**. V1-6 is
-**COMPLETE / PASS / BASELINED**.
-
-Do not begin arbitrary Product implementation.
-
-Execute V1 work only under the currently authorized dedicated implementation
-stage. Do not start V1-7 unless a concrete Product consumer requires an
-output artifact/export contract. A GLB Preview payload is not that
-requirement. Do not start V1-8 as part of V1-6 closeout. Do not open Gate C2.
+**COMPLETE / PASS / BASELINED**. V1-7 is **SKIPPED / OPTIONAL** (no concrete
+Product consumer for an output/export artifact contract; the V1-6 GLB
+Preview payload is not that consumer). V1-8 is
+**COMPLETE / PASS / BASELINED**. Gate D is **READY / NOT STARTED**.
+Do not start V1-7 export. Do not open Gate C2. Do not mark Gate D PASS.
+Gate D must be a new independent Final Release Readiness Audit.
 
 ## Source of Truth
 
@@ -115,18 +114,15 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-Decide whether V1-7 has a concrete consumer requirement.
+Start Gate D in a NEW clean independent GPT-5.6 Sol High Agent.
 
-If none:
-skip optional V1-7 and prepare V1-8 real-asset hardening / release qualification.
+Final Release Readiness Audit.
 
-Do not start Gate D until V1-8 completes.
+Do not use the Main implementation context as the independent Gate.
 ```
 
-Do not start V1-7 unless a concrete Product consumer requires an output
-artifact/export contract. A GLB Preview payload is not that requirement.
-Do not open Gate C2. Do not open a post-Gate-C or V1-5 release audit.
-Do not start Gate D until V1-8 completes.
+Do not start V1-7 export. Do not open Gate C2.
+Do not open a post-Gate-C or V1-5 release audit. Do not mark Gate D PASS.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
 SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is
@@ -139,8 +135,9 @@ Gate C independent audit (immutable historical evidence):
 [docs/development/audits/GATE_C_FINDINGS.md](docs/development/audits/GATE_C_FINDINGS.md),
 [docs/development/audits/GATE_C_COVERAGE_MATRIX.md](docs/development/audits/GATE_C_COVERAGE_MATRIX.md).
 Independent result remains `GATE_C_PASS_CANDIDATE`. Project acceptance is
-**Gate C PASS / CLOSED**. `GATE-C-OBS-001` is deferred / non-blocking
-(Workbench integration / release hardening).
+**Gate C PASS / CLOSED**. `GATE-C-OBS-001` remains historical non-blocking
+Gate C evidence. V1-8 owns current native Workbench event-wiring disposition
+without rewriting Gate C reports.
 
 V1-6 contracts:
 [docs/development/V1_6_IMPLEMENTATION_PLAN.md](docs/development/V1_6_IMPLEMENTATION_PLAN.md),
@@ -148,6 +145,13 @@ V1-6 contracts:
 [docs/development/V1_6_VIEWER_CONTRACT.md](docs/development/V1_6_VIEWER_CONTRACT.md),
 [docs/development/V1_6_PREVIEW_GENERATION.md](docs/development/V1_6_PREVIEW_GENERATION.md).
 ADR-0006 is **Accepted**.
+
+V1-8 contracts:
+[docs/development/V1_8_IMPLEMENTATION_PLAN.md](docs/development/V1_8_IMPLEMENTATION_PLAN.md),
+[docs/development/V1_8_RELEASE_QUALIFICATION.md](docs/development/V1_8_RELEASE_QUALIFICATION.md),
+[docs/development/V1_8_REAL_ASSET_MATRIX.md](docs/development/V1_8_REAL_ASSET_MATRIX.md),
+[docs/development/V1_8_RUNTIME_RECOVERY.md](docs/development/V1_8_RUNTIME_RECOVERY.md),
+[docs/development/V1_8_RELEASE_DEPENDENCIES.md](docs/development/V1_8_RELEASE_DEPENDENCIES.md).
 
 V1-5 contracts:
 [docs/development/V1_5_IMPLEMENTATION_PLAN.md](docs/development/V1_5_IMPLEMENTATION_PLAN.md),
@@ -193,7 +197,8 @@ Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
 Gate B is **PASS / CLOSED**. Gate C is **PASS / CLOSED**. Do not open Gate
 B2, Gate C2, or another independent review of V1-3, V1-4, or V1-5. V1-6
 did not get a default independent Gate. Next fixed independent gate is
-Gate D after V1-8 (Final Release Readiness Audit).
+Gate D (**READY / NOT STARTED**; Final Release Readiness Audit). The Main
+Agent must not audit its own V1-8 work as Gate D.
 
 IA-1 closeout:
 [docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),

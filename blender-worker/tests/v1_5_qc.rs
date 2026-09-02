@@ -9,6 +9,7 @@ use rigforge_blender_worker::{enforce_pin, BlenderPin, BlenderQcInspector};
 
 #[test]
 fn qc_inspect_missing_artifact_fails() {
+    common::ensure_test_runtime();
     let inspector = BlenderQcInspector::production().unwrap();
     let missing = temp_dir().join("missing.blend");
     let err = inspector
@@ -19,6 +20,7 @@ fn qc_inspect_missing_artifact_fails() {
 
 #[test]
 fn qc_inspect_invalid_open_fails_without_mutating_bytes() {
+    common::ensure_test_runtime();
     let pin = BlenderPin::accepted();
     enforce_pin(&pin.executable, &pin).unwrap();
     let dir = temp_dir();

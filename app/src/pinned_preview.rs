@@ -2,8 +2,9 @@
 //!
 //! Blender is generation-time only. It is not Preview Product authority,
 //! not a viewer requirement, and not a user-facing DCC dependency.
-//! Worker execute/collect may still honor `RIGFORGE_BLENDER_EXECUTABLE` (V1-3).
-//! This path must not.
+//! Transfer and Preview both resolve Blender and worker scripts from the
+//! same relocatable runtime root. Neither honors an arbitrary unpinned
+//! `RIGFORGE_BLENDER_EXECUTABLE` fallback.
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -20,12 +21,11 @@ use crate::preview::{
     PreviewGeneratorPort, PREVIEW_GENERATOR_ID, PREVIEW_RECIPE_VERSION,
 };
 use crate::qc::sha256_file;
+use crate::runtime::RuntimeLayout;
 use rigforge_domain::ProductKind;
 
 const BLENDER_VERSION: &str = "5.2.1 LTS";
 const BLENDER_BUILD: &str = "9e2066aef7ef";
-const DEFAULT_BLENDER_DIR: &str =
-    r"F:\NewResearch\rigforge_w0p_work\toolchains\blender-5.2.1-windows-x64";
 
 const BACKGROUND: &str = "--background";
 const FACTORY_STARTUP: &str = "--factory-startup";
@@ -34,16 +34,12 @@ const PYTHON_EXIT_CODE: &str = "--python-exit-code";
 const PYTHON: &str = "--python";
 
 /// Sealed production executable for Preview generation.
-fn blender_executable() -> PathBuf {
-    PathBuf::from(DEFAULT_BLENDER_DIR).join("blender.exe")
+fn blender_executable() -> Result<PathBuf, AppError> {
+    Ok(RuntimeLayout::resolve()?.blender_executable())
 }
 
-fn production_worker_script() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("blender-worker")
-        .join("python")
-        .join("worker.py")
+fn production_worker_script() -> Result<PathBuf, AppError> {
+    Ok(RuntimeLayout::resolve()?.worker_script())
 }
 
 fn blender_argv(blender: &Path, script: &Path, mode: &str, job_json: &Path) -> Vec<OsString> {
@@ -235,8 +231,9 @@ pub struct BlenderPreviewGenerator;
 impl PreviewGeneratorPort for BlenderPreviewGenerator {
     fn generate(&self, job: &PreviewGenerationJob) -> Result<GeneratedPreview, AppError> {
         verify_source_before_generation(job)?;
-        let blender = blender_executable();
-        let script = production_worker_script();
+        let blender = blender_executable()?;
+        let script = production_worker_script()?;
+        crate::runtime::verify_runtime_worker_package(&script)?;
         enforce_pin(&blender)?;
         let source_digest_before = if job.synthetic {
             None

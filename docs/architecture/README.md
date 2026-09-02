@@ -79,8 +79,9 @@ Variant set (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Product
 implementation proceeds only under the currently authorized dedicated
 implementation stage. V1-4 is `COMPLETE / PASS / BASELINED`. V1-5 is
 `COMPLETE / PASS / BASELINED`. Gate C is `PASS / CLOSED`. V1-6 is
-`COMPLETE / PASS / BASELINED`. V1-7 is `NOT STARTED / OPTIONAL`.
-V1-8 is `NOT STARTED`. Gate D is `NOT STARTED`.
+`COMPLETE / PASS / BASELINED`. V1-7 is `SKIPPED / OPTIONAL`.
+V1-8 is **COMPLETE / PASS / BASELINED**.
+Gate D is **READY / NOT STARTED**.
 
 ## Decisions
 

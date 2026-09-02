@@ -16,6 +16,7 @@ fn fixture_script() -> PathBuf {
 }
 
 fn run_blender_fixture(args: &[&str]) -> (i32, PathBuf) {
+    common::ensure_test_runtime();
     let exe = default_blender_executable();
     let pin = BlenderPin::accepted();
     enforce_pin(&exe, &pin).unwrap();

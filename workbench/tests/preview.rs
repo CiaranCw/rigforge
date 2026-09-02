@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 use rigforge_app::rigforge_domain::*;
 use rigforge_app::{
@@ -8,8 +9,45 @@ use rigforge_app::{
     unpublished_graph, Application, MemoryPreviewGenerator, PreviewGenerationRequest,
     PreviewSubject, PREVIEW_MEDIA_TYPE,
 };
-use rigforge_workbench::preview_host::PreviewHost;
+use rigforge_workbench::preview_host::{self, PreviewHost};
 use rigforge_workbench::WorkbenchApp;
+
+fn install_preview_runtime() {
+    static ROOT: OnceLock<PathBuf> = OnceLock::new();
+    ROOT.get_or_init(|| {
+        let dest = std::env::temp_dir().join(format!(
+            "rigforge-v18-wb-runtime-{}",
+            std::process::id()
+        ));
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let worker = manifest
+            .join("..")
+            .join("blender-worker")
+            .join("python")
+            .join("worker.py");
+        let preview_gen = manifest
+            .join("..")
+            .join("blender-worker")
+            .join("python")
+            .join("preview_gen.py");
+        let viewer = manifest.join("preview-viewer");
+        let layout = rigforge_app::materialize_runtime_bundle(
+            &dest,
+            &worker,
+            &preview_gen,
+            Some(&viewer),
+            None,
+        )
+        .unwrap();
+        std::env::set_var(rigforge_app::RUNTIME_ROOT_ENV, layout.root());
+        layout.root().to_path_buf()
+    });
+}
+
+fn serve_host(session: &rigforge_app::PreviewSession) -> PreviewHost {
+    install_preview_runtime();
+    PreviewHost::serve(session).unwrap()
+}
 
 fn temp_file(name: &str, bytes: &[u8]) -> PathBuf {
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -139,7 +177,7 @@ fn click_to_preview_character_and_motion_without_blender_generation() {
     assert!(shell.preview_valid());
     assert!(session.document.valid);
     assert!(session.root.join("payload.glb").is_file());
-    let host = PreviewHost::serve(&session).unwrap();
+    let host = serve_host(&session);
     let measured = measure(&host.url, "character");
     assert_eq!(measured["loaded"], true);
     assert_eq!(measured["offline_local"], true);
@@ -157,7 +195,7 @@ fn click_to_preview_character_and_motion_without_blender_generation() {
         )
         .unwrap();
     assert!(shell.preview_valid());
-    let motion_host = PreviewHost::serve(&motion_session).unwrap();
+    let motion_host = serve_host(&motion_session);
     let motion_m = measure(&motion_host.url, "motion");
     assert_eq!(motion_m["transport"]["play_advanced"], true);
     assert_eq!(motion_m["transport"]["pause_held"], true);
@@ -208,7 +246,7 @@ fn invalid_session_does_not_write_or_serve_payload() {
         .unwrap();
     assert!(!session.document.valid);
     assert!(!session.root.join("payload.glb").is_file());
-    let host = PreviewHost::serve(&session).unwrap();
+    let host = serve_host(&session);
     let measured = measure(&host.url, "fail");
     assert_eq!(measured["fail_closed"], true);
     assert_eq!(measured["valid"], false);
@@ -341,7 +379,7 @@ fn motion_viewer_rejects_glb_without_actual_animation() {
     );
     assert_eq!(session.document.has_animation, Some(true));
     assert!(session.root.join("payload.glb").is_file());
-    let host = PreviewHost::serve(&session).unwrap();
+    let host = serve_host(&session);
     let measured = measure(&host.url, "fail");
     assert_eq!(measured["fail_closed"], true);
     assert_eq!(measured["valid"], false);
@@ -374,7 +412,7 @@ fn derived_viewer_rejects_glb_without_actual_animation() {
     assert!(session.document.valid);
     assert_eq!(session.document.has_animation, Some(true));
     assert!(session.root.join("payload.glb").is_file());
-    let host = PreviewHost::serve(&session).unwrap();
+    let host = serve_host(&session);
     let measured = measure(&host.url, "fail");
     assert_eq!(measured["fail_closed"], true);
     assert_eq!(measured["valid"], false);
@@ -405,11 +443,137 @@ fn derived_viewer_plays_valid_animated_glb() {
         })
         .unwrap();
     assert!(session.document.valid);
-    let host = PreviewHost::serve(&session).unwrap();
+    let host = serve_host(&session);
     let measured = measure(&host.url, "derived");
     assert_eq!(measured["loaded"], true);
     assert_eq!(measured["transport"]["play_advanced"], true);
     assert_eq!(measured["transport"]["pause_held"], true);
     assert_eq!(measured["transport"]["seek_ok"], true);
     assert_eq!(measured["transport"]["restart_near_start"], true);
+}
+
+#[test]
+fn vendor_model_viewer_matches_pinned_digest() {
+    install_preview_runtime();
+    rigforge_workbench::preview_host::verify_vendor_runtime().unwrap();
+    assert_eq!(
+        rigforge_workbench::preview_host::VIEWER_SCRIPT_SHA256,
+        "283b0672384614b4847636c306fc93fe4b1fcadc76d668b4e47f0ca76bcf033b"
+    );
+}
+
+#[test]
+fn preview_host_shutdown_terminates_server_thread() {
+    let (mut app, character_id, _) = seeded_app();
+    app.generate_preview_with(
+        &MemoryPreviewGenerator::default(),
+        PreviewGenerationRequest::character(&character_id),
+    )
+    .unwrap();
+    let session = app
+        .materialize_preview_session(PreviewSubject::Character {
+            version_id: character_id,
+        })
+        .unwrap();
+    let mut host = serve_host(&session);
+    assert!(host.is_serving());
+    host.shutdown();
+    assert!(!host.is_serving());
+}
+
+#[test]
+fn preview_host_replacement_shuts_down_previous() {
+    install_preview_runtime();
+    let (mut app, character_id, motion_id) = seeded_app();
+    app.generate_preview_with(
+        &MemoryPreviewGenerator::default(),
+        PreviewGenerationRequest::character(&character_id),
+    )
+    .unwrap();
+    app.generate_preview_with(
+        &MemoryPreviewGenerator::default(),
+        PreviewGenerationRequest::motion(&motion_id),
+    )
+    .unwrap();
+    let character_session = app
+        .materialize_preview_session(PreviewSubject::Character {
+            version_id: character_id,
+        })
+        .unwrap();
+    let motion_session = app
+        .materialize_preview_session(PreviewSubject::Motion {
+            version_id: motion_id,
+        })
+        .unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.replace_preview_host(&character_session).unwrap();
+    assert_eq!(shell.owned_preview_host_count(), 1);
+    shell.replace_preview_host(&motion_session).unwrap();
+    assert_eq!(shell.owned_preview_host_count(), 1);
+}
+
+#[test]
+fn repeated_preview_host_replace_stays_bounded() {
+    install_preview_runtime();
+    let (mut app, character_id, _) = seeded_app();
+    app.generate_preview_with(
+        &MemoryPreviewGenerator::default(),
+        PreviewGenerationRequest::character(&character_id),
+    )
+    .unwrap();
+    let session = app
+        .materialize_preview_session(PreviewSubject::Character {
+            version_id: character_id,
+        })
+        .unwrap();
+    let mut shell = WorkbenchApp::empty();
+    for _ in 0..8 {
+        shell.replace_preview_host(&session).unwrap();
+        assert_eq!(shell.owned_preview_host_count(), 1);
+    }
+}
+
+#[test]
+fn relocated_viewer_resolves_from_runtime_root_and_rejects_wrong_bytes() {
+    install_preview_runtime();
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let dest = std::env::temp_dir().join(format!(
+        "rigforge-v18-viewer-reloc-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let worker = manifest
+        .join("..")
+        .join("blender-worker")
+        .join("python")
+        .join("worker.py");
+    let preview_gen = manifest
+        .join("..")
+        .join("blender-worker")
+        .join("python")
+        .join("preview_gen.py");
+    let viewer = manifest.join("preview-viewer");
+    let layout = rigforge_app::materialize_runtime_bundle(
+        &dest,
+        &worker,
+        &preview_gen,
+        Some(&viewer),
+        None,
+    )
+    .unwrap();
+    let _guard = rigforge_app::bind_thread_runtime_root(layout.root());
+    let resolved = preview_host::viewer_root().unwrap();
+    assert_eq!(resolved, dest.join("preview-viewer"));
+    assert!(!resolved.starts_with(&manifest));
+    preview_host::verify_vendor_runtime().unwrap();
+
+    std::fs::write(
+        layout.vendor_script(),
+        b"/* not the pinned model-viewer */\n",
+    )
+    .unwrap();
+    let err = preview_host::verify_vendor_runtime().unwrap_err();
+    assert!(err.contains("sha256 mismatch"), "{err}");
 }
