@@ -19,7 +19,7 @@ pub use command::{
     assert_safety_flags, blender_argv, blender_command, BACKGROUND, DISABLE_AUTOEXEC,
     FACTORY_STARTUP, PYTHON, PYTHON_EXIT_CODE,
 };
-pub use inspect::BlenderSkeletonInspector;
+pub use inspect::{BlenderSkeletonInspector, BlenderSourceInspector};
 pub use isolation::{attempt_workspace_root, AttemptWorkspace};
 pub use pin::{
     default_blender_executable, enforce_pin, parse_blender_version_output,

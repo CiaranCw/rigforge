@@ -18,7 +18,7 @@ pub const BLENDER_DISTRO_DIR_NAME: &str = "blender-5.2.1-windows-x64";
 
 /// Package integrity pin for `worker.py`. Not Product identity.
 pub const WORKER_SCRIPT_SHA256: &str =
-    "01105c47d6ecfa1cc77407d996670b7afb455ce2cb7a45afc3399ccae2089a5d";
+    "7dc0aa10e1b47e35cca00bf1f85ed88cd401e4367c9e743e6d219b44b1a972b9";
 /// Package integrity pin for `preview_gen.py`. Not Product identity.
 pub const PREVIEW_GEN_SCRIPT_SHA256: &str =
     "c84aada5a3785dfc5a6c7114dce270616c1fe0640a4fa390dda39d4b8b3db795";

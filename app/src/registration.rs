@@ -14,6 +14,10 @@ use rigforge_domain::{
 };
 
 use crate::error::AppError;
+use crate::inspection::{
+    unique_skeleton, CharacterSourceInspection, MotionSourceInspection, INGEST_NO_CLIPS,
+    INGEST_FRACTIONAL_FRAMES, INGEST_UNUSABLE_TIMING,
+};
 use crate::skeleton::SkeletonEvidenceProvider;
 use crate::Application;
 
@@ -162,6 +166,139 @@ impl Application {
         )?;
         let summary = inspector.inspect_source_skeleton(&source_skeleton, &source)?;
         require_usable_skeleton(summary.joints().len(), "Motion source Skeleton")?;
+        version.publish()?;
+        asset.bind_published(version.id());
+        let asset_id = asset.id().canonical();
+        let version_id = version.id().canonical();
+        let source_skeleton_id = source_skeleton.id().canonical();
+        let certified_source = Validated::certify(source_skeleton)?;
+        let certified_asset = Validated::certify(asset)?;
+        let certified_version = Validated::certify(version)?;
+        self.catalog.persist_motion_registration(
+            &certified_source,
+            &certified_asset,
+            &certified_version,
+        )?;
+        Ok(LocalMotionRegistration {
+            asset_id,
+            version_id,
+            source_skeleton_id,
+        })
+    }
+
+    pub fn register_character_from_inspection(
+        &mut self,
+        display_name: &str,
+        inspection: &CharacterSourceInspection,
+    ) -> Result<LocalCharacterRegistration, AppError> {
+        require_nonempty_field(display_name, "display name")?;
+        unique_skeleton(inspection.usable_armature_count)?;
+        let skeleton = inspection.skeleton_candidates.first().ok_or_else(|| {
+            registration_err("registration: Character inspection is missing Skeleton evidence")
+        })?;
+        require_usable_skeleton(skeleton.joint_count, "Character")?;
+        crate::inspection::require_live_source_matches(
+            &inspection.source_path,
+            &inspection.source_digest,
+            inspection.size_bytes,
+        )?;
+        let source = source_evidence_from_local_path(&inspection.source_path)?;
+        if source.digest().sha256() != inspection.source_digest
+            || source.size_bytes() != inspection.size_bytes
+        {
+            return Err(AppError::Catalog(
+                crate::inspection::INGEST_FILE_CHANGED.into(),
+            ));
+        }
+        let mut asset = CharacterAsset::new(display_name.trim())?;
+        let mut version = CharacterAssetVersion::draft(asset.id(), display_name.trim(), source)?;
+        version.publish()?;
+        asset.bind_published(version.id());
+        let asset_id = asset.id().canonical();
+        let version_id = version.id().canonical();
+        let certified_asset = Validated::certify(asset)?;
+        let certified_version = Validated::certify(version)?;
+        self.catalog
+            .persist_character_registration(&certified_asset, &certified_version)?;
+        Ok(LocalCharacterRegistration {
+            asset_id,
+            version_id,
+        })
+    }
+
+    pub fn register_motion_from_inspection(
+        &mut self,
+        display_name: &str,
+        inspection: &MotionSourceInspection,
+        clip_identity: &str,
+    ) -> Result<LocalMotionRegistration, AppError> {
+        require_nonempty_field(display_name, "display name")?;
+        require_nonempty_field(clip_identity, "clip identifier")?;
+        unique_skeleton(inspection.usable_armature_count)?;
+        let skeleton = inspection.skeleton_candidates.first().ok_or_else(|| {
+            registration_err("registration: Motion inspection is missing Skeleton evidence")
+        })?;
+        require_usable_skeleton(skeleton.joint_count, "Motion source Skeleton")?;
+        crate::inspection::require_live_source_matches(
+            &inspection.source_path,
+            &inspection.source_digest,
+            inspection.size_bytes,
+        )?;
+        let candidate = match inspection
+            .animation_candidates
+            .iter()
+            .find(|clip| clip.clip_identity == clip_identity)
+        {
+            Some(clip) if clip.usable && clip.association_is_strong() => clip,
+            Some(clip) if clip.unusable_reason.as_deref() == Some("fractional_frames") => {
+                return Err(AppError::Catalog(INGEST_FRACTIONAL_FRAMES.into()));
+            }
+            Some(clip) if clip.unusable_reason.as_deref() == Some("unusable_timing") => {
+                return Err(AppError::Catalog(INGEST_UNUSABLE_TIMING.into()));
+            }
+            _ => {
+                return Err(AppError::Catalog(
+                    crate::inspection::motion_ingest_failure_message(inspection)
+                        .unwrap_or(INGEST_NO_CLIPS)
+                        .to_string(),
+                ));
+            }
+        };
+        let start = candidate.start_frame.ok_or_else(|| {
+            AppError::Catalog(INGEST_FRACTIONAL_FRAMES.into())
+        })?;
+        let end = candidate.end_frame.ok_or_else(|| {
+            AppError::Catalog(INGEST_FRACTIONAL_FRAMES.into())
+        })?;
+        let fps_num = candidate.fps_num.unwrap_or(0);
+        let fps_den = candidate.fps_den.unwrap_or(0);
+        if fps_num == 0 || fps_den == 0 {
+            return Err(AppError::Catalog(INGEST_UNUSABLE_TIMING.into()));
+        }
+        let source = source_evidence_from_local_path(&inspection.source_path)?;
+        if source.digest().sha256() != inspection.source_digest
+            || source.size_bytes() != inspection.size_bytes
+        {
+            return Err(AppError::Catalog(
+                crate::inspection::INGEST_FILE_CHANGED.into(),
+            ));
+        }
+        let source_skeleton = SourceSkeletonReference::new(skeleton.display_name.trim())?;
+        let time = TimeDomainProvenance::new(
+            candidate.clip_identity.as_str(),
+            TimePoint::frames(start, fps_num, fps_den)?,
+            TimePoint::frames(end, fps_num, fps_den)?,
+            SamplingInterpretation::BakedEverySourceFrame,
+            "unmapped target joints remain at target rest",
+        )?;
+        let mut asset = MotionAsset::new(display_name.trim())?;
+        let mut version = MotionAssetVersion::draft(
+            asset.id(),
+            display_name.trim(),
+            source_skeleton.id(),
+            time,
+            source,
+        )?;
         version.publish()?;
         asset.bind_published(version.id());
         let asset_id = asset.id().canonical();

@@ -10,6 +10,7 @@ import json
 import math
 import sys
 import traceback
+from fractions import Fraction
 from pathlib import Path
 
 import bpy
@@ -804,6 +805,296 @@ def inspect_armature(arm_obj):
     return joints
 
 
+MSG_NO_SKELETON = "No skeleton was found in this FBX."
+MSG_MULTIPLE_SKELETONS = (
+    "Multiple usable skeletons were found. "
+    "R1 currently requires one unambiguous skeleton per source file."
+)
+MSG_NO_CLIPS = "No usable animation clips were found."
+MSG_FRACTIONAL_FRAMES = (
+    "This animation uses fractional frame endpoints that are not currently supported."
+)
+MSG_UNUSABLE_TIMING = (
+    "This Motion source has timing that RigForge cannot represent exactly."
+)
+U32_MAX = 2**32 - 1
+
+
+class UniqueArmatureError(RuntimeError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def rational_fps(fps, fps_base) -> tuple[int, int]:
+    fps_i = int(fps)
+    if fps_i <= 0:
+        raise ValueError("scene.render.fps must be > 0")
+    if isinstance(fps_base, bool) or not isinstance(fps_base, (int, float)):
+        raise ValueError("scene.render.fps_base is not a real number")
+    if not math.isfinite(fps_base) or fps_base <= 0:
+        raise ValueError("scene.render.fps_base must be finite and > 0")
+    try:
+        base = Fraction(str(fps_base))
+    except (ValueError, ZeroDivisionError) as exc:
+        raise ValueError(f"str(fps_base) did not parse as Fraction: {fps_base!r}") from exc
+    if base <= 0:
+        raise ValueError("fps_base Fraction must be > 0")
+    effective = Fraction(fps_i, 1) / base
+    num, den = effective.numerator, effective.denominator
+    if num <= 0 or den <= 0:
+        raise ValueError("effective FPS must be a positive rational")
+    if num > U32_MAX or den > U32_MAX:
+        raise ValueError("reduced FPS exceeds Product u32/u32")
+    return int(num), int(den)
+
+
+def usable_armature_objects():
+    out = []
+    for obj in bpy.data.objects:
+        if obj.type != "ARMATURE":
+            continue
+        data = getattr(obj, "data", None)
+        if data is None:
+            continue
+        bones = getattr(data, "bones", None)
+        if bones is None or len(bones) <= 0:
+            continue
+        out.append(obj)
+    return out
+
+
+def require_unique_usable_armature(armatures):
+    if not armatures:
+        raise UniqueArmatureError("no_skeleton", MSG_NO_SKELETON)
+    if len(armatures) > 1:
+        raise UniqueArmatureError("multiple_skeletons", MSG_MULTIPLE_SKELETONS)
+    return armatures[0]
+
+
+def pose_path_targets_pose_bones(data_path: str) -> bool:
+    return "pose.bones[" in (data_path or "")
+
+
+def integral_frame(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or not number.is_integer():
+        return None
+    return int(number)
+
+
+def action_display_label(name: str) -> str:
+    tail = (name or "").split("|")[-1]
+    return " ".join(tail.replace("_", " ").replace("-", " ").split())
+
+
+def iter_channelbags(action, hint_slot=None):
+    layers = list(getattr(action, "layers", None) or [])
+    slots = list(getattr(action, "slots", None) or [])
+    if hint_slot is not None and layers:
+        try:
+            bag = layers[0].strips[0].channelbag(hint_slot)
+        except Exception:
+            bag = None
+        if bag is not None:
+            yield hint_slot, bag
+            return
+    if slots and layers:
+        try:
+            strip = layers[0].strips[0]
+        except Exception:
+            strip = None
+        if strip is not None:
+            any_bag = False
+            for slot in slots:
+                try:
+                    bag = strip.channelbag(slot)
+                except Exception:
+                    bag = None
+                if bag is not None:
+                    any_bag = True
+                    yield slot, bag
+            if any_bag:
+                return
+    fcurves = getattr(action, "fcurves", None)
+    if fcurves:
+        yield None, fcurves
+
+
+def fcurves_of(bag_or_fcurves):
+    if bag_or_fcurves is None:
+        return []
+    if hasattr(bag_or_fcurves, "fcurves"):
+        return list(bag_or_fcurves.fcurves)
+    return list(bag_or_fcurves)
+
+
+def action_has_pose_channels(action, hint_slot=None) -> bool:
+    for _slot, bag in iter_channelbags(action, hint_slot):
+        for curve in fcurves_of(bag):
+            if pose_path_targets_pose_bones(getattr(curve, "data_path", "") or ""):
+                return True
+    return False
+
+
+def pose_path_samples(action, hint_slot=None, limit: int = 4) -> list[str]:
+    samples = []
+    for _slot, bag in iter_channelbags(action, hint_slot):
+        for curve in fcurves_of(bag):
+            path = getattr(curve, "data_path", "") or ""
+            if pose_path_targets_pose_bones(path):
+                samples.append(path)
+                if len(samples) >= limit:
+                    return samples
+    return samples
+
+
+def action_frame_span(action, hint_slot=None):
+    xs = []
+    for _slot, bag in iter_channelbags(action, hint_slot):
+        for curve in fcurves_of(bag):
+            points = getattr(curve, "keyframe_points", None) or []
+            for key in points:
+                co = getattr(key, "co", None)
+                if co is None or len(co) < 1:
+                    continue
+                xs.append(float(co[0]))
+    if not xs:
+        frame_range = getattr(action, "frame_range", None)
+        if frame_range is not None and len(frame_range) >= 2:
+            return float(frame_range[0]), float(frame_range[1])
+        return None
+    return min(xs), max(xs)
+
+
+def nla_clips_for_action(arm, action) -> list:
+    ad = getattr(arm, "animation_data", None)
+    if ad is None:
+        return []
+    found = []
+
+    def walk(strips):
+        for strip in strips:
+            strip_type = getattr(strip, "type", None)
+            if strip_type == "META":
+                walk(getattr(strip, "strips", []) or [])
+            elif strip_type == "CLIP" and getattr(strip, "action", None) == action:
+                found.append(strip)
+
+    for track in getattr(ad, "nla_tracks", []) or []:
+        walk(getattr(track, "strips", []) or [])
+    return found
+
+
+def slot_identifier(slot) -> str | None:
+    if slot is None:
+        return None
+    ident = getattr(slot, "identifier", None)
+    if ident:
+        return str(ident)
+    name = getattr(slot, "name_display", None) or getattr(slot, "name", None)
+    return str(name) if name else None
+
+
+def collect_animation_candidates(arm, fps_num, fps_den, timing_ok: bool) -> list[dict]:
+    candidates = []
+    for action in list(bpy.data.actions):
+        ad = getattr(arm, "animation_data", None)
+        kinds = []
+        assigned_slot = None
+        nla_strips = []
+        if ad is not None and getattr(ad, "action", None) == action:
+            kinds.append("direct_action")
+            assigned_slot = getattr(ad, "action_slot", None)
+        nla_strips = nla_clips_for_action(arm, action)
+        nla_slot = None
+        if nla_strips:
+            kinds.append("nla_strip")
+            nla_slot = getattr(nla_strips[0], "action_slot", None)
+        hint_slot = assigned_slot or nla_slot
+        pose_hit = action_has_pose_channels(action, hint_slot)
+        pose_slot_ident = None
+        if pose_hit:
+            kinds.append("pose_channels")
+            if hint_slot is not None:
+                pose_slot_ident = slot_identifier(hint_slot)
+            else:
+                for slot, bag in iter_channelbags(action, None):
+                    if any(
+                        pose_path_targets_pose_bones(getattr(curve, "data_path", "") or "")
+                        for curve in fcurves_of(bag)
+                    ):
+                        pose_slot_ident = slot_identifier(slot)
+                        break
+        if not kinds:
+            continue
+        kind_rank = {"direct_action": 0, "nla_strip": 1, "pose_channels": 2}
+        kinds = sorted(set(kinds), key=lambda item: kind_rank.get(item, 9))
+        association_kind = kinds[0]
+        span = action_frame_span(action, hint_slot)
+        unusable_reason = None
+        start_frame = None
+        end_frame = None
+        usable = True
+        if not timing_ok:
+            usable = False
+            unusable_reason = "unusable_timing"
+        elif span is None:
+            usable = False
+            unusable_reason = "missing_frames"
+        else:
+            start_frame = integral_frame(span[0])
+            end_frame = integral_frame(span[1])
+            if start_frame is None or end_frame is None:
+                usable = False
+                unusable_reason = "fractional_frames"
+        weak_notes = []
+        slots = list(getattr(action, "slots", None) or [])
+        for slot in slots:
+            target = getattr(slot, "target_id_type", None)
+            if target:
+                weak_notes.append(f"slot_target_id_type={target}")
+        id_root = getattr(action, "id_root", None)
+        if id_root:
+            weak_notes.append(f"id_root={id_root}")
+        evidence = {
+            "kinds_present": kinds,
+            "assigned_slot_identifier": slot_identifier(assigned_slot),
+            "nla_track_name": None,
+            "nla_strip_name": None,
+            "nla_slot_identifier": slot_identifier(nla_slot),
+            "pose_slot_identifier": pose_slot_ident,
+            "pose_data_path_samples": pose_path_samples(action, hint_slot),
+            "weak_notes": weak_notes,
+        }
+        if nla_strips:
+            strip = nla_strips[0]
+            evidence["nla_strip_name"] = getattr(strip, "name", None)
+            track = getattr(strip, "id_data", None)
+            evidence["nla_track_name"] = getattr(track, "name", None)
+        clip_identity = action.name
+        candidates.append(
+            {
+                "clip_identity": clip_identity,
+                "display_label": action_display_label(clip_identity),
+                "source_skeleton_local_key": arm.name,
+                "association_kind": association_kind,
+                "association_evidence": evidence,
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "fps_num": fps_num,
+                "fps_den": fps_den,
+                "usable": usable,
+                "unusable_reason": unusable_reason,
+            }
+        )
+    candidates.sort(key=lambda item: item["clip_identity"])
+    return candidates
+
+
 def inspect_skeleton(job: dict) -> dict:
     expected = job.get("expected_digest")
     source = Path(job["source_path"])
@@ -818,10 +1109,24 @@ def inspect_skeleton(job: dict) -> dict:
         use_anim=False,
         automatic_bone_orientation=False,
     )
-    armatures = [obj for obj in bpy.data.objects if obj.type == "ARMATURE"]
-    if not armatures:
-        raise RuntimeError("no armature found")
-    arm = max(armatures, key=lambda obj: len(obj.data.bones))
+    armatures = usable_armature_objects()
+    try:
+        arm = require_unique_usable_armature(armatures)
+    except UniqueArmatureError as exc:
+        payload = {
+            "status": "FAIL",
+            "kind": "skeleton_observation",
+            "user_code": exc.code,
+            "user_message": str(exc),
+            "joints": [],
+            "source_digest": digest,
+            "diagnostics": [
+                "unique usable Armature required; silent max-bones selection is forbidden",
+                str(exc),
+            ],
+        }
+        write_json(Path(job["outputs"]["inspect_envelope"]), payload)
+        raise SystemExit(1)
     joints = inspect_armature(arm)
     payload = {
         "status": "SUCCESS",
@@ -833,9 +1138,142 @@ def inspect_skeleton(job: dict) -> dict:
         "diagnostics": [
             "inspect only; no retarget execution",
             "joint_key is source-local evidence, not Product identity",
+            "unique usable Armature required; silent max-bones selection is forbidden",
         ],
     }
     write_json(Path(job["outputs"]["inspect_envelope"]), payload)
+    return payload
+
+
+def inspect_source(job: dict) -> dict:
+    expected = job.get("expected_digest")
+    source = Path(job["source_path"])
+    envelope_path = Path(job["outputs"]["inspect_envelope"])
+    if not source.is_file():
+        payload = {
+            "status": "FAIL",
+            "kind": "source_observation",
+            "user_code": "missing_file",
+            "user_message": "The selected file is missing.",
+            "source_path": str(source),
+            "source_digest": None,
+            "size_bytes": None,
+            "usable_armature_count": 0,
+            "skeleton_candidates": [],
+            "animation_candidates": [],
+            "timing_context": None,
+            "diagnostics": ["source file is missing"],
+        }
+        write_json(envelope_path, payload)
+        raise SystemExit(1)
+    digest = sha256_file(source)
+    size_bytes = source.stat().st_size
+    if expected and digest != expected:
+        payload = {
+            "status": "FAIL",
+            "kind": "source_observation",
+            "user_code": "digest_mismatch",
+            "user_message": "This file changed after it was inspected. Inspect it again.",
+            "source_path": str(source),
+            "source_digest": digest,
+            "size_bytes": size_bytes,
+            "usable_armature_count": 0,
+            "skeleton_candidates": [],
+            "animation_candidates": [],
+            "timing_context": None,
+            "diagnostics": [f"source digest mismatch {digest} != {expected}"],
+        }
+        write_json(envelope_path, payload)
+        raise SystemExit(1)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.fbx(
+        filepath=str(source),
+        use_anim=True,
+        automatic_bone_orientation=False,
+    )
+    armatures = usable_armature_objects()
+    diagnostics = [
+        "inspect_source only; no retarget execution",
+        "joint_key and clip_identity are source-local evidence, not Product identity",
+        "slot_suitable alone is not eligibility proof",
+        "producer=Blender {} adapter={}".format(
+            getattr(bpy.app, "version_string", ""),
+            WORKER_VERSION,
+        ),
+    ]
+    if not armatures:
+        payload = {
+            "status": "FAIL",
+            "kind": "source_observation",
+            "user_code": "no_skeleton",
+            "user_message": MSG_NO_SKELETON,
+            "source_path": str(source),
+            "source_digest": digest,
+            "size_bytes": size_bytes,
+            "observed_media_type": "application/octet-stream",
+            "usable_armature_count": 0,
+            "skeleton_candidates": [],
+            "animation_candidates": [],
+            "timing_context": None,
+            "diagnostics": diagnostics,
+        }
+        write_json(envelope_path, payload)
+        raise SystemExit(1)
+    if len(armatures) > 1:
+        payload = {
+            "status": "FAIL",
+            "kind": "source_observation",
+            "user_code": "multiple_skeletons",
+            "user_message": MSG_MULTIPLE_SKELETONS,
+            "source_path": str(source),
+            "source_digest": digest,
+            "size_bytes": size_bytes,
+            "observed_media_type": "application/octet-stream",
+            "usable_armature_count": len(armatures),
+            "skeleton_candidates": [],
+            "animation_candidates": [],
+            "timing_context": None,
+            "diagnostics": diagnostics + [f"usable_armature_count={len(armatures)}"],
+        }
+        write_json(envelope_path, payload)
+        raise SystemExit(1)
+    arm = armatures[0]
+    joints = inspect_armature(arm)
+    timing_ok = True
+    timing_context = None
+    fps_num = None
+    fps_den = None
+    try:
+        scene = bpy.context.scene
+        fps_num, fps_den = rational_fps(scene.render.fps, scene.render.fps_base)
+        timing_context = {"fps_num": fps_num, "fps_den": fps_den}
+    except Exception as exc:
+        timing_ok = False
+        diagnostics.append(f"rational_fps failed: {exc}")
+    candidates = collect_animation_candidates(arm, fps_num, fps_den, timing_ok)
+    payload = {
+        "status": "SUCCESS",
+        "kind": "source_observation",
+        "user_code": None,
+        "user_message": None,
+        "source_path": str(source),
+        "source_digest": digest,
+        "size_bytes": size_bytes,
+        "observed_media_type": "application/octet-stream",
+        "usable_armature_count": 1,
+        "skeleton_candidates": [
+            {
+                "source_local_key": arm.name,
+                "display_name": arm.name,
+                "joint_count": len(joints),
+                "joints": joints,
+            }
+        ],
+        "animation_candidates": candidates,
+        "timing_context": timing_context,
+        "diagnostics": diagnostics,
+    }
+    write_json(envelope_path, payload)
     return payload
 
 
@@ -991,6 +1429,8 @@ def main() -> int:
             reopen(job)
         elif mode == "inspect":
             inspect_skeleton(job)
+        elif mode == "inspect_source":
+            inspect_source(job)
         elif mode == "inspect_qc":
             inspect_qc(job)
         elif mode in (

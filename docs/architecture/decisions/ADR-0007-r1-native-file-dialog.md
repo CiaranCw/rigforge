@@ -4,7 +4,7 @@ Status:
 Accepted
 
 This ADR is post-V1. It does not reopen ADR-0004 (egui/eframe) or Gate D.
-Do not add the crate in R1-0. R1-A adds it after R1-0 closure.
+Do not add the crate in R1-0. R1-1 (historical R1-A) adds it after R1-0 closure.
 
 ## Context
 
@@ -39,7 +39,7 @@ GitHub README for rfd 0.17.2, retrieved 2026-09-03).
 | MSRV | 1.88 (changelog: 0.17.2 lowered MSRV to 1.88). Compatible with RigForge 1.98 |
 | Windows | native file dialog; filters supported |
 | macOS | native; docs recommend spawning on the main thread |
-| Linux | default `xdg-portal`; GTK3 alternative via features; runtime portal/Zenity. **Release-packaging / later distribution consideration, not an R1-A functional blocker** (Windows is the primary development environment) |
+| Linux | default `xdg-portal`; GTK3 alternative via features; runtime portal/Zenity. **Release-packaging / later distribution consideration, not an R1-1 functional blocker** (Windows is the primary development environment) |
 | Filters | `add_filter("FBX", &["fbx"])` |
 | Sync vs async | both exist; R1 uses sync `pick_file` so Tokio is unnecessary |
 | Cancel | `Option::None` |
@@ -61,9 +61,9 @@ receives a `Path` only as `SourceArtifactEvidence` location.
 
 ## Consequences
 
-- Workbench gains one MIT dialog crate at R1-A, not R1-0.
+- Workbench gains one MIT dialog crate at R1-1, not R1-0.
 - Linux XDG Desktop Portal / Zenity runtime is a **release-packaging**
-  implication. It is not an R1-A functional blocker and not public
+  implication. It is not an R1-1 functional blocker and not public
   redistribution work.
 - Sync modal Browse blocks the egui loop while the OS dialog is open. That
   is accepted as user-modal, not as a Blender-length wait.
@@ -78,5 +78,5 @@ receives a `Path` only as `SourceArtifactEvidence` location.
 
 ## Open questions
 
-None for the R1-0 design selection. Pin exact 0.17.2 at R1-A unless a
+None for the R1-0 design selection. Pin exact 0.17.2 at R1-1 unless a
 newer patch is reviewed then.

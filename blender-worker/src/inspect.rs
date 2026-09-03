@@ -5,7 +5,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-use rigforge_app::{AppError, SkeletonEvidenceProvider};
+use rigforge_app::{
+    ingest_message_for_code, AnimationCandidate, AppError, CharacterSourceInspection,
+    MotionSourceInspection, ObservedTimingContext, SkeletonCandidate, SkeletonEvidenceProvider,
+    SourceInspectionProvider, INGEST_INSPECT_FAILED,
+};
 use rigforge_domain::{
     BackendExecutionContext, CharacterAssetVersion, CharacterAssetVersionId, JointKey,
     JointObservation, SkeletonSubjectKind, SkeletonSummary, SourceArtifactEvidence,
@@ -42,6 +46,31 @@ struct InspectJoint {
     deform_observation: Option<String>,
     rest_evidence: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+struct SourceEnvelope {
+    status: String,
+    #[serde(default)]
+    user_code: Option<String>,
+    #[serde(default)]
+    source_digest: Option<String>,
+    #[serde(default)]
+    size_bytes: Option<u64>,
+    #[serde(default)]
+    observed_media_type: Option<String>,
+    #[serde(default)]
+    usable_armature_count: usize,
+    #[serde(default)]
+    skeleton_candidates: Vec<SkeletonCandidate>,
+    #[serde(default)]
+    animation_candidates: Vec<AnimationCandidate>,
+    #[serde(default)]
+    timing_context: Option<ObservedTimingContext>,
+    #[serde(default)]
+    diagnostics: Vec<String>,
+}
+
+pub type BlenderSourceInspector = BlenderSkeletonInspector;
 
 pub struct BlenderSkeletonInspector {
     pin: BlenderPin,
@@ -149,6 +178,87 @@ impl BlenderSkeletonInspector {
         )?;
         Validated::certify(summary).map_err(AppError::from)
     }
+
+    fn run_inspect_mode(
+        &self,
+        mode: &str,
+        source_path: &Path,
+        expected_sha256: &str,
+        envelope_name: &str,
+    ) -> Result<(bool, String, String), AppError> {
+        enforce_pin(&self.pin.executable, &self.pin)?;
+        verify_worker_package_integrity(&self.script)?;
+        let attempt = format!("inspect-{}", Uuid::now_v7());
+        let root = attempt_workspace_root(&self.workspace_root, &attempt);
+        let workspace = AttemptWorkspace::create(&root)?;
+        let job_json = workspace.root.join("inspect_job.json");
+        let envelope_path = workspace.root.join(envelope_name);
+        let job = serde_json::json!({
+            "source_path": source_path.to_string_lossy(),
+            "expected_digest": expected_sha256,
+            "outputs": { "inspect_envelope": envelope_path }
+        });
+        fs::write(&job_json, serde_json::to_vec_pretty(&job).unwrap())?;
+        let argv = blender_argv(&self.pin.executable, &self.script, mode, &job_json);
+        if !assert_safety_flags(&argv) {
+            return Err(AppError::Worker("inspect command missing safety flags".into()));
+        }
+        let mut cmd = blender_command(&self.pin.executable, &self.script, mode, &job_json);
+        for (k, v) in workspace.isolated_env() {
+            cmd.env(k, v);
+        }
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let output = cmd.output()?;
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        let text = fs::read_to_string(&envelope_path).unwrap_or_default();
+        Ok((output.status.success(), text, stderr))
+    }
+
+    fn inspect_source_envelope(&self, source_path: &Path) -> Result<SourceEnvelope, AppError> {
+        if !source_path.is_file() {
+            return Err(AppError::Catalog(
+                rigforge_app::INGEST_MISSING_FILE.into(),
+            ));
+        }
+        let ext = source_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if ext != "fbx" {
+            return Err(AppError::Catalog(
+                rigforge_app::INGEST_UNSUPPORTED_FORMAT.into(),
+            ));
+        }
+        let found = sha256_file(source_path)?;
+        let (ok, text, stderr) =
+            self.run_inspect_mode("inspect_source", source_path, &found, "inspect_envelope.json")?;
+        if text.trim().is_empty() {
+            return Err(AppError::Worker(format!(
+                "{INGEST_INSPECT_FAILED}: blender inspect_source produced no envelope: {stderr}"
+            )));
+        }
+        let envelope: SourceEnvelope = serde_json::from_str(&text).map_err(|e| {
+            AppError::Worker(format!("inspect_source envelope: {e}; stderr={stderr}"))
+        })?;
+        if !envelope.status.eq_ignore_ascii_case("SUCCESS") {
+            let code = envelope.user_code.as_deref().unwrap_or("inspect_failed");
+            return Err(AppError::Catalog(ingest_message_for_code(code).to_string()));
+        }
+        if !ok {
+            return Err(AppError::Worker(format!(
+                "{INGEST_INSPECT_FAILED}: {stderr}"
+            )));
+        }
+        if let Some(digest) = envelope.source_digest.as_deref() {
+            if digest != found {
+                return Err(AppError::Worker(
+                    "inspect_source envelope digest does not match subject source".into(),
+                ));
+            }
+        }
+        Ok(envelope)
+    }
 }
 
 impl SkeletonEvidenceProvider for BlenderSkeletonInspector {
@@ -183,5 +293,56 @@ impl SkeletonEvidenceProvider for BlenderSkeletonInspector {
                 Some(source.id()),
             )?
             .into_record())
+    }
+}
+
+impl SourceInspectionProvider for BlenderSkeletonInspector {
+    fn inspect_character_source(
+        &self,
+        path: &Path,
+    ) -> Result<CharacterSourceInspection, AppError> {
+        let envelope = self.inspect_source_envelope(path)?;
+        let size = envelope.size_bytes.ok_or_else(|| {
+            AppError::Worker("inspect_source envelope missing size_bytes".into())
+        })?;
+        let digest = envelope
+            .source_digest
+            .clone()
+            .ok_or_else(|| AppError::Worker("inspect_source envelope missing digest".into()))?;
+        Ok(CharacterSourceInspection {
+            source_path: path.to_path_buf(),
+            source_digest: digest,
+            size_bytes: size,
+            observed_media_type: envelope
+                .observed_media_type
+                .unwrap_or_else(|| "application/octet-stream".into()),
+            usable_armature_count: envelope.usable_armature_count,
+            skeleton_candidates: envelope.skeleton_candidates,
+            diagnostics: envelope.diagnostics,
+        })
+    }
+
+    fn inspect_motion_source(&self, path: &Path) -> Result<MotionSourceInspection, AppError> {
+        let envelope = self.inspect_source_envelope(path)?;
+        let size = envelope.size_bytes.ok_or_else(|| {
+            AppError::Worker("inspect_source envelope missing size_bytes".into())
+        })?;
+        let digest = envelope
+            .source_digest
+            .clone()
+            .ok_or_else(|| AppError::Worker("inspect_source envelope missing digest".into()))?;
+        Ok(MotionSourceInspection {
+            source_path: path.to_path_buf(),
+            source_digest: digest,
+            size_bytes: size,
+            observed_media_type: envelope
+                .observed_media_type
+                .unwrap_or_else(|| "application/octet-stream".into()),
+            usable_armature_count: envelope.usable_armature_count,
+            skeleton_candidates: envelope.skeleton_candidates,
+            animation_candidates: envelope.animation_candidates,
+            timing_context: envelope.timing_context,
+            diagnostics: envelope.diagnostics,
+        })
     }
 }

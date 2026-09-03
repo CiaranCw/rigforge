@@ -225,3 +225,321 @@ fn motion_registration_rejects_invalid_time_and_skeleton_context() {
         .unwrap()
         .is_empty());
 }
+
+fn joint() -> rigforge_app::InspectedJoint {
+    rigforge_app::InspectedJoint {
+        joint_key: "root".into(),
+        display_name: "root".into(),
+        parent_key: None,
+        is_root: true,
+        deform_observation: Some("deforming".into()),
+        rest_evidence: Some("rest".into()),
+    }
+}
+
+fn character_inspection(
+    path: PathBuf,
+    digest: String,
+    size: u64,
+    armature_count: usize,
+) -> rigforge_app::CharacterSourceInspection {
+    let candidates = if armature_count == 1 {
+        vec![rigforge_app::SkeletonCandidate {
+            source_local_key: "Armature".into(),
+            display_name: "Armature".into(),
+            joint_count: 1,
+            joints: vec![joint()],
+        }]
+    } else {
+        Vec::new()
+    };
+    rigforge_app::CharacterSourceInspection {
+        source_path: path,
+        source_digest: digest,
+        size_bytes: size,
+        observed_media_type: "application/octet-stream".into(),
+        usable_armature_count: armature_count,
+        skeleton_candidates: candidates,
+        diagnostics: Vec::new(),
+    }
+}
+
+fn motion_inspection(
+    path: PathBuf,
+    digest: String,
+    size: u64,
+    clips: Vec<rigforge_app::AnimationCandidate>,
+) -> rigforge_app::MotionSourceInspection {
+    rigforge_app::MotionSourceInspection {
+        source_path: path,
+        source_digest: digest,
+        size_bytes: size,
+        observed_media_type: "application/octet-stream".into(),
+        usable_armature_count: 1,
+        skeleton_candidates: vec![rigforge_app::SkeletonCandidate {
+            source_local_key: "Armature".into(),
+            display_name: "UAL2_Armature".into(),
+            joint_count: 1,
+            joints: vec![joint()],
+        }],
+        animation_candidates: clips,
+        timing_context: Some(rigforge_app::ObservedTimingContext {
+            fps_num: 30,
+            fps_den: 1,
+        }),
+        diagnostics: Vec::new(),
+    }
+}
+
+fn usable_clip(identity: &str, kind: &str) -> rigforge_app::AnimationCandidate {
+    rigforge_app::AnimationCandidate {
+        clip_identity: identity.into(),
+        display_label: identity.replace('_', " "),
+        source_skeleton_local_key: "Armature".into(),
+        association_kind: kind.into(),
+        association_evidence: rigforge_app::AssociationEvidence::default(),
+        start_frame: Some(1),
+        end_frame: Some(61),
+        fps_num: Some(30),
+        fps_den: Some(1),
+        usable: true,
+        unusable_reason: None,
+    }
+}
+
+#[test]
+fn character_from_inspection_rejects_zero_and_multiple_armatures() {
+    let bytes = b"character-inspection-bytes";
+    let path = temp_named("hero.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let zero = character_inspection(path.clone(), digest.clone(), size, 0);
+    let err = app
+        .register_character_from_inspection("Hero", &zero)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("No skeleton"), "{err}");
+    let many = character_inspection(path.clone(), digest.clone(), size, 2);
+    let err = app
+        .register_character_from_inspection("Hero", &many)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Multiple usable skeletons"), "{err}");
+}
+
+#[test]
+fn character_from_inspection_accepts_unique_armature_and_toctou() {
+    let bytes = b"character-inspection-ok";
+    let path = temp_named("knight.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let inspection = character_inspection(path.clone(), digest.clone(), size, 1);
+    let registered = app
+        .register_character_from_inspection("Knight Male", &inspection)
+        .unwrap();
+    assert_ne!(registered.asset_id, digest);
+    fs::write(&path, b"changed-after-inspect").unwrap();
+    let stale = character_inspection(path, digest, size, 1);
+    let err = app
+        .register_character_from_inspection("Knight Male", &stale)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("changed after it was inspected"), "{err}");
+}
+
+#[test]
+fn motion_from_inspection_uses_exact_clip_identity_and_rejects_empty_clips() {
+    let bytes = b"motion-inspection-bytes";
+    let path = temp_named("walk.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let empty = motion_inspection(path.clone(), digest.clone(), size, Vec::new());
+    let err = app
+        .register_motion_from_inspection("Walk", &empty, "clip")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("No usable animation clips"), "{err}");
+    let identity = "Armature|Armature|Walk_Carry_Loop";
+    let inspection = motion_inspection(
+        path,
+        digest,
+        size,
+        vec![usable_clip(identity, "direct_action")],
+    );
+    let registered = app
+        .register_motion_from_inspection("Walk Carry", &inspection, identity)
+        .unwrap();
+    let version = app
+        .resolve_exact_motion_version(&registered.version_id)
+        .unwrap();
+    assert_eq!(
+        version.as_record().time().clip_identity_evidence(),
+        identity
+    );
+}
+
+#[test]
+fn motion_slot_suitable_alone_is_not_usable() {
+    let bytes = b"motion-slot-only";
+    let path = temp_named("slots.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let mut clip = usable_clip("CameraAction", "slot_suitable");
+    clip.usable = true;
+    let inspection = motion_inspection(path, digest, size, vec![clip]);
+    let err = app
+        .register_motion_from_inspection("Cam", &inspection, "CameraAction")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("No usable animation clips"), "{err}");
+}
+
+#[test]
+fn motion_from_inspection_accepts_nla_and_pose_channel_clips() {
+    let bytes = b"motion-association-kinds";
+    let path = temp_named("assoc.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    for kind in ["nla_strip", "pose_channels"] {
+        let inspection = motion_inspection(
+            path.clone(),
+            digest.clone(),
+            size,
+            vec![usable_clip("Walk_Carry_Loop", kind)],
+        );
+        app.register_motion_from_inspection("Walk Carry", &inspection, "Walk_Carry_Loop")
+            .unwrap();
+    }
+}
+
+#[test]
+fn motion_from_inspection_rejects_unrelated_and_fractional_and_stores_rational_fps() {
+    let bytes = b"motion-timing-bytes";
+    let path = temp_named("timing.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let unrelated = usable_clip("CameraShake", "object");
+    let err = app
+        .register_motion_from_inspection(
+            "Cam",
+            &motion_inspection(path.clone(), digest.clone(), size, vec![unrelated]),
+            "CameraShake",
+        )
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("No usable animation clips"), "{err}");
+
+    let mut fractional = usable_clip("Walk_Carry_Loop", "direct_action");
+    fractional.usable = false;
+    fractional.start_frame = None;
+    fractional.end_frame = None;
+    fractional.unusable_reason = Some("fractional_frames".into());
+    let err = app
+        .register_motion_from_inspection(
+            "Walk",
+            &motion_inspection(path.clone(), digest.clone(), size, vec![fractional]),
+            "Walk_Carry_Loop",
+        )
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("fractional frame"), "{err}");
+
+    let mut clip = usable_clip("Walk_Carry_Loop", "direct_action");
+    clip.fps_num = Some(30000);
+    clip.fps_den = Some(1001);
+    let registered = app
+        .register_motion_from_inspection(
+            "Walk NTSC",
+            &motion_inspection(path.clone(), digest.clone(), size, vec![clip]),
+            "Walk_Carry_Loop",
+        )
+        .unwrap();
+    let version = app
+        .resolve_exact_motion_version(&registered.version_id)
+        .unwrap();
+    assert_eq!(version.as_record().time().start().fps_num(), Some(30000));
+    assert_eq!(version.as_record().time().start().fps_den(), Some(1001));
+
+    let mut ntsc24 = usable_clip("Walk_Carry_Loop", "direct_action");
+    ntsc24.fps_num = Some(24000);
+    ntsc24.fps_den = Some(1001);
+    let registered = app
+        .register_motion_from_inspection(
+            "Walk 24",
+            &motion_inspection(path, digest, size, vec![ntsc24]),
+            "Walk_Carry_Loop",
+        )
+        .unwrap();
+    let version = app
+        .resolve_exact_motion_version(&registered.version_id)
+        .unwrap();
+    assert_eq!(version.as_record().time().start().fps_num(), Some(24000));
+    assert_eq!(version.as_record().time().start().fps_den(), Some(1001));
+}
+
+#[test]
+fn motion_from_inspection_rejects_multiple_armatures_and_size_mismatch() {
+    let bytes = b"motion-toctou-bytes";
+    let path = temp_named("multi.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let mut many = motion_inspection(
+        path.clone(),
+        digest.clone(),
+        size,
+        vec![usable_clip("Walk_Carry_Loop", "direct_action")],
+    );
+    many.usable_armature_count = 2;
+    let err = app
+        .register_motion_from_inspection("Walk", &many, "Walk_Carry_Loop")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Multiple usable skeletons"), "{err}");
+
+    let wrong_size = motion_inspection(
+        path,
+        digest,
+        size + 1,
+        vec![usable_clip("Walk_Carry_Loop", "direct_action")],
+    );
+    let err = app
+        .register_motion_from_inspection("Walk", &wrong_size, "Walk_Carry_Loop")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("changed after it was inspected"), "{err}");
+}
+
+#[test]
+fn motion_from_inspection_keeps_selected_clip_when_several_are_usable() {
+    let bytes = b"motion-multi-clip-bytes";
+    let path = temp_named("clips.fbx", bytes);
+    let digest = sha256_bytes(bytes);
+    let size = bytes.len() as u64;
+    let mut app = Application::open_in_memory().unwrap();
+    let inspection = motion_inspection(
+        path,
+        digest,
+        size,
+        vec![
+            usable_clip("Walk_Carry_Loop", "direct_action"),
+            usable_clip("Zombie_Walk_Fwd_Loop", "nla_strip"),
+        ],
+    );
+    let registered = app
+        .register_motion_from_inspection("Zombie Walk", &inspection, "Zombie_Walk_Fwd_Loop")
+        .unwrap();
+    let version = app
+        .resolve_exact_motion_version(&registered.version_id)
+        .unwrap();
+    assert_eq!(
+        version.as_record().time().clip_identity_evidence(),
+        "Zombie_Walk_Fwd_Loop"
+    );
+}

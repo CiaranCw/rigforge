@@ -12,6 +12,7 @@ pub mod candidates;
 pub mod catalog;
 pub mod dispatch;
 pub mod error;
+pub mod inspection;
 pub mod mapping_workflow;
 pub mod migrate;
 pub mod orchestration;
@@ -71,6 +72,13 @@ pub use qc::{
 #[cfg(any(test, feature = "test-support"))]
 pub use qc::{ArtifactInspector, PersistenceReopener};
 pub use queries::AssetListItem;
+pub use inspection::{
+    ingest_message_for_code, motion_ingest_failure_message, unique_skeleton, AnimationCandidate,
+    AssociationEvidence, CharacterSourceInspection, InspectedJoint, MotionSourceInspection,
+    ObservedTimingContext, SkeletonCandidate, SourceInspectionProvider, INGEST_FILE_CHANGED,
+    INGEST_FRACTIONAL_FRAMES, INGEST_INSPECT_FAILED, INGEST_MISSING_FILE, INGEST_MULTIPLE_SKELETONS,
+    INGEST_NO_CLIPS, INGEST_NO_SKELETON, INGEST_UNSUPPORTED_FORMAT, INGEST_UNUSABLE_TIMING,
+};
 pub use registration::{LocalCharacterRegistration, LocalMotionRegistration};
 pub use runtime::{
     bind_thread_runtime_root, materialize_runtime_bundle, verify_runtime_worker_package,

@@ -6,19 +6,26 @@
 //! details, not Product authority.
 
 use eframe::egui;
-use std::path::Path;
+use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use rigforge_app::rigforge_domain::{
     BoneMappingVersion, CompatibilityResult, Lifecycle,
 };
 use rigforge_app::{
-    Application, AssetListItem, JobRunState, MappingAssistProfile, PreviewGenerationRequest,
-    PreviewSubject, SkeletonEvidenceProvider, TransferAuthorization, TransferOutcome,
-    TransferOutcomeKind, WorkerCapabilityProfile,
+    Application, AssetListItem, CharacterSourceInspection, JobRunState, MappingAssistProfile,
+    MotionSourceInspection, PreviewGenerationRequest, PreviewSubject, SkeletonEvidenceProvider,
+    TransferAuthorization, TransferOutcome, TransferOutcomeKind, WorkerCapabilityProfile,
+    INGEST_NO_CLIPS,
 };
 use rigforge_blender_worker::BlenderSkeletonInspector;
 
+pub mod file_pick;
+pub mod ingest;
 pub mod native_exec;
 pub mod preview_host;
+
+use crate::file_pick::FilePickState;
+use crate::ingest::{IngestKind, IngestResult};
 
 /// Preview embedding boundary. Viewer library and payload are V1-6 implementation
 /// details, not Product identity.
@@ -76,16 +83,19 @@ pub struct WorkbenchApp {
     workflow_status: Option<String>,
     selected_policy_version_id: Option<String>,
     preview_host: Option<preview_host::PreviewHost>,
-    character_name_input: String,
-    character_path_input: String,
-    motion_name_input: String,
-    motion_path_input: String,
-    motion_skeleton_name_input: String,
-    motion_clip_input: String,
-    motion_start_frame_input: String,
-    motion_end_frame_input: String,
-    motion_fps_num_input: String,
-    motion_fps_den_input: String,
+    character_pick: FilePickState,
+    motion_pick: FilePickState,
+    character_inspection: Option<CharacterSourceInspection>,
+    motion_inspection: Option<MotionSourceInspection>,
+    motion_selected_clip: Option<String>,
+    character_request_id: u64,
+    motion_request_id: u64,
+    character_wait: Option<Receiver<IngestResult>>,
+    motion_wait: Option<Receiver<IngestResult>>,
+    character_inspecting: bool,
+    motion_inspecting: bool,
+    character_ingest_status: Option<String>,
+    motion_ingest_status: Option<String>,
 }
 
 impl WorkbenchApp {
@@ -122,16 +132,19 @@ impl WorkbenchApp {
             workflow_status: None,
             selected_policy_version_id: None,
             preview_host: None,
-            character_name_input: String::new(),
-            character_path_input: String::new(),
-            motion_name_input: String::new(),
-            motion_path_input: String::new(),
-            motion_skeleton_name_input: String::new(),
-            motion_clip_input: String::new(),
-            motion_start_frame_input: "1".into(),
-            motion_end_frame_input: "61".into(),
-            motion_fps_num_input: "30".into(),
-            motion_fps_den_input: "1".into(),
+            character_pick: FilePickState::default(),
+            motion_pick: FilePickState::default(),
+            character_inspection: None,
+            motion_inspection: None,
+            motion_selected_clip: None,
+            character_request_id: 0,
+            motion_request_id: 0,
+            character_wait: None,
+            motion_wait: None,
+            character_inspecting: false,
+            motion_inspecting: false,
+            character_ingest_status: None,
+            motion_ingest_status: None,
         }
     }
 
@@ -161,6 +174,223 @@ impl WorkbenchApp {
         }
         shell.bind_published_mapping_for_current_selection(app)?;
         Ok(shell)
+    }
+
+    pub fn character_pick(&self) -> &FilePickState {
+        &self.character_pick
+    }
+
+    pub fn motion_pick(&self) -> &FilePickState {
+        &self.motion_pick
+    }
+
+    pub fn character_inspection(&self) -> Option<&CharacterSourceInspection> {
+        self.character_inspection.as_ref()
+    }
+
+    pub fn motion_inspection(&self) -> Option<&MotionSourceInspection> {
+        self.motion_inspection.as_ref()
+    }
+
+    pub fn motion_selected_clip(&self) -> Option<&str> {
+        self.motion_selected_clip.as_deref()
+    }
+
+    pub fn character_ingest_status(&self) -> Option<&str> {
+        self.character_ingest_status.as_deref()
+    }
+
+    pub fn motion_ingest_status(&self) -> Option<&str> {
+        self.motion_ingest_status.as_deref()
+    }
+
+    pub fn character_inspecting(&self) -> bool {
+        self.character_inspecting
+    }
+
+    pub fn motion_inspecting(&self) -> bool {
+        self.motion_inspecting
+    }
+
+    pub fn apply_character_selection(&mut self, picked: Option<PathBuf>) -> bool {
+        if crate::file_pick::apply_picked_path(&mut self.character_pick, picked) {
+            self.character_inspection = None;
+            self.character_ingest_status = None;
+            self.character_wait = None;
+            self.character_inspecting = false;
+            self.character_request_id = self.character_request_id.saturating_add(1);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn apply_motion_selection(&mut self, picked: Option<PathBuf>) -> bool {
+        if crate::file_pick::apply_picked_path(&mut self.motion_pick, picked) {
+            self.motion_inspection = None;
+            self.motion_selected_clip = None;
+            self.motion_ingest_status = None;
+            self.motion_wait = None;
+            self.motion_inspecting = false;
+            self.motion_request_id = self.motion_request_id.saturating_add(1);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn begin_character_inspect(&mut self, ctx: &egui::Context) {
+        let Some(path) = self.character_pick.path.clone() else {
+            return;
+        };
+        self.character_inspecting = true;
+        self.character_ingest_status = Some("Inspecting Character…".into());
+        match crate::ingest::spawn_source_inspect(
+            self.character_request_id,
+            IngestKind::Character,
+            path,
+            ctx.clone(),
+        ) {
+            Ok(rx) => self.character_wait = Some(rx),
+            Err(err) => {
+                self.character_inspecting = false;
+                self.character_ingest_status = Some(err.to_string());
+            }
+        }
+    }
+
+    pub fn begin_motion_inspect(&mut self, ctx: &egui::Context) {
+        let Some(path) = self.motion_pick.path.clone() else {
+            return;
+        };
+        self.motion_inspecting = true;
+        self.motion_ingest_status = Some("Inspecting Motion…".into());
+        match crate::ingest::spawn_source_inspect(
+            self.motion_request_id,
+            IngestKind::Motion,
+            path,
+            ctx.clone(),
+        ) {
+            Ok(rx) => self.motion_wait = Some(rx),
+            Err(err) => {
+                self.motion_inspecting = false;
+                self.motion_ingest_status = Some(err.to_string());
+            }
+        }
+    }
+
+    pub fn apply_character_inspect_result(
+        &mut self,
+        request_id: u64,
+        outcome: Result<CharacterSourceInspection, String>,
+    ) {
+        if request_id != self.character_request_id {
+            return;
+        }
+        self.character_inspecting = false;
+        match outcome {
+            Ok(inspection) => {
+                self.character_inspection = Some(inspection);
+                self.character_ingest_status = Some("Character source is ready.".into());
+            }
+            Err(err) => {
+                self.character_inspection = None;
+                self.character_ingest_status = Some(err);
+            }
+        }
+    }
+
+    pub fn apply_motion_inspect_result(
+        &mut self,
+        request_id: u64,
+        outcome: Result<MotionSourceInspection, String>,
+    ) {
+        if request_id != self.motion_request_id {
+            return;
+        }
+        self.motion_inspecting = false;
+        match outcome {
+            Ok(inspection) => {
+                let usable: Vec<String> = inspection
+                    .usable_clips()
+                    .into_iter()
+                    .map(|clip| clip.clip_identity.clone())
+                    .collect();
+                let usable_count = usable.len();
+                self.motion_selected_clip = match usable_count {
+                    1 => usable.into_iter().next(),
+                    _ => None,
+                };
+                self.motion_ingest_status = Some(if usable_count == 0 {
+                    rigforge_app::motion_ingest_failure_message(&inspection)
+                        .unwrap_or(INGEST_NO_CLIPS)
+                        .to_string()
+                } else if usable_count > 1 {
+                    "Multiple animation clips were found. Choose one clip.".into()
+                } else {
+                    "Motion source is ready.".into()
+                });
+                self.motion_inspection = Some(inspection);
+            }
+            Err(err) => {
+                self.motion_inspection = None;
+                self.motion_selected_clip = None;
+                self.motion_ingest_status = Some(err);
+            }
+        }
+    }
+
+    pub fn poll_ingest(&mut self, ctx: &egui::Context) {
+        if self.character_inspecting || self.motion_inspecting {
+            ctx.request_repaint();
+        }
+        if let Some(rx) = self.character_wait.take() {
+            match rx.try_recv() {
+                Ok(IngestResult::Character {
+                    request_id,
+                    outcome,
+                }) => self.apply_character_inspect_result(request_id, outcome),
+                Ok(_) => {}
+                Err(TryRecvError::Empty) => self.character_wait = Some(rx),
+                Err(TryRecvError::Disconnected) => {
+                    self.character_inspecting = false;
+                    if self.character_inspection.is_none() {
+                        self.character_ingest_status =
+                            Some(rigforge_app::INGEST_INSPECT_FAILED.into());
+                    }
+                }
+            }
+        }
+        if let Some(rx) = self.motion_wait.take() {
+            match rx.try_recv() {
+                Ok(IngestResult::Motion {
+                    request_id,
+                    outcome,
+                }) => self.apply_motion_inspect_result(request_id, outcome),
+                Ok(_) => {}
+                Err(TryRecvError::Empty) => self.motion_wait = Some(rx),
+                Err(TryRecvError::Disconnected) => {
+                    self.motion_inspecting = false;
+                    if self.motion_inspection.is_none() {
+                        self.motion_ingest_status =
+                            Some(rigforge_app::INGEST_INSPECT_FAILED.into());
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn character_can_add(&self) -> bool {
+        !self.character_inspecting
+            && self.character_inspection.is_some()
+            && !self.character_pick.display_name.trim().is_empty()
+    }
+
+    pub fn motion_can_add(&self) -> bool {
+        !self.motion_inspecting
+            && self.motion_inspection.is_some()
+            && self.motion_selected_clip.is_some()
+            && !self.motion_pick.display_name.trim().is_empty()
     }
 
     /// Bind a Published Mapping only when it matches the current Character and
@@ -650,10 +880,13 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
-        let display_name = parse_required_text(&self.character_name_input, "display name")?;
-        let path = parse_required_text(&self.character_path_input, "local path")?;
-        let inspector = BlenderSkeletonInspector::production()?;
-        let registered = app.register_local_character(&display_name, Path::new(&path), &inspector)?;
+        let display_name = parse_required_text(&self.character_pick.display_name, "display name")?;
+        let inspection = self.character_inspection.as_ref().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Inspect a Character FBX before adding it.".into(),
+            )
+        })?;
+        let registered = app.register_character_from_inspection(&display_name, inspection)?;
         self.reload_from_application(app)?;
         self.select_character_version(&registered.version_id);
         self.bind_published_mapping_for_current_selection(app)?;
@@ -668,29 +901,16 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
-        let display_name = parse_required_text(&self.motion_name_input, "display name")?;
-        let path = parse_required_text(&self.motion_path_input, "local path")?;
-        let skeleton = parse_required_text(
-            &self.motion_skeleton_name_input,
-            "Source Skeleton name",
-        )?;
-        let clip = parse_required_text(&self.motion_clip_input, "clip identifier")?;
-        let start = parse_integral_i64(&self.motion_start_frame_input, "start frame")?;
-        let end = parse_integral_i64(&self.motion_end_frame_input, "end frame")?;
-        let fps_num = parse_integral_u32(&self.motion_fps_num_input, "FPS numerator")?;
-        let fps_den = parse_integral_u32(&self.motion_fps_den_input, "FPS denominator")?;
-        let inspector = BlenderSkeletonInspector::production()?;
-        let registered = app.register_local_motion(
-            &display_name,
-            Path::new(&path),
-            &skeleton,
-            &clip,
-            start,
-            end,
-            fps_num,
-            fps_den,
-            &inspector,
-        )?;
+        let display_name = parse_required_text(&self.motion_pick.display_name, "display name")?;
+        let inspection = self.motion_inspection.as_ref().ok_or_else(|| {
+            rigforge_app::AppError::Catalog("Inspect a Motion FBX before adding it.".into())
+        })?;
+        let clip = self
+            .motion_selected_clip
+            .as_deref()
+            .ok_or_else(|| rigforge_app::AppError::Catalog(INGEST_NO_CLIPS.into()))?;
+        let registered =
+            app.register_motion_from_inspection(&display_name, inspection, clip)?;
         self.reload_from_application(app)?;
         self.select_motion_version(&registered.version_id);
         self.bind_published_mapping_for_current_selection(app)?;
@@ -1031,10 +1251,45 @@ impl WorkbenchApp {
                 ui.separator();
                 ui.collapsing("Add Character", |ui| {
                     ui.label("Display name");
-                    ui.text_edit_singleline(&mut self.character_name_input);
-                    ui.label("Local path");
-                    ui.text_edit_singleline(&mut self.character_path_input);
-                    if ui.button("Register").clicked() {
+                    ui.text_edit_singleline(&mut self.character_pick.display_name);
+                    ui.horizontal(|ui| {
+                        let browse = if self.character_pick.path.is_some() {
+                            "Change"
+                        } else {
+                            "Browse"
+                        };
+                        if ui.button(browse).clicked()
+                        {
+                            let picked = crate::file_pick::pick_fbx_file();
+                            if self.apply_character_selection(picked) {
+                                self.begin_character_inspect(ctx);
+                            }
+                        }
+                        if self.character_inspecting {
+                            ui.spinner();
+                            ui.label("Inspecting Character…");
+                        }
+                    });
+                    if self.character_pick.filename.is_empty() {
+                        ui.weak("No FBX selected");
+                    } else {
+                        ui.label(format!("File: {}", self.character_pick.filename))
+                            .on_hover_text(
+                                self.character_pick
+                                    .path
+                                    .as_ref()
+                                    .map(|path| path.display().to_string())
+                                    .unwrap_or_default(),
+                            );
+                    }
+                    if let Some(status) = &self.character_ingest_status {
+                        ui.label(status.clone());
+                    }
+                    let add_enabled = self.character_can_add() && app.is_some();
+                    if ui
+                        .add_enabled(add_enabled, egui::Button::new("Add Character"))
+                        .clicked()
+                    {
                         if let Some(app) = app.as_mut() {
                             if let Err(err) = self.on_register_character_clicked(app) {
                                 self.workflow_status = Some(err.to_string());
@@ -1049,22 +1304,98 @@ impl WorkbenchApp {
                 });
                 ui.collapsing("Add Motion", |ui| {
                     ui.label("Display name");
-                    ui.text_edit_singleline(&mut self.motion_name_input);
-                    ui.label("Local path");
-                    ui.text_edit_singleline(&mut self.motion_path_input);
-                    ui.label("Source Skeleton name");
-                    ui.text_edit_singleline(&mut self.motion_skeleton_name_input);
-                    ui.label("Clip");
-                    ui.text_edit_singleline(&mut self.motion_clip_input);
-                    ui.label("Start frame");
-                    ui.text_edit_singleline(&mut self.motion_start_frame_input);
-                    ui.label("End frame");
-                    ui.text_edit_singleline(&mut self.motion_end_frame_input);
-                    ui.label("FPS numerator");
-                    ui.text_edit_singleline(&mut self.motion_fps_num_input);
-                    ui.label("FPS denominator");
-                    ui.text_edit_singleline(&mut self.motion_fps_den_input);
-                    if ui.button("Register").clicked() {
+                    ui.text_edit_singleline(&mut self.motion_pick.display_name);
+                    ui.horizontal(|ui| {
+                        let browse = if self.motion_pick.path.is_some() {
+                            "Change"
+                        } else {
+                            "Browse"
+                        };
+                        if ui.button(browse).clicked()
+                        {
+                            let picked = crate::file_pick::pick_fbx_file();
+                            if self.apply_motion_selection(picked) {
+                                self.begin_motion_inspect(ctx);
+                            }
+                        }
+                        if self.motion_inspecting {
+                            ui.spinner();
+                            ui.label("Inspecting Motion…");
+                        }
+                    });
+                    if self.motion_pick.filename.is_empty() {
+                        ui.weak("No FBX selected");
+                    } else {
+                        ui.label(format!("File: {}", self.motion_pick.filename))
+                            .on_hover_text(
+                                self.motion_pick
+                                    .path
+                                    .as_ref()
+                                    .map(|path| path.display().to_string())
+                                    .unwrap_or_default(),
+                            );
+                    }
+                    let motion_skeleton = self.motion_inspection.as_ref().and_then(|inspection| {
+                        inspection
+                            .skeleton_candidates
+                            .first()
+                            .map(|skeleton| skeleton.display_name.clone())
+                    });
+                    let clips: Vec<(String, String, String)> = self
+                        .motion_inspection
+                        .as_ref()
+                        .map(|inspection| {
+                            inspection
+                                .usable_clips()
+                                .into_iter()
+                                .map(|clip| {
+                                    (
+                                        clip.clip_identity.clone(),
+                                        clip.display_label.clone(),
+                                        clip.presentation_line(),
+                                    )
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    if let Some(skeleton) = motion_skeleton {
+                        ui.label(format!("Source Skeleton: {skeleton}"));
+                    }
+                    if clips.len() > 1 {
+                        let mut selected = self.motion_selected_clip.clone().unwrap_or_default();
+                        let current_label = clips
+                            .iter()
+                            .find(|(id, _, _)| *id == selected)
+                            .map(|(_, label, line)| format!("{label}  {line}"))
+                            .unwrap_or_else(|| "Choose a clip".into());
+                        egui::ComboBox::from_label("Animation clip")
+                            .selected_text(current_label)
+                            .show_ui(ui, |ui| {
+                                for (id, label, line) in &clips {
+                                    ui.selectable_value(
+                                        &mut selected,
+                                        id.clone(),
+                                        format!("{label}  {line}"),
+                                    );
+                                }
+                            });
+                        self.motion_selected_clip = if selected.is_empty() {
+                            None
+                        } else {
+                            Some(selected)
+                        };
+                    } else if let Some((_, label, line)) = clips.first() {
+                        ui.label(format!("Clip: {label}"));
+                        ui.label(line);
+                    }
+                    if let Some(status) = &self.motion_ingest_status {
+                        ui.label(status.clone());
+                    }
+                    let add_enabled = self.motion_can_add() && app.is_some();
+                    if ui
+                        .add_enabled(add_enabled, egui::Button::new("Add Motion"))
+                        .clicked()
+                    {
                         if let Some(app) = app.as_mut() {
                             if let Err(err) = self.on_register_motion_clicked(app) {
                                 self.workflow_status = Some(err.to_string());
@@ -1313,6 +1644,7 @@ impl WorkbenchApp {
 
 impl eframe::App for WorkbenchApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.poll_ingest(ctx);
         self.draw(ctx, None);
     }
 }
@@ -1345,6 +1677,7 @@ impl WorkbenchHost {
 
 impl eframe::App for WorkbenchHost {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.shell.poll_ingest(ctx);
         self.shell.draw(ctx, Some(&mut self.app));
     }
 }
@@ -1357,40 +1690,6 @@ fn parse_required_text(raw: &str, field: &str) -> Result<String, rigforge_app::A
         )));
     }
     Ok(trimmed.to_string())
-}
-
-fn parse_integral_i64(raw: &str, field: &str) -> Result<i64, rigforge_app::AppError> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Err(rigforge_app::AppError::Catalog(format!(
-            "registration: {field} is required"
-        )));
-    }
-    if trimmed.contains('.') {
-        return Err(rigforge_app::AppError::Catalog(format!(
-            "registration: {field} must be an integral frame; got {trimmed}"
-        )));
-    }
-    trimmed.parse::<i64>().map_err(|_| {
-        rigforge_app::AppError::Catalog(format!("registration: invalid {field}: {trimmed}"))
-    })
-}
-
-fn parse_integral_u32(raw: &str, field: &str) -> Result<u32, rigforge_app::AppError> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Err(rigforge_app::AppError::Catalog(format!(
-            "registration: {field} is required"
-        )));
-    }
-    if trimmed.contains('.') {
-        return Err(rigforge_app::AppError::Catalog(format!(
-            "registration: {field} must be an integral value; got {trimmed}"
-        )));
-    }
-    trimmed.parse::<u32>().map_err(|_| {
-        rigforge_app::AppError::Catalog(format!("registration: invalid {field}: {trimmed}"))
-    })
 }
 
 #[cfg(test)]

@@ -25,7 +25,10 @@ V1-8 COMPLETE / PASS / BASELINED
 Gate D PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0 PASS / DESIGN COMPLETE / BASELINED
-R1-A READY / NOT STARTED
+R1-1 COMPLETE / PASS / BASELINED
+R1-2 READY / NOT STARTED
+R1-V NOT STARTED
+R1-FIX CONDITIONAL
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
@@ -41,9 +44,9 @@ is PASS. Public redistribution is not automatically authorized. Blender
 redistribution / legal remains HUMAN / LEGAL REVIEW REQUIRED.
 Do not start V1-7 export. Do not open Gate C2. Do not open Gate D2.
 No additional V1 implementation stage is authorized.
-Post-V1 R1 (First-Use UX Hardening) R1-0 is **PASS / DESIGN COMPLETE / BASELINED**.
-R1-A is **READY / NOT STARTED**. Do not start R1-B or R1-C in the same
-implementation task as R1-A.
+Post-V1 R1-0 is **PASS / DESIGN COMPLETE / BASELINED**. R1-1 First-Use Ingest
+Experience is **COMPLETE / PASS / BASELINED**. R1-2 is **READY / NOT STARTED**.
+Do not reopen the superseded R1-A / R1-B / R1-C execution sequence.
 
 ## Source of Truth
 
@@ -124,9 +127,13 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-Start R1-A — Native Asset Selection.
+Start R1-2 — Responsive Execution Experience.
 
-Do not start R1-B or R1-C in the same implementation task.
+R1-2 should address Transfer execute wait, QC inspection,
+fresh reopen, truthful running state, and overall Workbench responsiveness.
+
+Do not reopen R1-A or R1-B as separate stages.
+Do not use the superseded old R1 lifecycle.
 V1 remains COMPLETE.
 Gate D remains PASS / CLOSED.
 Do not reopen V1.

@@ -4,13 +4,28 @@ First-use ingest UX and responsive long operations.
 
 Status: `R1-0 PASS / DESIGN COMPLETE / BASELINED`
 
+Current implementation lifecycle:
+
+```text
+R1-1 First-Use Ingest Experience COMPLETE / PASS / BASELINED
+R1-2 Responsive Execution Experience READY / NOT STARTED
+R1-V Integrated Validation + Human UAT NOT STARTED
+R1-FIX CONDITIONAL
+R1 Gate NOT STARTED
+```
+
+Historical R1-0 design decomposition: `R1-A / R1-B / R1-C`.
+Current implementation batching: `R1-1 / R1-2 / R1-V / optional R1-FIX / R1 Gate`.
+The R1-A / R1-B / R1-C headings below remain the accepted design decomposition.
+They are not the current execution sequence.
+
 This document is post-V1 design. It does not change V1 Product authority.
 V1 remains `COMPLETE`. Gate D remains `PASS / CLOSED`.
 
 Requirements: [R1_FIRST_USE_UX_REQUIREMENTS.md](../product/R1_FIRST_USE_UX_REQUIREMENTS.md).
 Roadmap: [R1_ROADMAP.md](../development/R1_ROADMAP.md).
 UAT: [R1_UAT_PLAN.md](../development/R1_UAT_PLAN.md).
-File-dialog selection: [ADR-0007](decisions/ADR-0007-r1-native-file-dialog.md) (`Accepted` design; crate not added until R1-A).
+File-dialog selection: [ADR-0007](decisions/ADR-0007-r1-native-file-dialog.md) (`Accepted`; `rfd` 0.17.2 is added in R1-1).
 
 ## Current V1 UX (source-confirmed)
 
@@ -21,14 +36,16 @@ runs V1-8 `reconcile_interrupted_runtime` once at startup.
 
 ### Character / Motion registration
 
-Current collapsing panels require typed fields:
+Current collapsing panels (V1 baseline this design was written against) required typed fields:
 
 - Character: display name, local path
 - Motion: display name, local path, Source Skeleton name, clip identifier,
   start frame, end frame, FPS numerator, FPS denominator
 
-`on_register_character_clicked` / `on_register_motion_clicked` call
-`Application::register_local_*` with `BlenderSkeletonInspector::production()`.
+`on_register_character_clicked` / `on_register_motion_clicked` historically
+called `Application::register_local_*` with `BlenderSkeletonInspector::production()`.
+R1-1 Workbench uses `register_*_from_inspection` after background
+`inspect_source`. `register_local_*` remains for tests and fixtures.
 That inspector launches an isolated Blender `inspect` process and waits on
 `Command::output()` (`blender-worker/src/inspect.rs`). The wait currently
 runs on the egui thread.
@@ -37,10 +54,9 @@ runs on the egui thread.
 clip identity and `TimePoint::frames`. Paths and SHA-256 are
 `SourceArtifactEvidence` only. Product IDs remain generated Domain IDs.
 
-Current worker `inspect_skeleton` (`blender-worker/python/worker.py`):
-
-- imports FBX with `use_anim=False`
-- if several armatures exist, silently selects `max(..., key=len(bones))`
+V1 worker `inspect_skeleton` (`blender-worker/python/worker.py`) imported FBX with
+`use_anim=False`. If several armatures existed, it silently selected
+`max(..., key=len(bones))`.
 
 That silent max-bones choice is forbidden on every R1 production inspect
 path. R1 does not add a durable Product Armature-subobject schema. Files
@@ -903,6 +919,13 @@ No Derived Variant was published.”
 | Compatibility not exact | request_transfer graph check unchanged |
 
 ## R1-A / R1-B / R1-C implementation boundaries
+
+Historical R1-0 design decomposition. Current implementation batching maps:
+
+```text
+old R1-A + old R1-B  →  R1-1
+old R1-C Transfer/QC/reopen responsiveness  →  R1-2
+```
 
 Do not implement these in R1-0. Expected modules after design acceptance:
 

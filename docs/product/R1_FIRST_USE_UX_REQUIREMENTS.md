@@ -6,6 +6,19 @@ This is not a V1 stage, not V1-9, and not a Gate D reopening.
 
 Status: `R1-0 PASS / DESIGN COMPLETE / BASELINED`
 
+Current implementation lifecycle:
+
+```text
+R1-1 First-Use Ingest Experience COMPLETE / PASS / BASELINED
+R1-2 Responsive Execution Experience READY / NOT STARTED
+R1-V Integrated Validation + Human UAT NOT STARTED
+R1-FIX CONDITIONAL
+R1 Gate NOT STARTED
+```
+
+Historical R1-0 design decomposition: `R1-A / R1-B / R1-C`.
+Current implementation batching: `R1-1 / R1-2 / R1-V / optional R1-FIX / R1 Gate`.
+
 V1 technical baseline remains `COMPLETE`. Gate D remains `PASS / CLOSED`.
 Independent Gate D result remains `GATE_D_PASS_CANDIDATE`.
 
@@ -133,7 +146,7 @@ Normal path is native Browse, not a typed filesystem string.
 | Filter | FBX |
 | Cancel | leave the previous selection unchanged |
 | Display name | derived from filename stem; remains editable |
-| Drag/drop | not R1-A acceptance; optional later polish |
+| Drag/drop | not R1-1 acceptance; optional later polish |
 
 Manual path typing is not the normal user path.
 

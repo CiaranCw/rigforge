@@ -1,13 +1,13 @@
 # R1 UAT Plan
 
-Mandatory real-human first-use checkpoint after R1-A/B/C and R1-FR.
+Mandatory real-human first-use checkpoint as part of R1-V (historical R1-FR + R1-UAT).
 
 Status: `NOT STARTED`
 
 This is not a speed contest. Do not set an artificial time-to-success
 target before measuring a baseline.
 
-R1-D is authorized only by issues observed or clearly reproduced here.
+R1-FIX is authorized only by issues observed or clearly reproduced here.
 
 ## Frozen task
 
@@ -60,7 +60,7 @@ Record:
 | blocking waits | which operations froze the window, duration |
 | time to first successful Preview | wall clock from first Browse to Derived Preview |
 
-Expected if R1-A/B/C landed:
+Expected if R1-1 and R1-2 landed:
 
 - Browse instead of typed paths
 - no typed skeleton / clip / frames / FPS when those observations are unique
@@ -80,7 +80,7 @@ Historical PoC evidence (`POC-BLENDER-E2E-01`) records that
 `UAL2_Standard.fbx` is not a single plain Walk take; it listed at least
 `Walk_Carry_Loop` and `Zombie_Walk_Fwd_Loop`.
 
-UAT-2 uses that **same already permitted file** if R1-B discovery reports
+UAT-2 uses that **same already permitted file** if R1-1 discovery reports
 two or more usable clips **strongly associated with the unique Armature**
 (`direct_action`, `nla_strip`, or `pose_channels`).
 
@@ -114,11 +114,12 @@ Do not download random assets to satisfy this checkbox.
 5. After success or abandonment, copy the registered Motion clip identity
    from Catalog/Workbench (operator, not user) for UAT-2 correlation.
 
-## R1-D authorization
+## R1-FIX authorization
 
 Default: only UAT-observed or clearly reproduced issues.
+Historical name: R1-D.
 
-Examples that *may* become R1-D if seen:
+Examples that *may* become R1-FIX if seen:
 
 - unclear label
 - bad default
@@ -127,7 +128,7 @@ Examples that *may* become R1-D if seen:
 - layout issue
 - Cancel becoming necessary because waits are long
 
-Do not pre-load R1-D with speculative features.
+Do not pre-load R1-FIX with speculative features.
 
 ## Evidence
 
