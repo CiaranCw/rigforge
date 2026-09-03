@@ -33,6 +33,8 @@ NO CONCRETE PRODUCT CONSUMER REQUIREMENT
 V1-8: COMPLETE / PASS / BASELINED
 Gate D: PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
+R1-0: PASS / DESIGN COMPLETE / BASELINED
+R1-A: READY / NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -60,8 +62,11 @@ consumer). V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is
 Technical V1 release readiness is PASS. Public redistribution is not
 automatically authorized. Blender redistribution / legal remains
 HUMAN / LEGAL REVIEW REQUIRED. Do not start V1-7 export. Do not open
-Gate D2. No additional V1 implementation stage is authorized by the
-current roadmap.
+Gate D2. No additional V1 implementation stage is authorized.
+Post-V1 R1-0 (First-Use UX Hardening design) is **PASS / DESIGN COMPLETE / BASELINED**.
+R1-A is **READY / NOT STARTED**. Do not start R1-B or R1-C in the same
+implementation task as R1-A.
+Contract: [R1_ROADMAP.md](R1_ROADMAP.md).
 Storage: SQLite **Accepted**
 ([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
 GUI: egui/eframe **Accepted**
@@ -122,6 +127,14 @@ Gate D
 PASS / CLOSED
 Final independent result: GATE_D_PASS_CANDIDATE
 Technical V1 release readiness: PASS
+        ↓
+R1-0
+PASS / DESIGN COMPLETE / BASELINED
+First-Use UX Hardening design
+        ↓
+R1-A
+READY / NOT STARTED
+Native Asset Selection
 ```
 
 ## Historical research — COMPLETE
@@ -253,22 +266,18 @@ and review evidence. Historical Gate C text stays historical.
 ## Current next step
 
 ```text
-RigForge V1 technical implementation and the fixed independent Gate
-sequence are COMPLETE.
+Start R1-A — Native Asset Selection.
 
-Gate D:
-PASS / CLOSED.
+V1 remains COMPLETE.
+Gate D remains PASS / CLOSED.
 
-No additional V1 implementation stage is authorized by the current
-roadmap.
-
-Public redistribution remains subject to documented external/human
-prerequisites.
+Do not start R1-B or R1-C in the same implementation task.
+Do not reopen V1.
+Do not reopen Gate D.
+Do not create V1-9.
 ```
 
-Do not open Gate D2. Do not start V1-7 export. Future work requires a
-separately authorized post-V1 roadmap, release packaging/distribution
-decision, or new Product requirement.
+Do not open Gate D2. Do not start V1-7 export.
 
 Historical GATE-C-OBS-001 remains historical Gate C evidence. V1-8 owns
 current native Workbench event-wiring disposition.

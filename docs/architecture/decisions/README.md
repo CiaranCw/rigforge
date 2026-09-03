@@ -14,6 +14,7 @@ Suggested name: `ADR-XXXX-<short-title>.md`
 | [ADR-0004](ADR-0004-v1-workbench-gui.md) | V1 Workbench GUI | Accepted |
 | [ADR-0005](ADR-0005-v1-blender-worker-process.md) | V1 production Blender worker process | Accepted |
 | [ADR-0006](ADR-0006-v1-engine-independent-preview.md) | V1 engine-independent Preview | Accepted |
+| [ADR-0007](ADR-0007-r1-native-file-dialog.md) | R1 native file dialog (`rfd`) | Accepted |
 
 ## Format
 

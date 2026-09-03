@@ -24,6 +24,8 @@ NO CONCRETE PRODUCT CONSUMER REQUIREMENT
 V1-8 COMPLETE / PASS / BASELINED
 Gate D PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
+R1-0 PASS / DESIGN COMPLETE / BASELINED
+R1-A READY / NOT STARTED
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
@@ -38,7 +40,10 @@ independent result: `GATE_D_PASS_CANDIDATE`. Technical V1 release readiness
 is PASS. Public redistribution is not automatically authorized. Blender
 redistribution / legal remains HUMAN / LEGAL REVIEW REQUIRED.
 Do not start V1-7 export. Do not open Gate C2. Do not open Gate D2.
-No additional V1 implementation stage is authorized by the current roadmap.
+No additional V1 implementation stage is authorized.
+Post-V1 R1 (First-Use UX Hardening) R1-0 is **PASS / DESIGN COMPLETE / BASELINED**.
+R1-A is **READY / NOT STARTED**. Do not start R1-B or R1-C in the same
+implementation task as R1-A.
 
 ## Source of Truth
 
@@ -50,6 +55,7 @@ No additional V1 implementation stage is authorized by the current roadmap.
 | [docs/architecture/](docs/architecture/) | Current V1 architecture principles |
 | [docs/architecture/decisions/](docs/architecture/decisions/) | Architecture Decision Records |
 | [docs/development/ROADMAP.md](docs/development/ROADMAP.md) | Phase status and next plans |
+| [docs/development/R1_ROADMAP.md](docs/development/R1_ROADMAP.md) | Post-V1 R1 First-Use UX lifecycle |
 
 Read the relevant file. Do not treat chat history as the contract.
 
@@ -118,23 +124,18 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-RigForge V1 technical implementation and the fixed independent Gate
-sequence are COMPLETE.
+Start R1-A — Native Asset Selection.
 
-Gate D:
-PASS / CLOSED.
-
-No additional V1 implementation stage is authorized by the current
-roadmap.
-
-Public redistribution remains subject to documented external/human
-prerequisites.
+Do not start R1-B or R1-C in the same implementation task.
+V1 remains COMPLETE.
+Gate D remains PASS / CLOSED.
+Do not reopen V1.
+Do not reopen Gate D.
+Do not create V1-9.
 ```
 
 Do not start V1-7 export. Do not open Gate C2.
 Do not open a post-Gate-C or V1-5 release audit. Do not open Gate D2.
-Future work requires a separately authorized post-V1 roadmap, release
-packaging/distribution decision, or new Product requirement.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
 SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is

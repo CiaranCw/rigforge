@@ -83,6 +83,10 @@ implementation stage. V1-4 is `COMPLETE / PASS / BASELINED`. V1-5 is
 V1-8 is **COMPLETE / PASS / BASELINED**.
 Gate D is **PASS / CLOSED**. Final independent result: `GATE_D_PASS_CANDIDATE`.
 
+Post-V1 R1-0 First-Use UX Hardening is **PASS / DESIGN COMPLETE / BASELINED**:
+[R1_UX_ARCHITECTURE.md](R1_UX_ARCHITECTURE.md). R1-A is **READY / NOT STARTED**.
+Do not start R1-B or R1-C in the same implementation task as R1-A.
+
 ## Decisions
 
 Record changes of mind as ADRs: [decisions/README.md](decisions/README.md).
