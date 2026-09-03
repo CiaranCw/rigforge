@@ -2,7 +2,11 @@
 
 Mandatory real-human first-use checkpoint as part of R1-V (historical R1-FR + R1-UAT).
 
-Status: `NOT STARTED`
+Status: `FINDINGS / awaiting re-UAT`
+
+R1-V Human UAT confirmed `R1-V-MAJOR-001`. R1-FIX is an implementation
+complete candidate. Re-UAT uses
+[R1_INTEGRATED_VALIDATION.md](R1_INTEGRATED_VALIDATION.md).
 
 R1-2 is `COMPLETE / PASS / BASELINED`. Transfer execute, QC inspect, and
 fresh-reopen waits are off the egui thread. UAT still confirms that a real

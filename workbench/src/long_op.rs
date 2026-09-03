@@ -37,13 +37,13 @@ impl TransferPhase {
 
     pub fn user_label(self) -> &'static str {
         match self {
-            Self::Launching => "Launching Blender…",
-            Self::RunningExecute => "Running Transfer…",
-            Self::BindingWorkerResult | Self::ValidatingQc => "Validating result…",
-            Self::ValidatingPersistence => "Checking persisted result…",
-            Self::Publishing => "Publishing Derived Variant…",
-            Self::Complete => "Transfer complete",
-            Self::Failed => "Transfer failed",
+            Self::Launching => crate::i18n::PHASE_LAUNCHING,
+            Self::RunningExecute => crate::i18n::PHASE_RUNNING,
+            Self::BindingWorkerResult | Self::ValidatingQc => crate::i18n::PHASE_VALIDATING,
+            Self::ValidatingPersistence => crate::i18n::PHASE_PERSISTENCE,
+            Self::Publishing => crate::i18n::PHASE_PUBLISHING,
+            Self::Complete => crate::i18n::PHASE_COMPLETE,
+            Self::Failed => crate::i18n::PHASE_FAILED,
         }
     }
 }

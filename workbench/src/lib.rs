@@ -21,11 +21,14 @@ use rigforge_app::{
 use rigforge_blender_worker::BlenderSkeletonInspector;
 
 pub mod file_pick;
+pub mod fonts;
+pub mod i18n;
 pub mod ingest;
 pub mod long_op;
 pub mod native_exec;
 pub mod preview_host;
 
+pub use fonts::install_cjk_fonts;
 pub use long_op::{format_elapsed, QcAcquireFn, ReopenAcquireFn, TransferPhase};
 
 use crate::file_pick::FilePickState;
@@ -117,7 +120,7 @@ impl WorkbenchApp {
             selected_derived_variant_version: None,
             jobs: Vec::new(),
             preview: PreviewEmbeddingSlot::default(),
-            preview_status: "no Preview generated".into(),
+            preview_status: crate::i18n::PREVIEW_NONE.into(),
             preview_valid: false,
             mapping_entries: Vec::new(),
             unmapped: Vec::new(),
@@ -258,7 +261,7 @@ impl WorkbenchApp {
             return;
         };
         self.character_inspecting = true;
-        self.character_ingest_status = Some("Inspecting Character…".into());
+        self.character_ingest_status = Some(crate::i18n::STATUS_INSPECTING_CHARACTER.into());
         match crate::ingest::spawn_source_inspect(
             self.character_request_id,
             IngestKind::Character,
@@ -281,7 +284,7 @@ impl WorkbenchApp {
             return;
         };
         self.motion_inspecting = true;
-        self.motion_ingest_status = Some("Inspecting Motion…".into());
+        self.motion_ingest_status = Some(crate::i18n::STATUS_INSPECTING_MOTION.into());
         match crate::ingest::spawn_source_inspect(
             self.motion_request_id,
             IngestKind::Motion,
@@ -308,7 +311,7 @@ impl WorkbenchApp {
         match outcome {
             Ok(inspection) => {
                 self.character_inspection = Some(inspection);
-                self.character_ingest_status = Some("Character source is ready.".into());
+                self.character_ingest_status = Some(crate::i18n::STATUS_CHARACTER_READY.into());
             }
             Err(err) => {
                 self.character_inspection = None;
@@ -343,9 +346,9 @@ impl WorkbenchApp {
                         .unwrap_or(INGEST_NO_CLIPS)
                         .to_string()
                 } else if usable_count > 1 {
-                    "Multiple animation clips were found. Choose one clip.".into()
+                    crate::i18n::STATUS_MULTI_CLIPS.into()
                 } else {
-                    "Motion source is ready.".into()
+                    crate::i18n::STATUS_MOTION_READY.into()
                 });
                 self.motion_inspection = Some(inspection);
             }
@@ -461,6 +464,44 @@ impl WorkbenchApp {
 
     pub fn selected_derived_variant_version(&self) -> Option<&str> {
         self.selected_derived_variant_version.as_deref()
+    }
+
+    pub fn selected_character_display_name(&self) -> Option<&str> {
+        display_name_for(&self.characters, self.selected_character_version.as_deref())
+    }
+
+    pub fn selected_motion_display_name(&self) -> Option<&str> {
+        display_name_for(&self.motions, self.selected_motion_version.as_deref())
+    }
+
+    pub fn selected_derived_display_name(&self) -> Option<&str> {
+        display_name_for(&self.derived, self.selected_derived_variant_version.as_deref())
+    }
+
+    #[doc(hidden)]
+    pub fn bind_list_items_for_test(
+        &mut self,
+        characters: Vec<AssetListItem>,
+        motions: Vec<AssetListItem>,
+        derived: Vec<AssetListItem>,
+    ) {
+        self.characters = characters;
+        self.motions = motions;
+        self.derived = derived;
+    }
+
+    fn selected_motion_clip_presentation(
+        &self,
+        app: Option<&Application>,
+    ) -> Option<(String, Option<String>)> {
+        let version_id = self.selected_motion_version.as_deref()?;
+        let app = app?;
+        let version = app.catalog().load_motion_version(version_id).ok()?;
+        let time = version.as_record().time();
+        Some((
+            crate::i18n::clip_friendly_label(time.clip_identity_evidence()),
+            crate::i18n::format_time_range(time),
+        ))
     }
 
     pub fn preview_status(&self) -> &str {
@@ -626,7 +667,13 @@ impl WorkbenchApp {
             .unmapped_source()
             .iter()
             .chain(version.unmapped_target())
-            .map(|u| format!("{} {:?}", u.joint_key().as_str(), u.disposition()))
+            .map(|u| {
+                format!(
+                    "{} · {}",
+                    u.joint_key().as_str(),
+                    crate::i18n::unmapped_disposition_zh(u.disposition())
+                )
+            })
             .collect();
         self.ambiguities = version.review().ambiguities().to_vec();
         if version.lifecycle() == Lifecycle::Published {
@@ -840,7 +887,7 @@ impl WorkbenchApp {
             "Workbench Mapping",
         )?;
         self.bind_mapping_draft(logical.as_record().id().canonical(), draft.as_record());
-        self.workflow_status = Some("Mapping draft stored; explicit accept is required".into());
+        self.workflow_status = Some(crate::i18n::MSG_MAPPING_DRAFT.into());
         Ok(())
     }
 
@@ -859,7 +906,7 @@ impl WorkbenchApp {
     ) -> Result<(), rigforge_app::AppError> {
         self.require_no_active_mutation()?;
         self.accept_current_mapping(app)?;
-        self.workflow_status = Some("Mapping accepted".into());
+        self.workflow_status = Some(crate::i18n::MSG_MAPPING_ACCEPTED.into());
         Ok(())
     }
 
@@ -898,8 +945,8 @@ impl WorkbenchApp {
         self.apply_compatibility_result(result.as_record());
         self.refresh_transfer_authorization(app)?;
         self.workflow_status = Some(format!(
-            "Compatibility {}",
-            self.compatibility_summary.as_deref().unwrap_or("recorded")
+            "兼容性检查：{}",
+            crate::i18n::summary_zh(self.compatibility_summary.as_deref().unwrap_or("recorded"))
         ));
         Ok(())
     }
@@ -1346,10 +1393,7 @@ impl WorkbenchApp {
         self.reload_from_application(app)?;
         self.select_character_version(&registered.version_id);
         self.bind_published_mapping_for_current_selection(app)?;
-        self.workflow_status = Some(format!(
-            "Registered Character version {}",
-            registered.version_id
-        ));
+        self.workflow_status = Some(crate::i18n::character_added_status(&display_name));
         Ok(())
     }
 
@@ -1364,17 +1408,25 @@ impl WorkbenchApp {
         })?;
         let clip = self
             .motion_selected_clip
-            .as_deref()
+            .clone()
             .ok_or_else(|| rigforge_app::AppError::Catalog(INGEST_NO_CLIPS.into()))?;
+        let clip_label = self
+            .motion_inspection
+            .as_ref()
+            .and_then(|inspection| {
+                inspection
+                    .usable_clips()
+                    .into_iter()
+                    .find(|candidate| candidate.clip_identity == clip)
+                    .map(|candidate| candidate.display_label.clone())
+            })
+            .unwrap_or_else(|| crate::i18n::clip_friendly_label(&clip));
         let registered =
-            app.register_motion_from_inspection(&display_name, inspection, clip)?;
+            app.register_motion_from_inspection(&display_name, inspection, &clip)?;
         self.reload_from_application(app)?;
         self.select_motion_version(&registered.version_id);
         self.bind_published_mapping_for_current_selection(app)?;
-        self.workflow_status = Some(format!(
-            "Registered Motion version {}",
-            registered.version_id
-        ));
+        self.workflow_status = Some(crate::i18n::motion_added_status(&display_name, &clip_label));
         Ok(())
     }
 
@@ -1613,7 +1665,7 @@ impl WorkbenchApp {
         eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
                 .with_inner_size([1100.0, 720.0])
-                .with_title("RigForge Workbench"),
+                .with_title(crate::i18n::WINDOW_TITLE),
             ..Default::default()
         }
     }
@@ -1621,19 +1673,26 @@ impl WorkbenchApp {
 
 impl WorkbenchApp {
     pub fn draw(&mut self, ctx: &egui::Context, mut app: Option<&mut Application>) {
+        use crate::i18n;
         egui::TopBottomPanel::top("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.strong("RigForge Workbench");
+                ui.strong(i18n::APP_NAME);
                 ui.separator();
-                ui.label("local-first");
+                ui.label(i18n::STATUS_LOCAL);
                 ui.separator();
-                ui.label("no Blender in this process");
+                ui.label(i18n::STATUS_NO_BLENDER_UI);
                 if self.mutation_locked() {
                     ui.separator();
                     ui.spinner();
                     if let Some(op) = &self.long_op {
                         ui.label(op.phase.user_label());
-                        ui.label(format!("Elapsed {}", op.elapsed_label()));
+                        ui.label(format!("{} {}", i18n::ELAPSED_PREFIX, op.elapsed_label()));
+                    }
+                }
+                if let Some(note) = crate::fonts::install_note() {
+                    if note.contains("未找到") {
+                        ui.separator();
+                        ui.weak(note);
                     }
                 }
             });
@@ -1641,9 +1700,13 @@ impl WorkbenchApp {
         egui::SidePanel::left("browser")
             .default_width(320.0)
             .show(ctx, |ui| {
-                ui.heading("Asset Browser");
+                egui::ScrollArea::vertical()
+                    .id_salt("left_user_content")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                ui.heading(i18n::ASSET_BROWSER);
                 ui.separator();
-                ui.collapsing("Characters", |ui| {
+                ui.collapsing(i18n::CHARACTERS, |ui| {
                     let mut picked = None;
                     let can_switch = !self.mutation_locked();
                     for item in &self.characters {
@@ -1672,10 +1735,10 @@ impl WorkbenchApp {
                         }
                     }
                     if self.characters.is_empty() {
-                        ui.weak("No Character assets");
+                        ui.weak(i18n::EMPTY_CHARACTERS);
                     }
                 });
-                ui.collapsing("Motions", |ui| {
+                ui.collapsing(i18n::MOTIONS, |ui| {
                     let mut picked = None;
                     let can_switch = !self.mutation_locked();
                     for item in &self.motions {
@@ -1704,10 +1767,10 @@ impl WorkbenchApp {
                         }
                     }
                     if self.motions.is_empty() {
-                        ui.weak("No Motion assets");
+                        ui.weak(i18n::EMPTY_MOTIONS);
                     }
                 });
-                ui.collapsing("Derived Variants", |ui| {
+                ui.collapsing(i18n::DERIVED_VARIANTS, |ui| {
                     let mut picked = None;
                     for item in &self.derived {
                         let id = item
@@ -1724,18 +1787,18 @@ impl WorkbenchApp {
                         self.select_derived_variant_version(id);
                     }
                     if self.derived.is_empty() {
-                        ui.weak("No Derived Variants");
+                        ui.weak(i18n::EMPTY_DERIVED);
                     }
                 });
                 ui.separator();
-                ui.collapsing("Add Character", |ui| {
-                    ui.label("Display name");
+                ui.collapsing(i18n::ADD_CHARACTER_SECTION, |ui| {
+                    ui.label(i18n::DISPLAY_NAME);
                     ui.text_edit_singleline(&mut self.character_pick.display_name);
                     ui.horizontal(|ui| {
                         let browse = if self.character_pick.path.is_some() {
-                            "Change"
+                            i18n::CHANGE
                         } else {
-                            "Browse"
+                            i18n::BROWSE
                         };
                         if ui
                             .add_enabled(!self.mutation_locked(), egui::Button::new(browse))
@@ -1748,13 +1811,13 @@ impl WorkbenchApp {
                         }
                         if self.character_inspecting {
                             ui.spinner();
-                            ui.label("Inspecting Character…");
+                            ui.label(i18n::STATUS_INSPECTING_CHARACTER);
                         }
                     });
                     if self.character_pick.filename.is_empty() {
-                        ui.weak("No FBX selected");
+                        ui.weak(i18n::NO_FBX);
                     } else {
-                        ui.label(format!("File: {}", self.character_pick.filename))
+                        ui.label(format!("{}：{}", i18n::FILE, self.character_pick.filename))
                             .on_hover_text(
                                 self.character_pick
                                     .path
@@ -1764,11 +1827,11 @@ impl WorkbenchApp {
                             );
                     }
                     if let Some(status) = &self.character_ingest_status {
-                        ui.label(status.clone());
+                        ui.label(i18n::present_user_text(status));
                     }
                     let add_enabled = self.character_can_add() && app.is_some();
                     if ui
-                        .add_enabled(add_enabled, egui::Button::new("Add Character"))
+                        .add_enabled(add_enabled, egui::Button::new(i18n::BTN_ADD_CHARACTER))
                         .clicked()
                     {
                         if let Some(app) = app.as_mut() {
@@ -1776,21 +1839,18 @@ impl WorkbenchApp {
                                 self.workflow_status = Some(err.to_string());
                             }
                         } else {
-                            self.workflow_status = Some(
-                                "Native Application path is required for Character registration"
-                                    .into(),
-                            );
+                            self.workflow_status = Some(i18n::ERR_NEED_APP_CHARACTER.into());
                         }
                     }
                 });
-                ui.collapsing("Add Motion", |ui| {
-                    ui.label("Display name");
+                ui.collapsing(i18n::ADD_MOTION_SECTION, |ui| {
+                    ui.label(i18n::DISPLAY_NAME);
                     ui.text_edit_singleline(&mut self.motion_pick.display_name);
                     ui.horizontal(|ui| {
                         let browse = if self.motion_pick.path.is_some() {
-                            "Change"
+                            i18n::CHANGE
                         } else {
-                            "Browse"
+                            i18n::BROWSE
                         };
                         if ui
                             .add_enabled(!self.mutation_locked(), egui::Button::new(browse))
@@ -1803,13 +1863,13 @@ impl WorkbenchApp {
                         }
                         if self.motion_inspecting {
                             ui.spinner();
-                            ui.label("Inspecting Motion…");
+                            ui.label(i18n::STATUS_INSPECTING_MOTION);
                         }
                     });
                     if self.motion_pick.filename.is_empty() {
-                        ui.weak("No FBX selected");
+                        ui.weak(i18n::NO_FBX);
                     } else {
-                        ui.label(format!("File: {}", self.motion_pick.filename))
+                        ui.label(format!("{}：{}", i18n::FILE, self.motion_pick.filename))
                             .on_hover_text(
                                 self.motion_pick
                                     .path
@@ -1835,23 +1895,29 @@ impl WorkbenchApp {
                                     (
                                         clip.clip_identity.clone(),
                                         clip.display_label.clone(),
-                                        clip.presentation_line(),
+                                        i18n::clip_timing_zh(
+                                            clip.start_frame,
+                                            clip.end_frame,
+                                            clip.fps_num,
+                                            clip.fps_den,
+                                        ),
                                     )
                                 })
                                 .collect()
                         })
                         .unwrap_or_default();
                     if let Some(skeleton) = motion_skeleton {
-                        ui.label(format!("Source Skeleton: {skeleton}"));
+                        ui.label(format!("{}：{skeleton}", i18n::SOURCE_SKELETON));
                     }
                     if clips.len() > 1 {
+                        ui.weak(i18n::CLIP_HINT);
                         let mut selected = self.motion_selected_clip.clone().unwrap_or_default();
                         let current_label = clips
                             .iter()
                             .find(|(id, _, _)| *id == selected)
                             .map(|(_, label, line)| format!("{label}  {line}"))
-                            .unwrap_or_else(|| "Choose a clip".into());
-                        egui::ComboBox::from_label("Animation clip")
+                            .unwrap_or_else(|| i18n::CHOOSE_CLIP.into());
+                        egui::ComboBox::from_label(i18n::ANIMATION_CLIP)
                             .selected_text(current_label)
                             .show_ui(ui, |ui| {
                                 for (id, label, line) in &clips {
@@ -1868,15 +1934,15 @@ impl WorkbenchApp {
                             Some(selected)
                         };
                     } else if let Some((_, label, line)) = clips.first() {
-                        ui.label(format!("Clip: {label}"));
+                        ui.label(format!("{}：{label}", i18n::ANIMATION_CLIP));
                         ui.label(line);
                     }
                     if let Some(status) = &self.motion_ingest_status {
-                        ui.label(status.clone());
+                        ui.label(i18n::present_user_text(status));
                     }
                     let add_enabled = self.motion_can_add() && app.is_some();
                     if ui
-                        .add_enabled(add_enabled, egui::Button::new("Add Motion"))
+                        .add_enabled(add_enabled, egui::Button::new(i18n::BTN_ADD_MOTION))
                         .clicked()
                     {
                         if let Some(app) = app.as_mut() {
@@ -1884,53 +1950,93 @@ impl WorkbenchApp {
                                 self.workflow_status = Some(err.to_string());
                             }
                         } else {
-                            self.workflow_status = Some(
-                                "Native Application path is required for Motion registration"
-                                    .into(),
-                            );
+                            self.workflow_status = Some(i18n::ERR_NEED_APP_MOTION.into());
                         }
                     }
                 });
+                    });
             });
+        let clip_presentation = self.selected_motion_clip_presentation(app.as_deref());
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Selection / Transfer Tray");
+            egui::ScrollArea::vertical()
+                .id_salt("central_workflow")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+            ui.heading(i18n::CURRENT_SELECTION);
             ui.label(format!(
-                "Character version: {}",
-                self.selected_character_version
-                    .as_deref()
-                    .unwrap_or("(none)")
+                "{}：{}",
+                i18n::LABEL_CHARACTER,
+                self.selected_character_display_name().unwrap_or(
+                    if self.selected_character_version.is_some() {
+                        "已选择"
+                    } else {
+                        i18n::NONE_SELECTED
+                    }
+                )
             ));
             ui.label(format!(
-                "Derived version: {}",
-                self.selected_derived_variant_version
-                    .as_deref()
-                    .unwrap_or("(none)")
+                "{}：{}",
+                i18n::LABEL_MOTION,
+                self.selected_motion_display_name().unwrap_or(
+                    if self.selected_motion_version.is_some() {
+                        "已选择"
+                    } else {
+                        i18n::NONE_SELECTED
+                    }
+                )
             ));
+            match &clip_presentation {
+                Some((label, Some(timing))) => {
+                    ui.label(format!("{}：{label}", i18n::LABEL_CLIP));
+                    ui.weak(timing);
+                }
+                Some((label, None)) => {
+                    ui.label(format!("{}：{label}", i18n::LABEL_CLIP));
+                }
+                None => {
+                    ui.label(format!("{}：{}", i18n::LABEL_CLIP, i18n::NONE_SELECTED));
+                }
+            }
+            ui.label(format!(
+                "{}：{}",
+                i18n::LABEL_DERIVED,
+                self.selected_derived_display_name()
+                    .unwrap_or(if self.selected_derived_variant_version.is_some() {
+                        i18n::PUBLISHED
+                    } else {
+                        i18n::DERIVED_NOT_CREATED
+                    })
+            ));
+            if let Some(status) = &self.workflow_status {
+                ui.label(format!("{}：{}", i18n::STATUS, i18n::present_user_text(status)));
+            }
+            ui.weak(i18n::WORKFLOW_GUIDE);
             ui.separator();
-            ui.heading("Mapping / Compatibility");
-            ui.label(format!("proposed entries: {}", self.mapping_entries.len()));
-            for entry in &self.mapping_entries {
-                ui.label(entry);
-            }
-            ui.label(format!("unmapped: {}", self.unmapped.len()));
-            for item in &self.unmapped {
-                ui.label(item);
-            }
-            ui.label(format!("ambiguities: {}", self.ambiguities.len()));
-            for item in &self.ambiguities {
-                ui.label(item);
-            }
+            ui.heading(i18n::SECTION_MAPPING);
             ui.label(format!(
-                "mapping accepted: {}",
-                self.mapping_accepted()
+                "{}：{}    {}：{}    {}：{}",
+                i18n::MAPPED_COUNT,
+                self.mapping_entries.len(),
+                i18n::UNMAPPED_COUNT,
+                self.unmapped.len(),
+                i18n::AMBIGUITY_COUNT,
+                self.ambiguities.len()
             ));
-            if let Some(id) = &self.accepted_mapping_version_id {
-                ui.label(format!("accepted MappingVersion: {id}"));
-            }
+            let mapping_state = if self.mapping_accepted() {
+                i18n::MAPPING_ACCEPTED
+            } else if self.mapping_version_id.is_some() {
+                i18n::MAPPING_PENDING
+            } else {
+                i18n::MAPPING_NONE
+            };
+            ui.label(format!("{}：{mapping_state}", i18n::MAPPING_STATUS));
             ui.horizontal(|ui| {
                 let mapping_enabled = !self.mutation_locked();
                 if ui
-                    .add_enabled(mapping_enabled, egui::Button::new("Propose Mapping"))
+                    .add_enabled(
+                        mapping_enabled,
+                        egui::Button::new(i18n::BTN_PROPOSE_MAPPING),
+                    )
                     .clicked()
                 {
                     if let Some(app) = app.as_mut() {
@@ -1938,12 +2044,14 @@ impl WorkbenchApp {
                             self.workflow_status = Some(err.to_string());
                         }
                     } else {
-                        self.workflow_status =
-                            Some("Native Application path is required for Mapping".into());
+                        self.workflow_status = Some(i18n::ERR_NEED_APP_MAPPING.into());
                     }
                 }
                 if ui
-                    .add_enabled(mapping_enabled, egui::Button::new("Accept Mapping"))
+                    .add_enabled(
+                        mapping_enabled,
+                        egui::Button::new(i18n::BTN_ACCEPT_MAPPING),
+                    )
                     .clicked()
                 {
                     if let Some(app) = app.as_mut() {
@@ -1951,12 +2059,14 @@ impl WorkbenchApp {
                             self.workflow_status = Some(err.to_string());
                         }
                     } else {
-                        self.workflow_status =
-                            Some("Native Application path is required for Mapping".into());
+                        self.workflow_status = Some(i18n::ERR_NEED_APP_MAPPING.into());
                     }
                 }
                 if ui
-                    .add_enabled(mapping_enabled, egui::Button::new("Evaluate Compatibility"))
+                    .add_enabled(
+                        mapping_enabled,
+                        egui::Button::new(i18n::BTN_EVALUATE_COMPAT),
+                    )
                     .clicked()
                 {
                     if let Some(app) = app.as_mut() {
@@ -1964,40 +2074,90 @@ impl WorkbenchApp {
                             self.workflow_status = Some(err.to_string());
                         }
                     } else {
-                        self.workflow_status =
-                            Some("Native Application path is required for Compatibility".into());
+                        self.workflow_status = Some(i18n::ERR_NEED_APP_COMPAT.into());
                     }
                 }
             });
-            ui.heading("Compatibility dimensions");
-            for (name, value) in &self.compatibility_dimensions {
-                ui.label(format!("{name}: {value}"));
+            egui::CollapsingHeader::new(i18n::MAPPING_DETAILS)
+                .default_open(false)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("mapping_rows")
+                        .max_height(180.0)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.strong(i18n::MAPPED_JOINTS);
+                            if self.mapping_entries.is_empty() {
+                                ui.weak("—");
+                            }
+                            for entry in &self.mapping_entries {
+                                ui.label(entry);
+                            }
+                            ui.strong(i18n::UNMAPPED_JOINTS);
+                            if self.unmapped.is_empty() {
+                                ui.weak("—");
+                            }
+                            for item in &self.unmapped {
+                                ui.label(item);
+                            }
+                            ui.strong(i18n::AMBIGUITIES);
+                            if self.ambiguities.is_empty() {
+                                ui.weak("—");
+                            }
+                            for item in &self.ambiguities {
+                                ui.label(item);
+                            }
+                        });
+                });
+            ui.separator();
+            ui.heading(i18n::SECTION_COMPAT);
+            ui.label(format!(
+                "{}：{}",
+                i18n::COMPAT_OVERALL,
+                self.compatibility_summary
+                    .as_deref()
+                    .map(i18n::summary_zh)
+                    .unwrap_or_else(|| i18n::NONE_SELECTED.to_string())
+            ));
+            if !self.compatibility_dimensions.is_empty() {
+                ui.strong(i18n::COMPAT_DETAILS);
+                for (name, value) in &self.compatibility_dimensions {
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::dimension_zh(name),
+                        i18n::judgment_zh(value)
+                    ));
+                }
+            }
+            if !self.compatibility_notes.is_empty() {
+                ui.strong(i18n::COMPAT_WARNINGS);
+                for note in &self.compatibility_notes {
+                    ui.label(note);
+                }
             }
             ui.label(format!(
-                "overall: {}",
-                self.compatibility_summary.as_deref().unwrap_or("(none)")
+                "{}：{}",
+                i18n::TRANSFER_STATE,
+                i18n::transfer_eligibility_zh(
+                    self.transfer_auth.as_ref(),
+                    self.warnings_acknowledged
+                )
             ));
-            for note in &self.compatibility_notes {
-                ui.label(format!("warning: {note}"));
-            }
-            ui.label(format!(
-                "Transfer eligibility: {}",
-                self.transfer_eligibility_label()
-            ));
-            if self.transfer_auth.as_ref().map(|a| a.requires_acknowledgement).unwrap_or(false) {
+            if self
+                .transfer_auth
+                .as_ref()
+                .map(|a| a.requires_acknowledgement)
+                .unwrap_or(false)
+            {
                 let mut ack = self.warnings_acknowledged;
                 let ack_enabled = !self.mutation_locked();
                 let changed = ui
                     .add_enabled(
                         ack_enabled,
-                        egui::Checkbox::new(
-                            &mut ack,
-                            "I acknowledge these Compatibility warnings",
-                        ),
+                        egui::Checkbox::new(&mut ack, i18n::ACK_WARNINGS),
                     )
                     .changed();
-                if changed
-                {
+                if changed {
                     if let Some(app) = app.as_mut() {
                         if let Err(err) = self.on_warnings_checkbox_changed(app, ack) {
                             self.workflow_status = Some(err.to_string());
@@ -2007,8 +2167,10 @@ impl WorkbenchApp {
                     }
                 }
             }
+            ui.separator();
+            ui.heading(i18n::SECTION_TRANSFER);
             if ui
-                .add_enabled(self.transfer_available(), egui::Button::new("Transfer"))
+                .add_enabled(self.transfer_available(), egui::Button::new(i18n::BTN_TRANSFER))
                 .clicked()
             {
                 if let Some(app) = app.as_mut() {
@@ -2016,12 +2178,14 @@ impl WorkbenchApp {
                         self.workflow_status = Some(err.to_string());
                     }
                 } else {
-                    self.workflow_status =
-                        Some("Native Application path is required for Transfer".into());
+                    self.workflow_status = Some(i18n::ERR_NEED_APP_TRANSFER.into());
                 }
             }
             if !self.transfer_available() {
-                ui.weak(self.transfer_eligibility_label());
+                ui.weak(i18n::transfer_eligibility_zh(
+                    self.transfer_auth.as_ref(),
+                    self.warnings_acknowledged,
+                ));
             }
             if let Some(op) = &self.long_op {
                 ui.horizontal(|ui| {
@@ -2029,57 +2193,52 @@ impl WorkbenchApp {
                         ui.spinner();
                     }
                     ui.label(op.phase.user_label());
-                    ui.label(format!("Elapsed {}", op.elapsed_label()));
+                    ui.label(format!("{} {}", i18n::ELAPSED_PREFIX, op.elapsed_label()));
                 });
             }
-            if let Some(phase) = &self.transfer_phase {
-                ui.label(format!("Transfer phase: {phase}"));
-            }
-            if let Some(id) = &self.derived_variant_id {
-                ui.label(format!("DerivedVariant: {id}"));
-            }
-            if let Some(id) = &self.derived_variant_version_id {
-                ui.label(format!("DerivedVariantVersion: {id}"));
-            }
             if let Some(state) = &self.publication_state {
-                ui.label(format!("publication: {state}"));
+                ui.label(format!("{}：{}", i18n::PUBLICATION, i18n::publication_zh(state)));
             }
             if let Some(verdict) = &self.qc_verdict {
-                ui.label(format!("QC verdict: {verdict}"));
+                ui.label(format!("{}：{}", i18n::QC, i18n::qc_zh(verdict)));
             }
-            if let Some(id) = &self.persistence_verification {
-                ui.label(format!("PersistenceVerification: {id}"));
-            }
-            if let Some(status) = &self.workflow_status {
-                ui.label(format!("workflow: {status}"));
+            if self.persistence_verification.is_some() {
+                ui.label(format!("{}：已记录", i18n::PERSISTENCE));
             }
             ui.separator();
-            ui.heading("Job status");
-            if self.jobs.is_empty() {
-                ui.weak("No jobs");
-            }
-            for job in &self.jobs {
-                ui.label(format!("{}  {}", job.state, job.run_id));
-            }
-            ui.separator();
+            ui.heading(i18n::SECTION_PREVIEW);
             ui.group(|ui| {
-                ui.strong("Preview");
+                ui.strong(i18n::PREVIEW);
                 ui.label(format!(
-                    "Viewer: {} {}",
+                    "{}：{} {}",
+                    i18n::VIEWER,
                     PreviewEmbeddingSlot::viewer_library().unwrap_or("unset"),
                     preview_host::VIEWER_VERSION
                 ));
                 ui.label(format!(
-                    "Payload: {} (Preview payload, not Product format)",
-                    PreviewEmbeddingSlot::payload_format().unwrap_or("unset")
+                    "{}：{}（{}）",
+                    i18n::PAYLOAD,
+                    PreviewEmbeddingSlot::payload_format().unwrap_or("unset"),
+                    i18n::PREVIEW_PAYLOAD_NOTE
                 ));
-                ui.label(format!("status: {}", self.preview_status));
-                ui.label(format!("valid: {}", self.preview_valid));
-                ui.label(format!("occupied: {}", self.preview.occupied));
-                ui.weak("Preview is derived, rebuildable, and non-authoritative.");
+                ui.label(format!(
+                    "{}：{}",
+                    i18n::STATUS,
+                    i18n::present_user_text(&self.preview_status)
+                ));
+                ui.label(format!(
+                    "预览结果：{}",
+                    if self.preview_valid {
+                        i18n::PREVIEW_VALID
+                    } else {
+                        i18n::PREVIEW_INVALID
+                    }
+                ));
+                ui.weak(i18n::PREVIEW_DERIVED_NOTE);
+                ui.weak(i18n::PREVIEW_SYNC_NOTE);
                 if let Some(app) = app.as_mut() {
                     ui.horizontal(|ui| {
-                        if ui.button("Preview Character").clicked() {
+                        if ui.button(i18n::BTN_PREVIEW_CHARACTER).clicked() {
                             if let Some(id) = self.selected_character_version.clone() {
                                 let _ = self.request_preview(
                                     app,
@@ -2089,10 +2248,10 @@ impl WorkbenchApp {
                                 );
                             } else {
                                 self.preview_valid = false;
-                                self.preview_status = "no Preview generated".into();
+                                self.preview_status = i18n::PREVIEW_NONE.into();
                             }
                         }
-                        if ui.button("Preview Motion").clicked() {
+                        if ui.button(i18n::BTN_PREVIEW_MOTION).clicked() {
                             if let Some(id) = self.selected_motion_version.clone() {
                                 let _ = self.request_preview(
                                     app,
@@ -2102,10 +2261,10 @@ impl WorkbenchApp {
                                 );
                             } else {
                                 self.preview_valid = false;
-                                self.preview_status = "no Preview generated".into();
+                                self.preview_status = i18n::PREVIEW_NONE.into();
                             }
                         }
-                        if ui.button("Preview Derived Variant").clicked() {
+                        if ui.button(i18n::BTN_PREVIEW_DERIVED).clicked() {
                             if let Some(id) = self.selected_derived_variant_version.clone() {
                                 let _ = self.request_preview(
                                     app,
@@ -2115,10 +2274,10 @@ impl WorkbenchApp {
                                 );
                             } else {
                                 self.preview_valid = false;
-                                self.preview_status = "no Preview generated".into();
+                                self.preview_status = i18n::PREVIEW_NONE.into();
                             }
                         }
-                        if ui.button("Regenerate Preview").clicked() {
+                        if ui.button(i18n::BTN_REGENERATE_PREVIEW).clicked() {
                             if let Some(id) = self.selected_derived_variant_version.clone() {
                                 let _ = self.regenerate_preview(
                                     app,
@@ -2141,10 +2300,69 @@ impl WorkbenchApp {
                         }
                     });
                 } else {
-                    ui.weak("Native Application path is required for click-to-preview.");
+                    ui.weak(i18n::ERR_NEED_APP_PREVIEW);
                 }
             });
-            let _ = JobRunState::Queued;
+            ui.separator();
+            egui::CollapsingHeader::new(i18n::TECHNICAL_DETAILS)
+                .default_open(false)
+                .show(ui, |ui| {
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::ID_CHARACTER_VERSION,
+                        self.selected_character_version
+                            .as_deref()
+                            .unwrap_or("—")
+                    ));
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::ID_MOTION_VERSION,
+                        self.selected_motion_version.as_deref().unwrap_or("—")
+                    ));
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::ID_MAPPING_VERSION,
+                        self.accepted_mapping_version_id
+                            .as_deref()
+                            .or(self.mapping_version_id.as_deref())
+                            .unwrap_or("—")
+                    ));
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::ID_COMPAT,
+                        self.compatibility_id.as_deref().unwrap_or("—")
+                    ));
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::ID_DERIVED_VARIANT,
+                        self.derived_variant_id.as_deref().unwrap_or("—")
+                    ));
+                    ui.label(format!(
+                        "{}：{}",
+                        i18n::ID_DERIVED_VERSION,
+                        self.selected_derived_variant_version
+                            .as_deref()
+                            .unwrap_or("—")
+                    ));
+                    if self.jobs.is_empty() {
+                        ui.weak(i18n::NO_JOBS);
+                    }
+                    for job in &self.jobs {
+                        ui.label(format!(
+                            "{}：{}  {}",
+                            i18n::ID_JOB_RUN,
+                            i18n::job_state_zh(&job.state),
+                            job.run_id
+                        ));
+                    }
+                    if let Some(phase) = &self.transfer_phase {
+                        ui.label(format!("transfer_phase：{phase}"));
+                    }
+                    if let Some(id) = &self.persistence_verification {
+                        ui.label(format!("PersistenceVerification ID：{id}"));
+                    }
+                });
+                });
         });
     }
 }
@@ -2188,6 +2406,17 @@ impl eframe::App for WorkbenchHost {
         let _ = self.shell.poll_long_op(&mut self.app, Some(ctx));
         self.shell.draw(ctx, Some(&mut self.app));
     }
+}
+
+fn display_name_for<'a>(
+    items: &'a [AssetListItem],
+    version_id: Option<&str>,
+) -> Option<&'a str> {
+    let version_id = version_id?;
+    items
+        .iter()
+        .find(|item| item.published_version_id.as_deref() == Some(version_id))
+        .map(|item| item.display_name.as_str())
 }
 
 fn parse_required_text(raw: &str, field: &str) -> Result<String, rigforge_app::AppError> {

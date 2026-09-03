@@ -2,7 +2,7 @@
 
 Post-V1 lifecycle. This is not V1-9 and does not reopen Gate D.
 
-Status: `R1-2 COMPLETE / PASS / BASELINED`
+Status: `R1-V FINDINGS / awaiting re-UAT`
 
 Do not confuse this track with the historical W0 research file
 [R1_RESEARCH_BASELINE.md](../research/R1_RESEARCH_BASELINE.md). That file
@@ -17,8 +17,8 @@ Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0: PASS / DESIGN COMPLETE / BASELINED
 R1-1: COMPLETE / PASS / BASELINED
 R1-2: COMPLETE / PASS / BASELINED
-R1-V: READY / NOT STARTED
-R1-FIX: CONDITIONAL
+R1-V: FINDINGS / awaiting re-UAT
+R1-FIX: implementation complete candidate
 R1 Gate: NOT STARTED
 ```
 
@@ -39,10 +39,10 @@ COMPLETE / PASS / BASELINED
         ↓
 R1-V
 Integrated Validation + Human UAT
-READY / NOT STARTED
+FINDINGS / awaiting re-UAT
         ↓
 R1-FIX
-CONDITIONAL — only if R1-V finds concrete issues
+implementation complete candidate
         ↓
 R1 Gate
 Independent First-Use Readiness Audit
@@ -93,9 +93,10 @@ Historical R1-A/B/C names remain in R1-0 architecture text as design decompositi
 ## Current next step
 
 ```text
-Start R1-V — Integrated Validation + Human UAT.
+Resume the SAME R1-V stage with one Human re-UAT.
 
-Do not create another implementation stage unless R1-V finds a concrete issue.
+Do not start R1 Gate yet.
+Do not create another implementation stage unless re-UAT finds a concrete issue.
 Do not reopen R1-A or R1-B as separate stages.
 Do not use the superseded old R1 lifecycle.
 Do not reopen V1.
@@ -126,6 +127,8 @@ R1-0 is `PASS / DESIGN COMPLETE / BASELINED`.
 
 R1-1 is `COMPLETE / PASS / BASELINED`.
 R1-2 is `COMPLETE / PASS / BASELINED`.
-R1-V is `READY / NOT STARTED`.
-R1-FIX remains conditional. Do not start Cancel, Retry, or a worker
-pool unless R1-V finds a concrete requirement.
+R1-V is `FINDINGS / awaiting re-UAT` after Human UAT confirmed
+`R1-V-MAJOR-001`. R1-FIX is an `implementation complete candidate`.
+See [R1_INTEGRATED_VALIDATION.md](R1_INTEGRATED_VALIDATION.md).
+Do not start R1 Gate yet. Do not start Cancel, Retry, or a worker
+pool unless re-UAT finds a concrete requirement.

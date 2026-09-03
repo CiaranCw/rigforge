@@ -27,8 +27,8 @@ Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0 PASS / DESIGN COMPLETE / BASELINED
 R1-1 COMPLETE / PASS / BASELINED
 R1-2 COMPLETE / PASS / BASELINED
-R1-V READY / NOT STARTED
-R1-FIX CONDITIONAL
+R1-V FINDINGS / AWAITING RE-UAT
+R1-FIX IMPLEMENTATION COMPLETE CANDIDATE
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
@@ -46,7 +46,8 @@ Do not start V1-7 export. Do not open Gate C2. Do not open Gate D2.
 No additional V1 implementation stage is authorized.
 Post-V1 R1-0 is **PASS / DESIGN COMPLETE / BASELINED**. R1-1 First-Use Ingest
 Experience is **COMPLETE / PASS / BASELINED**. R1-2 Responsive Execution
-Experience is **COMPLETE / PASS / BASELINED**. R1-V is **READY / NOT STARTED**.
+Experience is **COMPLETE / PASS / BASELINED**. R1-V is **FINDINGS / awaiting re-UAT**.
+R1-FIX is an **implementation complete candidate**. Do not start R1 Gate.
 Do not reopen the superseded R1-A / R1-B / R1-C execution sequence.
 
 ## Source of Truth
@@ -128,9 +129,10 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-Start R1-V — Integrated Validation + Human UAT.
+Resume the SAME R1-V stage with one Human re-UAT.
 
-Do not create another implementation stage unless R1-V finds a concrete issue.
+Do not start R1 Gate yet.
+Do not create another implementation stage unless re-UAT finds a concrete issue.
 Do not reopen R1-A or R1-B as separate stages.
 Do not use the superseded old R1 lifecycle.
 V1 remains COMPLETE.

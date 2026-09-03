@@ -8,6 +8,11 @@ description = "V1-2 Workbench shell: egui/eframe Asset Browser surface. Not a Pr
 license = "UNLICENSED"
 
 [dependencies]
+# ab_glyph is already required by egui/epaint (Apache-2.0 OR MIT). Workbench
+# uses it only to validate a discovered system CJK face before egui
+# set_fonts, which panics on parse failure. No font files are vendored.
+# MSRV follows egui 0.31 (rust-version 1.81).
+ab_glyph = "0.2.32"
 eframe = "0.31.1"
 egui = "0.31.1"
 rigforge_app = { path = "../app" }

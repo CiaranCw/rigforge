@@ -1067,11 +1067,13 @@ fn native_draw_source_wires_product_actions() {
     assert!(src.contains("on_transfer_action"));
     assert!(src.contains("on_register_character_clicked"));
     assert!(src.contains("on_register_motion_clicked"));
-    assert!(src.contains("Propose Mapping"));
-    assert!(src.contains("Accept Mapping"));
-    assert!(src.contains("Evaluate Compatibility"));
-    assert!(src.contains("Add Character"));
-    assert!(src.contains("Add Motion"));
+    assert!(src.contains("i18n::BTN_PROPOSE_MAPPING"));
+    assert!(src.contains("i18n::BTN_ACCEPT_MAPPING"));
+    assert!(src.contains("i18n::BTN_EVALUATE_COMPAT"));
+    assert!(src.contains("i18n::BTN_ADD_CHARACTER"));
+    assert!(src.contains("i18n::BTN_ADD_MOTION"));
+    assert!(src.contains("i18n::BTN_TRANSFER"));
+    assert!(src.contains("ScrollArea::vertical"));
     assert!(!src.contains("Transfer checkbox/button remain presentation-only"));
 }
 

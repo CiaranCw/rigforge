@@ -2616,6 +2616,7 @@ dependencies = [
 name = "rigforge_workbench"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "eframe",
  "egui",
  "rfd",

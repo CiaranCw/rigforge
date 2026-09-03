@@ -189,14 +189,18 @@ fn motion_single_clip_is_auto_selected() {
 #[test]
 fn ingest_ui_does_not_require_typed_path() {
     let src = include_str!("../src/lib.rs");
+    let i18n = include_str!("../src/i18n.rs");
     assert!(src.contains("pick_fbx_file"));
-    assert!(src.contains("Add Character"));
-    assert!(src.contains("Add Motion"));
+    assert!(src.contains("i18n::BTN_ADD_CHARACTER"));
+    assert!(src.contains("i18n::BTN_ADD_MOTION"));
     assert!(!src.contains("ui.text_edit_singleline(&mut self.character_path_input)"));
     assert!(!src.contains("character_path_input"));
     assert!(!src.contains("motion_path_input"));
-    assert!(src.contains("Inspecting Character"));
-    assert!(src.contains("Inspecting Motion"));
+    assert!(src.contains("i18n::STATUS_INSPECTING_CHARACTER"));
+    assert!(src.contains("i18n::STATUS_INSPECTING_MOTION"));
+    assert!(i18n.contains("添加角色"));
+    assert!(i18n.contains("添加到资产库"));
+    assert!(src.contains("ScrollArea::vertical"));
 }
 
 #[test]
