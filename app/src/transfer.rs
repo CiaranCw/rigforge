@@ -1,6 +1,6 @@
 //! V1-5 Transfer authorization, candidate lifecycle, and publication.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rigforge_domain::{
     publish_derived_variant, BoneMappingVersion, CompatibilityResult, CompatibilitySummary,
@@ -14,7 +14,7 @@ use crate::orchestration::{JobRun, JobRunState};
 use crate::pinned_qc::{
     inspect_durable_persistence_artifact, reopen_durable_persistence_artifact,
 };
-use crate::qc::evaluate_structural_qc;
+use crate::qc::{evaluate_structural_qc, ArtifactInspectionEvidence};
 use crate::Application;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -47,6 +47,24 @@ pub struct TransferOutcome {
     pub qc_verdict: Option<String>,
     pub persistence_verification_id: Option<String>,
     pub reason: Option<String>,
+}
+
+/// Immutable QC inspect inputs. Prepared on the UI/Application thread.
+#[derive(Clone, Debug)]
+pub struct QcAcquisitionRequest {
+    pub derived_version_id: String,
+    pub artifact_path: PathBuf,
+    pub expected_sha256: String,
+    pub mapping: BoneMappingVersion,
+}
+
+/// Immutable persistence-reopen inputs. Prepared on the UI/Application thread.
+#[derive(Clone, Debug)]
+pub struct PersistenceReopenRequest {
+    pub derived_version_id: String,
+    pub artifact_path: PathBuf,
+    pub expected_sha256: String,
+    pub mapping: BoneMappingVersion,
 }
 
 impl Application {
@@ -200,6 +218,60 @@ impl Application {
         &mut self,
         derived_version_id: &str,
     ) -> Result<Validated<QcReport>, AppError> {
+        let request = self.prepare_qc_acquisition(derived_version_id)?;
+        let evidence = inspect_durable_persistence_artifact(
+            &request.artifact_path,
+            &request.expected_sha256,
+            Some(&request.mapping),
+        )?;
+        self.bind_qc_from_evidence(derived_version_id, evidence)
+    }
+
+    pub fn verify_and_bind_persistence(
+        &mut self,
+        derived_version_id: &str,
+    ) -> Result<Validated<PersistenceVerification>, AppError> {
+        let request = self.prepare_reopen_acquisition(derived_version_id)?;
+        let (fresh, structural) = reopen_durable_persistence_artifact(
+            &request.artifact_path,
+            &request.expected_sha256,
+            &request.mapping,
+        )?;
+        self.bind_verification_from_outcomes(derived_version_id, fresh, structural)
+    }
+
+    pub fn prepare_qc_acquisition(
+        &self,
+        derived_version_id: &str,
+    ) -> Result<QcAcquisitionRequest, AppError> {
+        let (artifact_path, expected_sha256, mapping) =
+            self.persistence_evidence_inputs(derived_version_id)?;
+        Ok(QcAcquisitionRequest {
+            derived_version_id: derived_version_id.to_string(),
+            artifact_path,
+            expected_sha256,
+            mapping,
+        })
+    }
+
+    pub fn prepare_reopen_acquisition(
+        &self,
+        derived_version_id: &str,
+    ) -> Result<PersistenceReopenRequest, AppError> {
+        let (artifact_path, expected_sha256, mapping) =
+            self.persistence_evidence_inputs(derived_version_id)?;
+        Ok(PersistenceReopenRequest {
+            derived_version_id: derived_version_id.to_string(),
+            artifact_path,
+            expected_sha256,
+            mapping,
+        })
+    }
+
+    fn persistence_evidence_inputs(
+        &self,
+        derived_version_id: &str,
+    ) -> Result<(PathBuf, String, BoneMappingVersion), AppError> {
         let version = self
             .catalog
             .load_derived_variant_version(derived_version_id)?
@@ -216,46 +288,17 @@ impl Application {
             .catalog
             .load_mapping_version(&version.mapping_version_id().canonical())?
             .into_record();
-        let evidence = inspect_durable_persistence_artifact(
-            &path,
-            artifact.digest().sha256(),
-            Some(&mapping),
-        )?;
-        self.bind_qc_from_evidence(derived_version_id, evidence)
+        Ok((
+            path,
+            artifact.digest().sha256().to_string(),
+            mapping,
+        ))
     }
 
-    pub fn verify_and_bind_persistence(
+    pub fn bind_qc_from_evidence(
         &mut self,
         derived_version_id: &str,
-    ) -> Result<Validated<PersistenceVerification>, AppError> {
-        let version = self
-            .catalog
-            .load_derived_variant_version(derived_version_id)?
-            .into_record();
-        let artifact_id = version.persistence_artifact_id().ok_or_else(|| {
-            AppError::Catalog("persistence verification requires a bound PersistenceArtifact".into())
-        })?;
-        let artifact = self
-            .catalog
-            .load_artifact_metadata(&artifact_id.canonical())?
-            .into_record();
-        let path = self.catalog.durable_artifact_path(&artifact);
-        let mapping = self
-            .catalog
-            .load_mapping_version(&version.mapping_version_id().canonical())?
-            .into_record();
-        let (fresh, structural) = reopen_durable_persistence_artifact(
-            &path,
-            artifact.digest().sha256(),
-            &mapping,
-        )?;
-        self.bind_verification_from_outcomes(derived_version_id, fresh, structural)
-    }
-
-    fn bind_qc_from_evidence(
-        &mut self,
-        derived_version_id: &str,
-        evidence: crate::qc::ArtifactInspectionEvidence,
+        evidence: ArtifactInspectionEvidence,
     ) -> Result<Validated<QcReport>, AppError> {
         let mut version = self
             .catalog
@@ -292,7 +335,7 @@ impl Application {
         Ok(qc)
     }
 
-    fn bind_verification_from_outcomes(
+    pub fn bind_verification_from_outcomes(
         &mut self,
         derived_version_id: &str,
         fresh: VerificationOutcome,
@@ -389,6 +432,35 @@ impl Application {
         let qc = self.evaluate_and_bind_qc(&version.as_record().id().canonical())?;
         let verification =
             self.verify_and_bind_persistence(&version.as_record().id().canonical())?;
+        Ok(self.complete_finalize(run, logical, version, qc, verification))
+    }
+
+    pub fn complete_publication_decision(
+        &mut self,
+        run_id: &str,
+        derived_version_id: &str,
+    ) -> Result<TransferOutcome, AppError> {
+        let run = self.catalog.load_job_run(run_id)?;
+        if run.state != JobRunState::Succeeded {
+            return Ok(denied_not_succeeded(run));
+        }
+        let version = self.catalog.load_derived_variant_version(derived_version_id)?;
+        let qc_id = version.as_record().qc_report_id().ok_or_else(|| {
+            AppError::Catalog("publication requires a bound QcReport".into())
+        })?;
+        let verification_id = version
+            .as_record()
+            .persistence_verification_id()
+            .ok_or_else(|| {
+                AppError::Catalog("publication requires a bound PersistenceVerification".into())
+            })?;
+        let logical = self
+            .catalog
+            .load_derived_variant(&version.as_record().variant_id().canonical())?;
+        let qc = self.catalog.load_qc_report(&qc_id.canonical())?;
+        let verification = self
+            .catalog
+            .load_persistence_verification(&verification_id.canonical())?;
         Ok(self.complete_finalize(run, logical, version, qc, verification))
     }
 

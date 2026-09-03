@@ -1023,6 +1023,42 @@ impl SqliteCatalog {
         })
     }
 
+    /// Persist an already-collected terminal worker outcome.
+    ///
+    /// Does not wait on a worker. Call this after
+    /// [`WorkerCompletionPort::collect`] has already returned. Do not call
+    /// [`Self::collect`] for the same run after that wait.
+    pub fn apply_terminal_outcome(
+        &mut self,
+        run_id: &str,
+        outcome: TerminalOutcome,
+    ) -> Result<(JobRun, TerminalOutcome), AppError> {
+        let run = self.load_job_run(run_id)?;
+        if run.state != JobRunState::Running {
+            return Err(AppError::InvalidTransition {
+                from: run.state,
+                to: JobRunState::Succeeded,
+            });
+        }
+        match &outcome {
+            TerminalOutcome::Success(result) => {
+                if let Err(err) = self.complete_success(run_id, result) {
+                    let reason = format!("terminal collection failure: {err}");
+                    self.complete_terminal_failure(run_id, reason, None)?;
+                    return Err(err);
+                }
+            }
+            TerminalOutcome::Failed {
+                reason,
+                worker_result,
+                ..
+            } => {
+                self.complete_terminal_failure(run_id, reason.clone(), worker_result.as_ref())?;
+            }
+        }
+        Ok((self.load_job_run(run_id)?, outcome))
+    }
+
     /// Collect a launched attempt and write the matching terminal JobRun state.
     pub fn collect<C: WorkerCompletionPort + ?Sized>(
         &mut self,
@@ -1058,23 +1094,7 @@ impl SqliteCatalog {
                 ));
             }
         };
-        match &outcome {
-            TerminalOutcome::Success(result) => {
-                if let Err(err) = self.complete_success(run_id, result) {
-                    let reason = format!("terminal collection failure: {err}");
-                    self.complete_terminal_failure(run_id, reason, None)?;
-                    return Err(err);
-                }
-            }
-            TerminalOutcome::Failed {
-                reason,
-                worker_result,
-                ..
-            } => {
-                self.complete_terminal_failure(run_id, reason.clone(), worker_result.as_ref())?;
-            }
-        }
-        Ok((self.load_job_run(run_id)?, outcome))
+        self.apply_terminal_outcome(run_id, outcome)
     }
 
     /// Exact Catalog projection used at dispatch. Never resolves latest/current.

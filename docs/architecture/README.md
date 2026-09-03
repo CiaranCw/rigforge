@@ -85,7 +85,7 @@ Gate D is **PASS / CLOSED**. Final independent result: `GATE_D_PASS_CANDIDATE`.
 
 Post-V1 R1-0 First-Use UX Hardening is **PASS / DESIGN COMPLETE / BASELINED**:
 [R1_UX_ARCHITECTURE.md](R1_UX_ARCHITECTURE.md). R1-1 is **COMPLETE / PASS / BASELINED**.
-R1-2 is **READY / NOT STARTED**. Historical R1-A / R1-B / R1-C
+R1-2 is **COMPLETE / PASS / BASELINED**. R1-V is **READY / NOT STARTED**. Historical R1-A / R1-B / R1-C
 names remain design decomposition, not the current implementation sequence.
 
 ## Decisions

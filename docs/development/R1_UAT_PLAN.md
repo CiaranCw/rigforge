@@ -4,6 +4,10 @@ Mandatory real-human first-use checkpoint as part of R1-V (historical R1-FR + R1
 
 Status: `NOT STARTED`
 
+R1-2 is `COMPLETE / PASS / BASELINED`. Transfer execute, QC inspect, and
+fresh-reopen waits are off the egui thread. UAT still confirms that a real
+user can complete first-use without a frozen window.
+
 This is not a speed contest. Do not set an artificial time-to-success
 target before measuring a baseline.
 

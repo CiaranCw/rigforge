@@ -10,8 +10,8 @@ Current implementation lifecycle:
 
 ```text
 R1-1 First-Use Ingest Experience COMPLETE / PASS / BASELINED
-R1-2 Responsive Execution Experience READY / NOT STARTED
-R1-V Integrated Validation + Human UAT NOT STARTED
+R1-2 Responsive Execution Experience COMPLETE / PASS / BASELINED
+R1-V Integrated Validation + Human UAT READY / NOT STARTED
 R1-FIX CONDITIONAL
 R1 Gate NOT STARTED
 ```

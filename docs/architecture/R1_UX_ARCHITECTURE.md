@@ -8,8 +8,8 @@ Current implementation lifecycle:
 
 ```text
 R1-1 First-Use Ingest Experience COMPLETE / PASS / BASELINED
-R1-2 Responsive Execution Experience READY / NOT STARTED
-R1-V Integrated Validation + Human UAT NOT STARTED
+R1-2 Responsive Execution Experience COMPLETE / PASS / BASELINED
+R1-V Integrated Validation + Human UAT READY / NOT STARTED
 R1-FIX CONDITIONAL
 R1 Gate NOT STARTED
 ```
@@ -65,20 +65,22 @@ with two or more usable Armatures **fail closed**.
 ### Transfer / Preview
 
 `on_transfer_action` calls `request_transfer` (exact Compatibility graph vs
-current Character/Motion) then `native_exec::complete_native_transfer`:
+current Character/Motion) then launches execute on a background thread:
 
 ```text
 mark_dispatchable
   → dispatch (spawn Blender, persist RUNNING, DispatchReceipt)
-  → collect (wait Child + envelope)
-  → finalize_transfer (ingest, QC, PersistenceVerification, publish)
+  → background WorkerCompletionPort::collect
+  → Application.apply_terminal_outcome
+  → ingest candidate / background QC / background reopen
+  → Application publication decision
 ```
 
 `WorkerPort::dispatch_resolved` is launch-only. `WorkerCompletionPort::collect`
-waits and **does not** mark JobRun state. `SqliteCatalog::collect` currently
-wraps that wait and then persists `SUCCEEDED / FAILED`. R1-C reuses the
-existing completion port on a background thread; it does not redesign
-Catalog orchestration.
+waits and **does not** mark JobRun state. `SqliteCatalog::collect` wraps that
+wait and then persists `SUCCEEDED / FAILED`. After a background wait, the
+Workbench path calls `Application::apply_terminal_outcome` instead of
+`collect`. It does not redesign Catalog orchestration.
 
 Preview remains Application-owned payload + local host. Changing Character
 or Motion still invalidates pair-bound workflow state (Gate D MAJOR-002).
@@ -646,7 +648,9 @@ Do not treat path equality as sufficient. Digest is the binding.
 Invalidate Workbench inspection state on mismatch. Do not persist old
 clip/FPS against new bytes.
 
-## Responsive operations (R1-C)
+## Responsive operations (R1-2)
+
+R1-2 implemented this ownership split. Product authority is unchanged.
 
 ### What must not block egui
 
@@ -675,32 +679,32 @@ a second WorkbenchHost / Catalog connection on the same file
 Tokio as a general runtime
 worker pool
 automatic retry
-Cancel as an R1-0/R1-C default
+Cancel as an R1 default
 ```
 
-`complete_native_transfer` today holds `&mut Application` across `collect`.
-Moving that function onto a thread would either move Application off the UI
-or require a second open. Both are rejected.
+WorkbenchHost does not call `complete_native_transfer`. That helper remains
+a blocking non-UI path. The native Workbench path moves `BlenderWorker` and
+`DispatchReceipt` onto a background thread after durable RUNNING.
 
-### Non-blocking Transfer ownership (R1-0-MINOR-001)
+### Non-blocking Transfer ownership (R1-2)
 
-Do **not** begin R1-C by redesigning Catalog orchestration.
+Do **not** redesign Catalog orchestration to move SQLite off the UI thread.
 `WorkerCompletionPort::collect(receipt)` already means: wait for the
-launched worker; **do not** mark JobRun state. `Catalog::collect` is only
-that wait plus persist.
+launched worker; **do not** mark JobRun state. `Catalog::collect` is that
+wait plus persist. After a background wait, call
+`Application::apply_terminal_outcome` instead of `collect`.
 
 Keep **one** `Application` on `WorkbenchHost` for the process lifetime.
 
-`BlenderWorker` must be `Send`. R1-C implementation **must** compile-assert:
+`BlenderWorker` is `Send`. R1-2 compile-asserts:
 
 ```rust
 fn assert_send<T: Send>() {}
 assert_send::<BlenderWorker>();
 ```
 
-Do not assume `Send`. If the assertion fails: **STOP R1-C** and return to
-architecture review. Do not hide Application/worker behind unsafe shared
-state.
+Do not assume `Send`. The assertion is in `blender-worker/tests/r1_2_send.rs`.
+Do not hide Application/worker behind unsafe shared state.
 
 ```text
 UI thread (Product authority)
@@ -730,19 +734,20 @@ Background thread (execution wait only)
   send WaitMsg::Execute { run_id, TerminalOutcome, staged_path }
 
 UI thread
-  TerminalOutcome::Success → Application.complete_success
+  TerminalOutcome::Success → Application.apply_terminal_outcome
       (existing JobSpec / attempt_id / worker_execution_ref / WorkerResult correlation)
-  TerminalOutcome::Failed → Application.complete_failure / catalog terminal-failure binding
+  TerminalOutcome::Failed → Application.apply_terminal_outcome
   if SUCCEEDED: candidate ingest (existing finalize ingest)
 ```
 
 Do not call `Catalog::collect` after the background wait (that would wait
-again). Reuse the persist half that `Catalog::collect` already uses:
+again). Persist through `Application::apply_terminal_outcome`, which reuses
 `complete_success` / `complete_terminal_failure`.
 
 ### QC / reopen (existing free functions)
 
-Today `finalize_transfer` is UI-synchronous:
+Production `finalize_transfer` remains a blocking helper for non-UI callers.
+The Workbench path splits wait vs bind:
 
 ```text
 ingest candidate
@@ -755,7 +760,7 @@ ingest candidate
 
 `inspect_durable_persistence_artifact` and
 `reopen_durable_persistence_artifact` (`app/src/pinned_qc.rs`) already take
-path + digest + mapping projection and do **not** open Catalog. R1-C splits
+path + digest + mapping projection and do **not** open Catalog. R1-2 splits
 only the wait vs bind:
 
 ```text
@@ -812,7 +817,7 @@ TOCTOU digest/size check: mandatory before persist
 - `DISPATCHABLE` + leftover intent → durable `FAILED`
 - leftover `RUNNING` → durable `FAILED` (no reattachment)
 
-R1-C is safe if and only if:
+R1-2 is safe if and only if:
 
 ```text
 the live Transfer’s Application/Catalog connection remains the only open
@@ -839,8 +844,9 @@ While a long op is active:
 
 | Interaction | Allowed? |
 | --- | --- |
-| Asset Browser list / select for browsing | yes |
+| Asset Browser list / read-only inspect of existing items | yes |
 | Preview of already-valid local payloads | yes |
+| Character/Motion pair switching | no (locked to the Transfer graph) |
 | second Transfer | no |
 | Add Character / Add Motion / inspect | no |
 | Propose / Accept / Evaluate | no |
@@ -968,15 +974,15 @@ blender-worker/tests/                unique Armature; strong association kinds;
                                      FPS 30/1, 30/1.001, 24/1.001
 ```
 
-### R1-C — Responsive long operations
+### R1-C — Responsive long operations (implemented as R1-2)
 
 ```text
 workbench/src/native_exec.rs         dispatch on UI; collect on moved worker
-workbench/src/long_op.rs             optional mpsc + LongOp state
+workbench/src/long_op.rs             mpsc + TransferPhase / LongOpSession
 workbench/src/lib.rs                 WorkbenchHost retains sole Application
-blender-worker/tests or unit         assert_send::<BlenderWorker>()
+blender-worker/tests/r1_2_send.rs    assert_send::<BlenderWorker>()
 app/src/pinned_qc.rs                 called from background; bind stays on Application
-workbench/tests/shell.rs             Transfer button disabled while long_op
+workbench/tests/long_op.rs           Transfer lock, delayed collect, exact version
 ```
 
 Do not add Tokio. Do not open a second Application.

@@ -65,8 +65,8 @@ Gate D: PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0: PASS / DESIGN COMPLETE / BASELINED
 R1-1: COMPLETE / PASS / BASELINED
-R1-2: READY / NOT STARTED
-R1-V: NOT STARTED
+R1-2: COMPLETE / PASS / BASELINED
+R1-V: READY / NOT STARTED
 ```
 
 W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
@@ -101,7 +101,8 @@ automatically authorized. Blender redistribution / legal remains
 authorized by the current V1 roadmap. Do not start V1-7 export. Do not open
 Gate C2 or Gate D2. Post-V1 R1 First-Use UX Hardening is
 **PASS / DESIGN COMPLETE / BASELINED**. R1-1 First-Use Ingest Experience is
-**COMPLETE / PASS / BASELINED**. R1-2 is **READY / NOT STARTED**. The superseded
+**COMPLETE / PASS / BASELINED**. R1-2 is **COMPLETE / PASS / BASELINED**. R1-V is
+**READY / NOT STARTED**. The superseded
 R1-A / R1-B / R1-C execution sequence is not current authority.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
@@ -132,7 +133,8 @@ V1-6 is **COMPLETE / PASS / BASELINED**. V1-7 is `SKIPPED / OPTIONAL`.
 V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is **PASS / CLOSED**.
 RigForge V1 technical implementation and the fixed independent Gate
 sequence are **COMPLETE**. Post-V1 R1-0 is **PASS / DESIGN COMPLETE / BASELINED**.
-R1-1 is **COMPLETE / PASS / BASELINED**. R1-2 is **READY / NOT STARTED**.
+R1-1 is **COMPLETE / PASS / BASELINED**. R1-2 is **COMPLETE / PASS / BASELINED**.
+R1-V is **READY / NOT STARTED**.
 
 ## Roadmap
 

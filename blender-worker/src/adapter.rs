@@ -883,6 +883,10 @@ impl WorkerCompletionPort for BlenderWorker {
         self.last_staged_blend = Some(staged);
         Ok(TerminalOutcome::Success(result))
     }
+
+    fn last_staged_artifact(&self) -> Option<&Path> {
+        self.last_staged_blend()
+    }
 }
 
 pub fn production_worker_script() -> PathBuf {

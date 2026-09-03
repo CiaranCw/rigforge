@@ -26,8 +26,8 @@ Gate D PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0 PASS / DESIGN COMPLETE / BASELINED
 R1-1 COMPLETE / PASS / BASELINED
-R1-2 READY / NOT STARTED
-R1-V NOT STARTED
+R1-2 COMPLETE / PASS / BASELINED
+R1-V READY / NOT STARTED
 R1-FIX CONDITIONAL
 ```
 
@@ -45,7 +45,8 @@ redistribution / legal remains HUMAN / LEGAL REVIEW REQUIRED.
 Do not start V1-7 export. Do not open Gate C2. Do not open Gate D2.
 No additional V1 implementation stage is authorized.
 Post-V1 R1-0 is **PASS / DESIGN COMPLETE / BASELINED**. R1-1 First-Use Ingest
-Experience is **COMPLETE / PASS / BASELINED**. R1-2 is **READY / NOT STARTED**.
+Experience is **COMPLETE / PASS / BASELINED**. R1-2 Responsive Execution
+Experience is **COMPLETE / PASS / BASELINED**. R1-V is **READY / NOT STARTED**.
 Do not reopen the superseded R1-A / R1-B / R1-C execution sequence.
 
 ## Source of Truth
@@ -127,11 +128,9 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-Start R1-2 — Responsive Execution Experience.
+Start R1-V — Integrated Validation + Human UAT.
 
-R1-2 should address Transfer execute wait, QC inspection,
-fresh reopen, truthful running state, and overall Workbench responsiveness.
-
+Do not create another implementation stage unless R1-V finds a concrete issue.
 Do not reopen R1-A or R1-B as separate stages.
 Do not use the superseded old R1 lifecycle.
 V1 remains COMPLETE.

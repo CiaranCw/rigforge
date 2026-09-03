@@ -107,6 +107,12 @@ fn fresh_catalog_registration_to_preview_frozen_pair() {
     }
     assert!(shell.transfer_available());
     shell.on_transfer_action(&mut app).unwrap();
+    assert!(
+        shell.mutation_locked(),
+        "Transfer start must return before Blender-length waits"
+    );
+    assert_ne!(shell.publication_state(), Some("Published"));
+    shell.drive_transfer_to_terminal(&mut app).unwrap();
     assert_eq!(shell.publication_state(), Some("Published"));
     let derived_version_id = shell
         .selected_derived_variant_version()

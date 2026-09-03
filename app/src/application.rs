@@ -177,6 +177,18 @@ impl Application {
         self.catalog.collect(run_id, worker)
     }
 
+    /// Persist an already-collected terminal worker outcome.
+    ///
+    /// Does not wait on a worker. Correlation and JobRun transition remain
+    /// Catalog-owned.
+    pub fn apply_terminal_outcome(
+        &mut self,
+        run_id: &str,
+        outcome: TerminalOutcome,
+    ) -> Result<(JobRun, TerminalOutcome), AppError> {
+        self.catalog.apply_terminal_outcome(run_id, outcome)
+    }
+
     /// Test and recovery helper. Ordinary runtime completion is [`Self::collect`].
     /// Successful completion still requires exact JobSpec, attempt_id, and
     /// worker_execution_ref correlation.

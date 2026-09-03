@@ -3,6 +3,8 @@
 //! `dispatch` / `dispatch_resolved` are launch-oriented. Terminal collection
 //! is a separate `WorkerCompletionPort`. V1-2 ships `FakeWorker` only.
 
+use std::path::Path;
+
 use rigforge_domain::{JobSpec, Validated, WorkerResult};
 
 use crate::dispatch::WorkerDispatchRequest;
@@ -92,6 +94,15 @@ pub trait WorkerPort {
 /// must not leave the attempt RUNNING.
 pub trait WorkerCompletionPort {
     fn collect(&mut self, receipt: &DispatchReceipt) -> Result<TerminalOutcome, AppError>;
+
+    /// Exact staged artifact path retained by a successful collect, if any.
+    ///
+    /// Default none. Production Blender collect records this after wait.
+    /// Catalog persistence does not read this path.
+    fn last_staged_artifact(&self) -> Option<&Path> {
+        let _ = self;
+        None
+    }
 }
 
 /// In-memory fake worker. Does not spawn Blender, import bpy, or touch FBX.

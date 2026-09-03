@@ -2,7 +2,7 @@
 
 Post-V1 lifecycle. This is not V1-9 and does not reopen Gate D.
 
-Status: `R1-1 COMPLETE / PASS / BASELINED`
+Status: `R1-2 COMPLETE / PASS / BASELINED`
 
 Do not confuse this track with the historical W0 research file
 [R1_RESEARCH_BASELINE.md](../research/R1_RESEARCH_BASELINE.md). That file
@@ -16,8 +16,8 @@ Gate D: PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0: PASS / DESIGN COMPLETE / BASELINED
 R1-1: COMPLETE / PASS / BASELINED
-R1-2: READY / NOT STARTED
-R1-V: NOT STARTED
+R1-2: COMPLETE / PASS / BASELINED
+R1-V: READY / NOT STARTED
 R1-FIX: CONDITIONAL
 R1 Gate: NOT STARTED
 ```
@@ -35,11 +35,11 @@ COMPLETE / PASS / BASELINED
         ↓
 R1-2
 Responsive Execution Experience
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
         ↓
 R1-V
 Integrated Validation + Human UAT
-NOT STARTED
+READY / NOT STARTED
         ↓
 R1-FIX
 CONDITIONAL — only if R1-V finds concrete issues
@@ -82,7 +82,7 @@ The superseded R1-A / R1-B / R1-C execution sequence is not current authority.
 | --- | --- |
 | R1-0 | Design only. Freeze UX contract, discovery schema, TOCTOU, non-blocking Transfer ownership. No production mutation. |
 | R1-1 | Native FBX browse, filename-derived names, unique-Armature inspect, strong clip association, rational FPS, inspection-backed registration, background ingest inspect. Combines historical R1-A + R1-B. `pose_channels` requires exact unique-Armature bone membership (`R1-1-MAJOR-001` closed). |
-| R1-2 | Transfer execute wait, QC inspection, fresh reopen, truthful running state. Historical R1-C responsiveness. |
+| R1-2 | Transfer execute wait, QC inspection, fresh reopen, truthful running state. Historical R1-C responsiveness. **COMPLETE / PASS / BASELINED**. |
 | R1-V | Integrated source + UX review and real human first-use UAT. Historical R1-FR + R1-UAT. |
 | R1-FIX | Only issues observed or clearly reproduced in R1-V. Conditional. Historical R1-D. |
 | R1 Gate | Independent First-Use Readiness Audit by a new GPT-5.6 Sol High agent. |
@@ -93,11 +93,9 @@ Historical R1-A/B/C names remain in R1-0 architecture text as design decompositi
 ## Current next step
 
 ```text
-Start R1-2 — Responsive Execution Experience.
+Start R1-V — Integrated Validation + Human UAT.
 
-R1-2 should address Transfer execute wait, QC inspection,
-fresh reopen, truthful running state, and overall Workbench responsiveness.
-
+Do not create another implementation stage unless R1-V finds a concrete issue.
 Do not reopen R1-A or R1-B as separate stages.
 Do not use the superseded old R1 lifecycle.
 Do not reopen V1.
@@ -127,6 +125,7 @@ This is not Gate D2 and not Gate E.
 R1-0 is `PASS / DESIGN COMPLETE / BASELINED`.
 
 R1-1 is `COMPLETE / PASS / BASELINED`.
-R1-2 is the next authorized implementation batch (historical R1-C
-Transfer/QC/reopen responsiveness). Do not start Cancel, Retry, or a worker
-pool unless R1-2 explicitly requires them.
+R1-2 is `COMPLETE / PASS / BASELINED`.
+R1-V is `READY / NOT STARTED`.
+R1-FIX remains conditional. Do not start Cancel, Retry, or a worker
+pool unless R1-V finds a concrete requirement.

@@ -35,8 +35,8 @@ Gate D: PASS / CLOSED
 Final independent Gate D result: GATE_D_PASS_CANDIDATE
 R1-0: PASS / DESIGN COMPLETE / BASELINED
 R1-1: COMPLETE / PASS / BASELINED
-R1-2: READY / NOT STARTED
-R1-V: NOT STARTED
+R1-2: COMPLETE / PASS / BASELINED
+R1-V: READY / NOT STARTED
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -66,7 +66,8 @@ automatically authorized. Blender redistribution / legal remains
 HUMAN / LEGAL REVIEW REQUIRED. Do not start V1-7 export. Do not open
 Gate D2. No additional V1 implementation stage is authorized.
 Post-V1 R1-0 (First-Use UX Hardening design) is **PASS / DESIGN COMPLETE / BASELINED**.
-R1-1 is **COMPLETE / PASS / BASELINED**. R1-2 is **READY / NOT STARTED**.
+R1-1 is **COMPLETE / PASS / BASELINED**. R1-2 is **COMPLETE / PASS / BASELINED**.
+R1-V is **READY / NOT STARTED**.
 The superseded R1-A / R1-B / R1-C execution sequence is not current authority.
 Contract: [R1_ROADMAP.md](R1_ROADMAP.md).
 Storage: SQLite **Accepted**
@@ -139,11 +140,11 @@ COMPLETE / PASS / BASELINED
 First-Use Ingest Experience
         ↓
 R1-2
-READY / NOT STARTED
+COMPLETE / PASS / BASELINED
 Responsive Execution Experience
         ↓
 R1-V
-NOT STARTED
+READY / NOT STARTED
 Integrated Validation + Human UAT
 ```
 
@@ -276,8 +277,9 @@ and review evidence. Historical Gate C text stays historical.
 ## Current next step
 
 ```text
-Start R1-2 — Responsive Execution Experience.
+Start R1-V — Integrated Validation + Human UAT.
 
+Do not create another implementation stage unless R1-V finds a concrete issue.
 V1 remains COMPLETE.
 Gate D remains PASS / CLOSED.
 

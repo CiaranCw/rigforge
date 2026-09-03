@@ -86,7 +86,10 @@ pub use runtime::{
     WORKER_SCRIPT_SHA256,
 };
 pub use skeleton::{FixtureSkeletonInspector, MemorySkeletonInspector, SkeletonEvidenceProvider};
-pub use transfer::{TransferAuthorization, TransferOutcome, TransferOutcomeKind};
+pub use transfer::{
+    PersistenceReopenRequest, QcAcquisitionRequest, TransferAuthorization, TransferOutcome,
+    TransferOutcomeKind,
+};
 pub use worker::{
     DispatchReceipt, FakeWorker, TerminalOutcome, WorkerCompletionPort, WorkerFailureClass,
     WorkerPort,

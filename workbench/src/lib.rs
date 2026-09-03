@@ -8,24 +8,29 @@
 use eframe::egui;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
 use rigforge_app::rigforge_domain::{
-    BoneMappingVersion, CompatibilityResult, Lifecycle,
+    BoneMappingVersion, CompatibilityResult, Lifecycle, VerificationOutcome,
 };
 use rigforge_app::{
     Application, AssetListItem, CharacterSourceInspection, JobRunState, MappingAssistProfile,
     MotionSourceInspection, PreviewGenerationRequest, PreviewSubject, SkeletonEvidenceProvider,
-    TransferAuthorization, TransferOutcome, TransferOutcomeKind, WorkerCapabilityProfile,
-    INGEST_NO_CLIPS,
+    TerminalOutcome, TransferAuthorization, TransferOutcome, TransferOutcomeKind,
+    WorkerCapabilityProfile, INGEST_NO_CLIPS,
 };
 use rigforge_blender_worker::BlenderSkeletonInspector;
 
 pub mod file_pick;
 pub mod ingest;
+pub mod long_op;
 pub mod native_exec;
 pub mod preview_host;
 
+pub use long_op::{format_elapsed, QcAcquireFn, ReopenAcquireFn, TransferPhase};
+
 use crate::file_pick::FilePickState;
 use crate::ingest::{IngestKind, IngestResult};
+use crate::long_op::{LongOpSession, WaitMsg};
 
 /// Preview embedding boundary. Viewer library and payload are V1-6 implementation
 /// details, not Product identity.
@@ -75,6 +80,9 @@ pub struct WorkbenchApp {
     warnings_acknowledged: bool,
     transfer_auth: Option<TransferAuthorization>,
     transfer_phase: Option<String>,
+    long_op: Option<LongOpSession>,
+    qc_acquire: Option<QcAcquireFn>,
+    reopen_acquire: Option<ReopenAcquireFn>,
     derived_variant_id: Option<String>,
     derived_variant_version_id: Option<String>,
     publication_state: Option<String>,
@@ -124,6 +132,9 @@ impl WorkbenchApp {
             warnings_acknowledged: false,
             transfer_auth: None,
             transfer_phase: None,
+            long_op: None,
+            qc_acquire: None,
+            reopen_acquire: None,
             derived_variant_id: None,
             derived_variant_version_id: None,
             publication_state: None,
@@ -240,6 +251,9 @@ impl WorkbenchApp {
     }
 
     pub fn begin_character_inspect(&mut self, ctx: &egui::Context) {
+        if self.mutation_locked() {
+            return;
+        }
         let Some(path) = self.character_pick.path.clone() else {
             return;
         };
@@ -260,6 +274,9 @@ impl WorkbenchApp {
     }
 
     pub fn begin_motion_inspect(&mut self, ctx: &egui::Context) {
+        if self.mutation_locked() {
+            return;
+        }
         let Some(path) = self.motion_pick.path.clone() else {
             return;
         };
@@ -381,13 +398,15 @@ impl WorkbenchApp {
     }
 
     pub fn character_can_add(&self) -> bool {
-        !self.character_inspecting
+        !self.mutation_locked()
+            && !self.character_inspecting
             && self.character_inspection.is_some()
             && !self.character_pick.display_name.trim().is_empty()
     }
 
     pub fn motion_can_add(&self) -> bool {
-        !self.motion_inspecting
+        !self.mutation_locked()
+            && !self.motion_inspecting
             && self.motion_inspection.is_some()
             && self.motion_selected_clip.is_some()
             && !self.motion_pick.display_name.trim().is_empty()
@@ -453,11 +472,17 @@ impl WorkbenchApp {
     }
 
     pub fn select_character_version(&mut self, version_id: impl Into<String>) {
+        if self.mutation_locked() {
+            return;
+        }
         self.selected_character_version = Some(version_id.into());
         self.invalidate_selection_bound_workflow_state();
     }
 
     pub fn select_motion_version(&mut self, version_id: impl Into<String>) {
+        if self.mutation_locked() {
+            return;
+        }
         self.selected_motion_version = Some(version_id.into());
         self.invalidate_selection_bound_workflow_state();
     }
@@ -510,6 +535,9 @@ impl WorkbenchApp {
     }
 
     pub fn select_policy_version(&mut self, version_id: impl Into<String>) {
+        if self.mutation_locked() {
+            return;
+        }
         self.selected_policy_version_id = Some(version_id.into());
     }
 
@@ -682,10 +710,43 @@ impl WorkbenchApp {
     }
 
     pub fn transfer_available(&self) -> bool {
-        self.transfer_auth
+        !self.mutation_locked()
+            && self
+                .transfer_auth
+                .as_ref()
+                .map(|auth| auth.eligible)
+                .unwrap_or(false)
+    }
+
+    pub fn mutation_locked(&self) -> bool {
+        self.long_op
             .as_ref()
-            .map(|auth| auth.eligible)
+            .map(|op| op.phase.is_active())
             .unwrap_or(false)
+    }
+
+    pub fn long_op_phase(&self) -> Option<TransferPhase> {
+        self.long_op.as_ref().map(|op| op.phase)
+    }
+
+    pub fn transfer_elapsed_label(&self) -> Option<String> {
+        self.long_op.as_ref().map(|op| op.elapsed_label())
+    }
+
+    pub fn long_op_derived_version_id(&self) -> Option<&str> {
+        self.long_op
+            .as_ref()
+            .and_then(|op| op.derived_version_id.as_deref())
+    }
+
+    fn require_no_active_mutation(&self) -> Result<(), rigforge_app::AppError> {
+        if self.mutation_locked() {
+            Err(rigforge_app::AppError::Catalog(
+                "A Transfer is already running".into(),
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     pub fn transfer_requires_acknowledgement(&self) -> bool {
@@ -787,6 +848,7 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
         let inspector = BlenderSkeletonInspector::production()?;
         self.propose_mapping_with(app, &inspector)
     }
@@ -795,6 +857,7 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
         self.accept_current_mapping(app)?;
         self.workflow_status = Some("Mapping accepted".into());
         Ok(())
@@ -804,6 +867,7 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
         let character = self.selected_character_version.clone().ok_or_else(|| {
             rigforge_app::AppError::Catalog(
                 "Compatibility requires a selected Character version".into(),
@@ -845,6 +909,7 @@ impl WorkbenchApp {
         app: &mut Application,
         acknowledged: bool,
     ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
         self.warnings_acknowledged = acknowledged;
         self.refresh_transfer_authorization(app)
     }
@@ -860,26 +925,417 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
+        self.start_responsive_transfer(app, None)
+    }
+
+    pub fn start_responsive_transfer(
+        &mut self,
+        app: &mut Application,
+        ctx: Option<&egui::Context>,
+    ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
+        let locked_character = self.selected_character_version.clone();
+        let locked_motion = self.selected_motion_version.clone();
         let run_id = self.on_transfer_clicked(app)?;
-        match crate::native_exec::complete_native_transfer(app, &run_id) {
-            Ok(outcome) => {
-                self.apply_transfer_outcome(&outcome);
-                self.reload_from_application(app)?;
+        self.long_op = Some(LongOpSession::new(
+            run_id.clone(),
+            locked_character,
+            locked_motion,
+        ));
+        self.sync_transfer_phase_label();
+        match crate::native_exec::launch_and_spawn_execute(app, &run_id, ctx.cloned()) {
+            Ok(rx) => {
+                self.arm_execute_wait(rx);
+                if let Some(ctx) = ctx {
+                    ctx.request_repaint();
+                }
                 Ok(())
             }
             Err(err) => {
-                self.transfer_phase = Some(format!("failed: {err}"));
-                self.workflow_status = Some(err.to_string());
-                let _ = self.reload_from_application(app);
+                self.fail_long_operation(app, err.to_string());
                 Err(err)
             }
         }
+    }
+
+    pub fn start_scripted_transfer_for_test<W>(
+        &mut self,
+        app: &mut Application,
+        worker: W,
+    ) -> Result<(), rigforge_app::AppError>
+    where
+        W: rigforge_app::WorkerPort + rigforge_app::WorkerCompletionPort + Send + 'static,
+    {
+        self.require_no_active_mutation()?;
+        let locked_character = self.selected_character_version.clone();
+        let locked_motion = self.selected_motion_version.clone();
+        let run_id = self.on_transfer_clicked(app)?;
+        self.long_op = Some(LongOpSession::new(
+            run_id.clone(),
+            locked_character,
+            locked_motion,
+        ));
+        self.sync_transfer_phase_label();
+        match crate::native_exec::launch_and_spawn_execute_with_worker(app, &run_id, worker, None) {
+            Ok(rx) => {
+                self.arm_execute_wait(rx);
+                Ok(())
+            }
+            Err(err) => {
+                self.fail_long_operation(app, err.to_string());
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_scripted_qc_acquire_for_test(&mut self, acquire: QcAcquireFn) {
+        self.qc_acquire = Some(acquire);
+    }
+
+    pub fn set_scripted_reopen_acquire_for_test(&mut self, acquire: ReopenAcquireFn) {
+        self.reopen_acquire = Some(acquire);
+    }
+
+    pub fn install_disconnected_execute_wait_for_test(&mut self, run_id: String) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        drop(tx);
+        let locked_character = self.selected_character_version.clone();
+        let locked_motion = self.selected_motion_version.clone();
+        let mut op = LongOpSession::new(run_id, locked_character, locked_motion);
+        op.phase = TransferPhase::RunningExecute;
+        op.wait = Some(rx);
+        self.long_op = Some(op);
+        self.sync_transfer_phase_label();
+    }
+
+    fn arm_execute_wait(&mut self, rx: Receiver<WaitMsg>) {
+        if let Some(op) = self.long_op.as_mut() {
+            op.phase = TransferPhase::RunningExecute;
+            op.wait = Some(rx);
+        }
+        self.sync_transfer_phase_label();
+    }
+
+    fn sync_transfer_phase_label(&mut self) {
+        if let Some(op) = &self.long_op {
+            self.transfer_phase = Some(op.phase.user_label().into());
+        }
+    }
+
+    pub fn poll_long_op(
+        &mut self,
+        app: &mut Application,
+        ctx: Option<&egui::Context>,
+    ) -> Result<(), rigforge_app::AppError> {
+        if self.mutation_locked() {
+            if let Some(ctx) = ctx {
+                ctx.request_repaint();
+                ctx.request_repaint_after(Duration::from_millis(250));
+            }
+        }
+        let Some(rx) = self.long_op.as_mut().and_then(|op| op.wait.take()) else {
+            return Ok(());
+        };
+        match rx.try_recv() {
+            Ok(msg) => self.apply_wait_msg(app, ctx, msg),
+            Err(TryRecvError::Empty) => {
+                if let Some(op) = self.long_op.as_mut() {
+                    op.wait = Some(rx);
+                }
+                Ok(())
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.fail_long_operation(
+                    app,
+                    "background Transfer channel disconnected unexpectedly".into(),
+                );
+                Ok(())
+            }
+        }
+    }
+
+    pub fn drive_transfer_to_terminal(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let deadline = std::time::Instant::now() + Duration::from_secs(900);
+        while self.mutation_locked() {
+            if std::time::Instant::now() > deadline {
+                return Err(rigforge_app::AppError::Catalog(
+                    "Transfer did not complete before the test deadline".into(),
+                ));
+            }
+            self.poll_long_op(app, None)?;
+            if self.mutation_locked() {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_wait_msg(
+        &mut self,
+        app: &mut Application,
+        ctx: Option<&egui::Context>,
+        msg: WaitMsg,
+    ) -> Result<(), rigforge_app::AppError> {
+        match msg {
+            WaitMsg::Execute { run_id, outcome } => {
+                if !self.matches_active_run(&run_id) {
+                    return Ok(());
+                }
+                match outcome {
+                    Ok((terminal, staged)) => {
+                        self.apply_execute_outcome(app, ctx, run_id, terminal, staged)
+                    }
+                    Err(err) => {
+                        self.fail_long_operation(app, err);
+                        Ok(())
+                    }
+                }
+            }
+            WaitMsg::Qc {
+                run_id,
+                derived_version_id,
+                outcome,
+            } => {
+                if !self.matches_active_run(&run_id)
+                    || self.long_op.as_ref().and_then(|op| op.derived_version_id.as_deref())
+                        != Some(derived_version_id.as_str())
+                {
+                    return Ok(());
+                }
+                match outcome {
+                    Ok(evidence) => self.apply_qc_evidence(app, ctx, derived_version_id, evidence),
+                    Err(err) => {
+                        self.fail_long_operation(app, err);
+                        Ok(())
+                    }
+                }
+            }
+            WaitMsg::Reopen {
+                run_id,
+                derived_version_id,
+                outcome,
+            } => {
+                if !self.matches_active_run(&run_id)
+                    || self.long_op.as_ref().and_then(|op| op.derived_version_id.as_deref())
+                        != Some(derived_version_id.as_str())
+                {
+                    return Ok(());
+                }
+                match outcome {
+                    Ok((fresh, structural)) => {
+                        self.apply_reopen_outcomes(app, derived_version_id, fresh, structural)
+                    }
+                    Err(err) => {
+                        self.fail_long_operation(app, err);
+                        Ok(())
+                    }
+                }
+            }
+        }
+    }
+
+    fn matches_active_run(&self, run_id: &str) -> bool {
+        self.long_op
+            .as_ref()
+            .map(|op| op.run_id == run_id && op.phase.is_active())
+            .unwrap_or(false)
+    }
+
+    fn apply_execute_outcome(
+        &mut self,
+        app: &mut Application,
+        ctx: Option<&egui::Context>,
+        run_id: String,
+        terminal: TerminalOutcome,
+        staged: Option<std::path::PathBuf>,
+    ) -> Result<(), rigforge_app::AppError> {
+        if let Some(op) = self.long_op.as_mut() {
+            op.phase = TransferPhase::BindingWorkerResult;
+        }
+        self.sync_transfer_phase_label();
+        let failed_reason = match &terminal {
+            TerminalOutcome::Failed { reason, .. } => Some(reason.clone()),
+            TerminalOutcome::Success(_) => None,
+        };
+        match app.apply_terminal_outcome(&run_id, terminal) {
+            Ok(_) => {}
+            Err(err) => {
+                self.fail_long_operation(app, err.to_string());
+                return Ok(());
+            }
+        }
+        let _ = self.reload_from_application(app);
+        if let Some(reason) = failed_reason {
+            self.fail_long_operation(app, reason);
+            return Ok(());
+        }
+        let Some(staged) = staged else {
+            self.fail_long_operation(
+                app,
+                "successful worker with missing staged path".into(),
+            );
+            return Ok(());
+        };
+        match app.ingest_worker_success_candidate(&run_id, &staged) {
+            Ok((logical, version)) => {
+                let derived_version_id = version.as_record().id().canonical();
+                let derived_variant_id = logical.as_record().id().canonical();
+                if let Some(op) = self.long_op.as_mut() {
+                    op.derived_version_id = Some(derived_version_id.clone());
+                    op.derived_variant_id = Some(derived_variant_id);
+                    op.phase = TransferPhase::ValidatingQc;
+                }
+                self.sync_transfer_phase_label();
+                self.spawn_qc(app, ctx, run_id, derived_version_id)
+            }
+            Err(err) => {
+                self.fail_long_operation(app, err.to_string());
+                Ok(())
+            }
+        }
+    }
+
+    fn spawn_qc(
+        &mut self,
+        app: &mut Application,
+        ctx: Option<&egui::Context>,
+        run_id: String,
+        derived_version_id: String,
+    ) -> Result<(), rigforge_app::AppError> {
+        let request = match app.prepare_qc_acquisition(&derived_version_id) {
+            Ok(request) => request,
+            Err(err) => {
+                self.fail_long_operation(app, err.to_string());
+                return Ok(());
+            }
+        };
+        let acquire = self.qc_acquire.take();
+        let rx = crate::native_exec::spawn_qc_acquire(
+            run_id,
+            request,
+            ctx.cloned(),
+            move |request| match acquire {
+                Some(scripted) => scripted(request),
+                None => crate::native_exec::production_qc_acquire(request),
+            },
+        );
+        if let Some(op) = self.long_op.as_mut() {
+            op.wait = Some(rx);
+        }
+        Ok(())
+    }
+
+    fn apply_qc_evidence(
+        &mut self,
+        app: &mut Application,
+        ctx: Option<&egui::Context>,
+        derived_version_id: String,
+        evidence: rigforge_app::ArtifactInspectionEvidence,
+    ) -> Result<(), rigforge_app::AppError> {
+        if let Err(err) = app.bind_qc_from_evidence(&derived_version_id, evidence) {
+            self.fail_long_operation(app, err.to_string());
+            return Ok(());
+        }
+        if let Some(op) = self.long_op.as_mut() {
+            op.phase = TransferPhase::ValidatingPersistence;
+        }
+        self.sync_transfer_phase_label();
+        let request = match app.prepare_reopen_acquisition(&derived_version_id) {
+            Ok(request) => request,
+            Err(err) => {
+                self.fail_long_operation(app, err.to_string());
+                return Ok(());
+            }
+        };
+        let run_id = self
+            .long_op
+            .as_ref()
+            .map(|op| op.run_id.clone())
+            .expect("active Transfer");
+        let acquire = self.reopen_acquire.take();
+        let rx = crate::native_exec::spawn_reopen_acquire(
+            run_id,
+            request,
+            ctx.cloned(),
+            move |request| match acquire {
+                Some(scripted) => scripted(request),
+                None => crate::native_exec::production_reopen_acquire(request),
+            },
+        );
+        if let Some(op) = self.long_op.as_mut() {
+            op.wait = Some(rx);
+        }
+        Ok(())
+    }
+
+    fn apply_reopen_outcomes(
+        &mut self,
+        app: &mut Application,
+        derived_version_id: String,
+        fresh: VerificationOutcome,
+        structural: VerificationOutcome,
+    ) -> Result<(), rigforge_app::AppError> {
+        if let Err(err) =
+            app.bind_verification_from_outcomes(&derived_version_id, fresh, structural)
+        {
+            self.fail_long_operation(app, err.to_string());
+            return Ok(());
+        }
+        if let Some(op) = self.long_op.as_mut() {
+            op.phase = TransferPhase::Publishing;
+        }
+        self.sync_transfer_phase_label();
+        let run_id = self
+            .long_op
+            .as_ref()
+            .map(|op| op.run_id.clone())
+            .expect("active Transfer");
+        match app.complete_publication_decision(&run_id, &derived_version_id) {
+            Ok(outcome) => {
+                self.apply_transfer_outcome(&outcome);
+                if let Some(op) = self.long_op.as_mut() {
+                    op.phase = TransferPhase::Complete;
+                    op.wait = None;
+                }
+                self.sync_transfer_phase_label();
+                let _ = self.reload_from_application(app);
+                Ok(())
+            }
+            Err(err) => {
+                self.fail_long_operation(app, err.to_string());
+                Ok(())
+            }
+        }
+    }
+
+    fn fail_long_operation(&mut self, app: &mut Application, message: String) {
+        if let Some(op) = self.long_op.as_mut() {
+            op.phase = TransferPhase::Failed;
+            op.wait = None;
+        }
+        self.transfer_phase = Some(format!("failed: {message}"));
+        self.workflow_status = Some(message.clone());
+        if let Some(run_id) = self.long_op.as_ref().map(|op| op.run_id.clone()) {
+            if let Ok(run) = app.job_status(&run_id) {
+                if !run.state.is_terminal() {
+                    if run.state == JobRunState::Queued {
+                        let _ = app.mark_dispatchable(&run_id);
+                    }
+                    let _ = app.complete_failure(&run_id, &message);
+                }
+            }
+        }
+        let _ = self.reload_from_application(app);
     }
 
     pub fn on_register_character_clicked(
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
         let display_name = parse_required_text(&self.character_pick.display_name, "display name")?;
         let inspection = self.character_inspection.as_ref().ok_or_else(|| {
             rigforge_app::AppError::Catalog(
@@ -901,6 +1357,7 @@ impl WorkbenchApp {
         &mut self,
         app: &mut Application,
     ) -> Result<(), rigforge_app::AppError> {
+        self.require_no_active_mutation()?;
         let display_name = parse_required_text(&self.motion_pick.display_name, "display name")?;
         let inspection = self.motion_inspection.as_ref().ok_or_else(|| {
             rigforge_app::AppError::Catalog("Inspect a Motion FBX before adding it.".into())
@@ -1171,6 +1628,14 @@ impl WorkbenchApp {
                 ui.label("local-first");
                 ui.separator();
                 ui.label("no Blender in this process");
+                if self.mutation_locked() {
+                    ui.separator();
+                    ui.spinner();
+                    if let Some(op) = &self.long_op {
+                        ui.label(op.phase.user_label());
+                        ui.label(format!("Elapsed {}", op.elapsed_label()));
+                    }
+                }
             });
         });
         egui::SidePanel::left("browser")
@@ -1180,13 +1645,20 @@ impl WorkbenchApp {
                 ui.separator();
                 ui.collapsing("Characters", |ui| {
                     let mut picked = None;
+                    let can_switch = !self.mutation_locked();
                     for item in &self.characters {
                         let id = item
                             .published_version_id
                             .clone()
                             .unwrap_or_else(|| item.logical_id.clone());
                         let selected = self.selected_character_version.as_deref() == Some(id.as_str());
-                        if ui.selectable_label(selected, &item.display_name).clicked() {
+                        if ui
+                            .add_enabled(
+                                can_switch,
+                                egui::SelectableLabel::new(selected, &item.display_name),
+                            )
+                            .clicked()
+                        {
                             picked = Some(id);
                         }
                     }
@@ -1205,13 +1677,20 @@ impl WorkbenchApp {
                 });
                 ui.collapsing("Motions", |ui| {
                     let mut picked = None;
+                    let can_switch = !self.mutation_locked();
                     for item in &self.motions {
                         let id = item
                             .published_version_id
                             .clone()
                             .unwrap_or_else(|| item.logical_id.clone());
                         let selected = self.selected_motion_version.as_deref() == Some(id.as_str());
-                        if ui.selectable_label(selected, &item.display_name).clicked() {
+                        if ui
+                            .add_enabled(
+                                can_switch,
+                                egui::SelectableLabel::new(selected, &item.display_name),
+                            )
+                            .clicked()
+                        {
                             picked = Some(id);
                         }
                     }
@@ -1258,7 +1737,9 @@ impl WorkbenchApp {
                         } else {
                             "Browse"
                         };
-                        if ui.button(browse).clicked()
+                        if ui
+                            .add_enabled(!self.mutation_locked(), egui::Button::new(browse))
+                            .clicked()
                         {
                             let picked = crate::file_pick::pick_fbx_file();
                             if self.apply_character_selection(picked) {
@@ -1311,7 +1792,9 @@ impl WorkbenchApp {
                         } else {
                             "Browse"
                         };
-                        if ui.button(browse).clicked()
+                        if ui
+                            .add_enabled(!self.mutation_locked(), egui::Button::new(browse))
+                            .clicked()
                         {
                             let picked = crate::file_pick::pick_fbx_file();
                             if self.apply_motion_selection(picked) {
@@ -1445,7 +1928,11 @@ impl WorkbenchApp {
                 ui.label(format!("accepted MappingVersion: {id}"));
             }
             ui.horizontal(|ui| {
-                if ui.button("Propose Mapping").clicked() {
+                let mapping_enabled = !self.mutation_locked();
+                if ui
+                    .add_enabled(mapping_enabled, egui::Button::new("Propose Mapping"))
+                    .clicked()
+                {
                     if let Some(app) = app.as_mut() {
                         if let Err(err) = self.on_propose_mapping_clicked(app) {
                             self.workflow_status = Some(err.to_string());
@@ -1455,7 +1942,10 @@ impl WorkbenchApp {
                             Some("Native Application path is required for Mapping".into());
                     }
                 }
-                if ui.button("Accept Mapping").clicked() {
+                if ui
+                    .add_enabled(mapping_enabled, egui::Button::new("Accept Mapping"))
+                    .clicked()
+                {
                     if let Some(app) = app.as_mut() {
                         if let Err(err) = self.on_accept_mapping_clicked(app) {
                             self.workflow_status = Some(err.to_string());
@@ -1465,7 +1955,10 @@ impl WorkbenchApp {
                             Some("Native Application path is required for Mapping".into());
                     }
                 }
-                if ui.button("Evaluate Compatibility").clicked() {
+                if ui
+                    .add_enabled(mapping_enabled, egui::Button::new("Evaluate Compatibility"))
+                    .clicked()
+                {
                     if let Some(app) = app.as_mut() {
                         if let Err(err) = self.on_evaluate_compatibility_clicked(app) {
                             self.workflow_status = Some(err.to_string());
@@ -1493,12 +1986,17 @@ impl WorkbenchApp {
             ));
             if self.transfer_auth.as_ref().map(|a| a.requires_acknowledgement).unwrap_or(false) {
                 let mut ack = self.warnings_acknowledged;
-                if ui
-                    .checkbox(
-                        &mut ack,
-                        "I acknowledge these Compatibility warnings",
+                let ack_enabled = !self.mutation_locked();
+                let changed = ui
+                    .add_enabled(
+                        ack_enabled,
+                        egui::Checkbox::new(
+                            &mut ack,
+                            "I acknowledge these Compatibility warnings",
+                        ),
                     )
-                    .changed()
+                    .changed();
+                if changed
                 {
                     if let Some(app) = app.as_mut() {
                         if let Err(err) = self.on_warnings_checkbox_changed(app, ack) {
@@ -1514,7 +2012,7 @@ impl WorkbenchApp {
                 .clicked()
             {
                 if let Some(app) = app.as_mut() {
-                    if let Err(err) = self.on_transfer_action(app) {
+                    if let Err(err) = self.start_responsive_transfer(app, Some(ctx)) {
                         self.workflow_status = Some(err.to_string());
                     }
                 } else {
@@ -1524,6 +2022,15 @@ impl WorkbenchApp {
             }
             if !self.transfer_available() {
                 ui.weak(self.transfer_eligibility_label());
+            }
+            if let Some(op) = &self.long_op {
+                ui.horizontal(|ui| {
+                    if op.phase.is_active() {
+                        ui.spinner();
+                    }
+                    ui.label(op.phase.user_label());
+                    ui.label(format!("Elapsed {}", op.elapsed_label()));
+                });
             }
             if let Some(phase) = &self.transfer_phase {
                 ui.label(format!("Transfer phase: {phase}"));
@@ -1678,6 +2185,7 @@ impl WorkbenchHost {
 impl eframe::App for WorkbenchHost {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.shell.poll_ingest(ctx);
+        let _ = self.shell.poll_long_op(&mut self.app, Some(ctx));
         self.shell.draw(ctx, Some(&mut self.app));
     }
 }
