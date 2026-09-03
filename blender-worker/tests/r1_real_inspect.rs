@@ -55,10 +55,21 @@ fn inspect_frozen_knight_and_ual2_when_present() {
             clip.fps_den
         );
     }
+    let usable = motion.usable_clips();
+    println!(
+        "R1-1 Motion strongly-associated usable clips={}",
+        usable.len()
+    );
+    for clip in &usable {
+        println!(
+            "R1-1 Motion usable identity={} kind={}",
+            clip.clip_identity, clip.association_kind
+        );
+    }
     assert_eq!(character.usable_armature_count, 1);
     assert_eq!(motion.usable_armature_count, 1);
     assert!(
-        !motion.usable_clips().is_empty(),
+        !usable.is_empty(),
         "UAL2 should expose at least one strongly associated clip"
     );
 }

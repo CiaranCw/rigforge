@@ -872,8 +872,100 @@ def require_unique_usable_armature(armatures):
     return armatures[0]
 
 
-def pose_path_targets_pose_bones(data_path: str) -> bool:
-    return "pose.bones[" in (data_path or "")
+def extract_pose_bone_name(data_path: str) -> str | None:
+    """Extract the exact quoted bone key from a Blender pose RNA path.
+
+    Supported forms:
+      pose.bones["pelvis"].rotation_quaternion
+      pose.bones['upperarm_l'].location
+
+    Numeric or unquoted pose.bones[...] paths are not association proof.
+    Comparison against Armature bones is exact membership, not a substring.
+    """
+    text = data_path or ""
+    marker = "pose.bones["
+    start = text.find(marker)
+    if start < 0:
+        return None
+    i = start + len(marker)
+    if i >= len(text):
+        return None
+    quote = text[i]
+    if quote not in "\"'":
+        return None
+    i += 1
+    chars = []
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and i + 1 < len(text):
+            chars.append(text[i + 1])
+            i += 2
+            continue
+        if ch == quote:
+            return "".join(chars)
+        chars.append(ch)
+        i += 1
+    return None
+
+
+def classify_pose_bone_names(names, armature_bones: set[str]) -> tuple[list[str], list[str]]:
+    resolved = []
+    unresolved = []
+    seen_resolved = set()
+    seen_unresolved = set()
+    for name in names:
+        if name in armature_bones:
+            if name not in seen_resolved:
+                resolved.append(name)
+                seen_resolved.add(name)
+        elif name not in seen_unresolved:
+            unresolved.append(name)
+            seen_unresolved.add(name)
+    return resolved, unresolved
+
+
+def pose_channels_qualifies(resolved, unresolved) -> bool:
+    """Fail-closed pose_channels proof for one slot/channelbag.
+
+    If the bag contains pose-bone paths, at least one must exist on the
+    unique Armature and every pose-bone target used as proof must resolve.
+    Mixed resolved + unresolved paths do not qualify pose_channels.
+    """
+    return bool(resolved) and not unresolved
+
+
+def pose_channels_association_from_paths(paths, armature_bones: set[str]) -> dict:
+    kept = []
+    names = []
+    for path in paths:
+        name = extract_pose_bone_name(path or "")
+        if name is None:
+            continue
+        kept.append(path)
+        names.append(name)
+    resolved, unresolved = classify_pose_bone_names(names, armature_bones)
+    return {
+        "qualifies": pose_channels_qualifies(resolved, unresolved),
+        "resolved_pose_bones": resolved,
+        "unresolved_pose_bones": unresolved,
+        "pose_data_path_samples": kept[:4],
+    }
+
+
+def strong_association_kinds(
+    *,
+    direct_action: bool,
+    nla_strip: bool,
+    pose_channels: bool,
+) -> list[str]:
+    kinds = []
+    if direct_action:
+        kinds.append("direct_action")
+    if nla_strip:
+        kinds.append("nla_strip")
+    if pose_channels:
+        kinds.append("pose_channels")
+    return kinds
 
 
 def integral_frame(value):
@@ -932,24 +1024,89 @@ def fcurves_of(bag_or_fcurves):
     return list(bag_or_fcurves)
 
 
-def action_has_pose_channels(action, hint_slot=None) -> bool:
-    for _slot, bag in iter_channelbags(action, hint_slot):
-        for curve in fcurves_of(bag):
-            if pose_path_targets_pose_bones(getattr(curve, "data_path", "") or ""):
-                return True
-    return False
+def independent_channelbags(action):
+    layers = list(getattr(action, "layers", None) or [])
+    slots = list(getattr(action, "slots", None) or [])
+    if slots and layers:
+        try:
+            strip = layers[0].strips[0]
+        except Exception:
+            strip = None
+        if strip is not None:
+            any_bag = False
+            for slot in slots:
+                try:
+                    bag = strip.channelbag(slot)
+                except Exception:
+                    bag = None
+                if bag is not None:
+                    any_bag = True
+                    yield slot, bag
+            if any_bag:
+                return
+    fcurves = getattr(action, "fcurves", None)
+    if fcurves:
+        yield None, fcurves
 
 
-def pose_path_samples(action, hint_slot=None, limit: int = 4) -> list[str]:
-    samples = []
-    for _slot, bag in iter_channelbags(action, hint_slot):
-        for curve in fcurves_of(bag):
-            path = getattr(curve, "data_path", "") or ""
-            if pose_path_targets_pose_bones(path):
-                samples.append(path)
-                if len(samples) >= limit:
-                    return samples
-    return samples
+def hinted_channelbag(action, hint_slot):
+    if hint_slot is None:
+        return
+    layers = list(getattr(action, "layers", None) or [])
+    if not layers:
+        return
+    try:
+        bag = layers[0].strips[0].channelbag(hint_slot)
+    except Exception:
+        bag = None
+    if bag is not None:
+        yield hint_slot, bag
+
+
+def armature_bone_name_set(arm) -> set[str]:
+    data = getattr(arm, "data", None)
+    bones = getattr(data, "bones", None) if data is not None else None
+    if not bones:
+        return set()
+    return {bone.name for bone in bones}
+
+
+def fcurve_data_paths(bag_or_fcurves) -> list[str]:
+    return [getattr(curve, "data_path", "") or "" for curve in fcurves_of(bag_or_fcurves)]
+
+
+def pose_proof_for_bag(bag, armature_bones: set[str]) -> dict:
+    return pose_channels_association_from_paths(fcurve_data_paths(bag), armature_bones)
+
+
+def evaluate_pose_channels(action, armature_bones: set[str], hint_slot=None) -> dict:
+    empty = {
+        "qualifies": False,
+        "slot": None,
+        "resolved_pose_bones": [],
+        "unresolved_pose_bones": [],
+        "pose_data_path_samples": [],
+    }
+    if hint_slot is not None:
+        bags = list(hinted_channelbag(action, hint_slot))
+        if not bags:
+            return empty
+        slot, bag = bags[0]
+        proof = pose_proof_for_bag(bag, armature_bones)
+        proof["slot"] = slot
+        return proof
+    evidence = dict(empty)
+    for slot, bag in independent_channelbags(action):
+        proof = pose_proof_for_bag(bag, armature_bones)
+        if proof["qualifies"]:
+            proof["slot"] = slot
+            return proof
+        if (proof["resolved_pose_bones"] or proof["unresolved_pose_bones"]) and not (
+            evidence["resolved_pose_bones"] or evidence["unresolved_pose_bones"]
+        ):
+            evidence = dict(proof)
+            evidence["slot"] = slot
+    return evidence
 
 
 def action_frame_span(action, hint_slot=None):
@@ -1001,38 +1158,27 @@ def slot_identifier(slot) -> str | None:
 
 def collect_animation_candidates(arm, fps_num, fps_den, timing_ok: bool) -> list[dict]:
     candidates = []
+    armature_bones = armature_bone_name_set(arm)
     for action in list(bpy.data.actions):
         ad = getattr(arm, "animation_data", None)
-        kinds = []
         assigned_slot = None
-        nla_strips = []
-        if ad is not None and getattr(ad, "action", None) == action:
-            kinds.append("direct_action")
+        has_direct = ad is not None and getattr(ad, "action", None) == action
+        if has_direct:
             assigned_slot = getattr(ad, "action_slot", None)
         nla_strips = nla_clips_for_action(arm, action)
         nla_slot = None
-        if nla_strips:
-            kinds.append("nla_strip")
+        has_nla = bool(nla_strips)
+        if has_nla:
             nla_slot = getattr(nla_strips[0], "action_slot", None)
         hint_slot = assigned_slot or nla_slot
-        pose_hit = action_has_pose_channels(action, hint_slot)
-        pose_slot_ident = None
-        if pose_hit:
-            kinds.append("pose_channels")
-            if hint_slot is not None:
-                pose_slot_ident = slot_identifier(hint_slot)
-            else:
-                for slot, bag in iter_channelbags(action, None):
-                    if any(
-                        pose_path_targets_pose_bones(getattr(curve, "data_path", "") or "")
-                        for curve in fcurves_of(bag)
-                    ):
-                        pose_slot_ident = slot_identifier(slot)
-                        break
+        pose = evaluate_pose_channels(action, armature_bones, hint_slot)
+        kinds = strong_association_kinds(
+            direct_action=has_direct,
+            nla_strip=has_nla,
+            pose_channels=bool(pose.get("qualifies")),
+        )
         if not kinds:
             continue
-        kind_rank = {"direct_action": 0, "nla_strip": 1, "pose_channels": 2}
-        kinds = sorted(set(kinds), key=lambda item: kind_rank.get(item, 9))
         association_kind = kinds[0]
         span = action_frame_span(action, hint_slot)
         unusable_reason = None
@@ -1066,8 +1212,10 @@ def collect_animation_candidates(arm, fps_num, fps_den, timing_ok: bool) -> list
             "nla_track_name": None,
             "nla_strip_name": None,
             "nla_slot_identifier": slot_identifier(nla_slot),
-            "pose_slot_identifier": pose_slot_ident,
-            "pose_data_path_samples": pose_path_samples(action, hint_slot),
+            "pose_slot_identifier": slot_identifier(pose.get("slot")),
+            "pose_data_path_samples": list(pose.get("pose_data_path_samples") or []),
+            "resolved_pose_bones": list(pose.get("resolved_pose_bones") or []),
+            "unresolved_pose_bones": list(pose.get("unresolved_pose_bones") or []),
             "weak_notes": weak_notes,
         }
         if nla_strips:

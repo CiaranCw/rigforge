@@ -268,6 +268,8 @@ nla_track_name / nla_strip_name
 nla_slot_identifier              if the strip carries a slot
 pose_slot_identifier             slot whose channelbag supplied pose.bones
 pose_data_path_samples[]         a few pose.bones[...] paths
+resolved_pose_bones[]            exact bone keys present on the unique Armature
+unresolved_pose_bones[]          exact extracted keys absent from that Armature
 weak_notes[]                     target_id_type / id_root / suitable_slot ids
                                  diagnostic only; never eligibility
 ```
@@ -395,18 +397,28 @@ channelbag:
   action.layers[0].strips[0].channelbag(slot)   (5.2 layered Action)
 
 pose evidence:
-  any FCurve data_path contains pose.bones[
+  extract the exact quoted bone key from pose.bones["..."] / pose.bones['...']
+  that key ∈ the unique usable Armature's exact bone-name set
+  at least one pose-bone path must resolve
+  every pose-bone target used as pose_channels proof must resolve
+  mixed resolved + unresolved pose-bone paths: pose_channels NOT eligible
+  substring "pose.bones[" alone is not eligibility
 ```
 
 If the Action has no slots / empty layers, a legacy `action.fcurves`
 walk is allowed **only** as the equivalent channel set for that Action,
-and still requires `pose.bones[` paths. R1-B confirms which representation
-FBX import actually produces on the pinned 5.2.1 worker.
+and still requires extracted pose-bone keys that resolve on the unique
+Armature. R1-B confirms which representation FBX import actually produces
+on the pinned 5.2.1 worker.
 
 Because R1 already fail-closes files with two or more usable Armatures,
-`pose.bones[` on an unassigned Action is interpreted against the unique
-Armature animation context. It does not license scanning every Action in
-`bpy.data.actions` that might animate a camera, material, or mesh.
+`pose_channels` as a fallback is interpreted against the unique Armature
+bone-name set. An Action whose pose-bone channels resolve only to bones
+absent from that Armature is not eligible. Direct Action assignment and
+exact Armature-owned NLA strips remain independently eligible even when
+auxiliary pose-channel evidence does not qualify. It does not license
+scanning every Action in `bpy.data.actions` that might animate a camera,
+material, or mesh.
 
 #### Weak evidence (not eligibility)
 

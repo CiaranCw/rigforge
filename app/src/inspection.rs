@@ -74,6 +74,10 @@ pub struct AssociationEvidence {
     #[serde(default)]
     pub pose_data_path_samples: Vec<String>,
     #[serde(default)]
+    pub resolved_pose_bones: Vec<String>,
+    #[serde(default)]
+    pub unresolved_pose_bones: Vec<String>,
+    #[serde(default)]
     pub weak_notes: Vec<String>,
 }
 

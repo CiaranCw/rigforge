@@ -81,7 +81,7 @@ The superseded R1-A / R1-B / R1-C execution sequence is not current authority.
 | Stage | Intent |
 | --- | --- |
 | R1-0 | Design only. Freeze UX contract, discovery schema, TOCTOU, non-blocking Transfer ownership. No production mutation. |
-| R1-1 | Native FBX browse, filename-derived names, unique-Armature inspect, strong clip association, rational FPS, inspection-backed registration, background ingest inspect. Combines historical R1-A + R1-B. |
+| R1-1 | Native FBX browse, filename-derived names, unique-Armature inspect, strong clip association, rational FPS, inspection-backed registration, background ingest inspect. Combines historical R1-A + R1-B. `pose_channels` requires exact unique-Armature bone membership (`R1-1-MAJOR-001` closed). |
 | R1-2 | Transfer execute wait, QC inspection, fresh reopen, truthful running state. Historical R1-C responsiveness. |
 | R1-V | Integrated source + UX review and real human first-use UAT. Historical R1-FR + R1-UAT. |
 | R1-FIX | Only issues observed or clearly reproduced in R1-V. Conditional. Historical R1-D. |
