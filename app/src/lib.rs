@@ -21,6 +21,7 @@ pub mod preflight;
 pub mod preview;
 pub mod qc;
 pub mod queries;
+pub mod registration;
 pub mod runtime;
 pub mod skeleton;
 pub mod transfer;
@@ -70,12 +71,13 @@ pub use qc::{
 #[cfg(any(test, feature = "test-support"))]
 pub use qc::{ArtifactInspector, PersistenceReopener};
 pub use queries::AssetListItem;
+pub use registration::{LocalCharacterRegistration, LocalMotionRegistration};
 pub use runtime::{
     bind_thread_runtime_root, materialize_runtime_bundle, verify_runtime_worker_package,
     RuntimeLayout, RuntimeRootGuard, PREVIEW_GEN_SCRIPT_SHA256, RUNTIME_ROOT_ENV,
     WORKER_SCRIPT_SHA256,
 };
-pub use skeleton::{MemorySkeletonInspector, SkeletonEvidenceProvider};
+pub use skeleton::{FixtureSkeletonInspector, MemorySkeletonInspector, SkeletonEvidenceProvider};
 pub use transfer::{TransferAuthorization, TransferOutcome, TransferOutcomeKind};
 pub use worker::{
     DispatchReceipt, FakeWorker, TerminalOutcome, WorkerCompletionPort, WorkerFailureClass,

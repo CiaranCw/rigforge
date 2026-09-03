@@ -4,8 +4,11 @@ Current V1 execution architecture.
 
 Blender as backend is **`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`**, validated by
 POC-BLENDER-E2E-01. It is not product authority, not permanently final, and
-not coverage of all Characters/Motions. Product implementation remains
-unauthorized until W0-RS and IA-1 complete the remaining required gates.
+not coverage of all Characters/Motions. At adoption time, Product
+implementation remained unauthorized until W0-RS and IA-1 completed the
+remaining required gates. Current disposition: those gates are complete;
+V1-1 through V1-8 are implemented and baselined; Gate D is PASS /
+CLOSED (independent result: `GATE_D_PASS_CANDIDATE`).
 
 Decision: [ADR-0001](decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Domain: [V1_WORKFLOW_DOMAIN.md](V1_WORKFLOW_DOMAIN.md).
@@ -112,7 +115,9 @@ no reuse of mutable interactive scenes
 ```
 
 Timeout/recovery campaigns, pooling, resource scheduling, upgrade rehearsal,
-and complete packaging qualification are later V1 hardening.
+and complete packaging qualification are later V1 hardening. Spawn-to-RUNNING
+crash recovery (dispatch-intent fail-closed) and runtime worker-package
+integrity were implemented in V1-8.
 
 ## Preview
 
@@ -159,6 +164,20 @@ reject Blender.
 
 ## What this does not decide
 
-Viewer technology, GLB, database, Core language, native ufbx inspector, native
-glTF stack, multiple Export Profiles, and multiple execution backends are not
-selected here.
+At adoption time this document did not select viewer technology, GLB,
+database, Core language, native ufbx inspector, native glTF stack, multiple
+Export Profiles, or multiple execution backends.
+
+Current dispositions for those questions:
+
+```text
+Core language:  ADR-0002 Accepted (Rust)
+Catalog:        ADR-0003 Accepted (SQLite / rusqlite bundled)
+GUI:            ADR-0004 Accepted (egui / eframe) — independent of this worker ADR
+Preview:        ADR-0006 Accepted (GLB + @google/model-viewer 4.3.1)
+Blender worker: ADR-0005 Accepted
+```
+
+Native ufbx inspector, native glTF stack, multiple Export Profiles, and
+multiple execution backends remain not selected for V1. V1-7 export remains
+`SKIPPED / OPTIONAL`.

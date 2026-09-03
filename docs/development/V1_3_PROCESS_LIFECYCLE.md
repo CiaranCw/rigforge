@@ -94,10 +94,13 @@ SHA-256:  0e631dad7d0cad6d5d18abdd2e2550f6c0213215334eda00ddbd3d22b96ecb2c
 ```
 
 Prefer the already extracted official PoC toolchain. Do not redownload when
-present. Executable location may use `RIGFORGE_BLENDER_EXECUTABLE`; pin
-verification remains mandatory on the production constructor. The worker
-script is bound to `blender-worker/python/worker.py` and is not caller-
-overridable on the production API.
+present. At V1-3 adoption, executable location could use
+`RIGFORGE_BLENDER_EXECUTABLE` with mandatory pin verification. Current
+production constructors resolve the pinned executable from the relocatable
+runtime layout and do **not** honor `RIGFORGE_BLENDER_EXECUTABLE` as an
+arbitrary unpinned fallback. Pin verification remains mandatory on the
+production constructor. The worker script is bound to the runtime worker
+package and is not caller-overridable on the production API.
 
 If `WorkerCompletionPort::collect` returns `Err` after launch, Catalog
 persists `JobRun FAILED` and does not leave the attempt `RUNNING`.
@@ -107,4 +110,6 @@ If collection returns `TerminalOutcome::Failed` but the supplied
 without attaching the rejected result, and records the rejection in
 `failure_reason`. The run must not remain `RUNNING`.
 
-Release packaging, installer, and GPL/legal clearance remain V1-8.
+Release packaging, installer, and GPL/legal clearance remain later
+distribution / POST-V1 work. V1-8 inventoried pins, notices, and runtime
+package integrity; it did not complete legal clearance.

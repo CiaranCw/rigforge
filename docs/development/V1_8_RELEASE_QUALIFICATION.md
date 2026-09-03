@@ -4,7 +4,8 @@ Qualify whether implemented V1 can credibly become a release candidate.
 
 Status: `COMPLETE / PASS / BASELINED`
 
-This is not a Gate D report. Gate D is **READY / NOT STARTED**.
+This is not a Gate D report. Gate D is **PASS / CLOSED**. Final independent
+result: `GATE_D_PASS_CANDIDATE`.
 
 ## Classification legend
 

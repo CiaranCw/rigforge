@@ -64,9 +64,12 @@ production inspect executable through `RIGFORGE_BLENDER_EXECUTABLE`, a
 public setter, constructor, or caller parameter. Raw Catalog SQL mutation
 is not a public Application API.
 
-Worker execute/collect may still honor `RIGFORGE_BLENDER_EXECUTABLE`
-(V1-3 process lifecycle). Publication-critical inspect/reopen must not.
-Release installer/package integrity remains V1-8.
+Worker execute/collect also does **not** honor `RIGFORGE_BLENDER_EXECUTABLE`
+as an arbitrary unpinned production fallback (V1-8 runtime layout). The
+historical V1-3 note that execute/collect might still honor that variable
+is superseded. Publication-critical inspect/reopen must not honor it.
+Release installer/package integrity remains later distribution / POST-V1
+work; V1-8 implemented relocatable runtime worker-package integrity.
 
 In-memory test inspectors exist only behind `#[cfg(test)]` /
 `test-support`. They are not a production Application API and cannot

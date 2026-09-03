@@ -4,7 +4,8 @@ use common::{MemoryArtifactInspector, MemoryPersistenceReopener};
 use rigforge_app::rigforge_domain::*;
 use rigforge_app::{
     generate_mapping_proposal, sha256_file, Application, FakeWorker, MappingAssistProfile,
-    MemorySkeletonInspector, TransferOutcomeKind, WorkerCapabilityProfile,
+    MemoryPreviewGenerator, MemorySkeletonInspector, PreviewGenerationRequest, PreviewSubject,
+    TransferOutcomeKind, WorkerCapabilityProfile,
 };
 use rigforge_workbench::{PreviewEmbeddingSlot, WorkbenchApp};
 
@@ -207,6 +208,8 @@ fn workbench_accept_operation_persists_mapping() {
         .load_mapping_version(&seeded.draft_id)
         .unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     assert!(!shell.mapping_accepted());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
@@ -230,6 +233,8 @@ fn workbench_override_calls_application_workflow() {
         .load_mapping_version(&seeded.draft_id)
         .unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell
         .override_current_mapping(&mut seeded.app, "head", Some("Head"), "user chose Head")
@@ -251,6 +256,8 @@ fn workbench_compatibility_display_uses_actual_result() {
         .load_mapping_version(&seeded.draft_id)
         .unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
     let result = seeded
@@ -786,6 +793,8 @@ fn transfer_disabled_for_unaccepted_mapping_confirmation() {
     let mut seeded = seed();
     let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     let result = seeded
         .app
@@ -811,6 +820,8 @@ fn transfer_disabled_for_unsupported() {
     let mut seeded = seed();
     let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
     let mapping_version = shell.accepted_mapping_version_id().unwrap();
@@ -844,6 +855,8 @@ fn ready_with_warnings_requires_explicit_acknowledgement() {
     let mut seeded = seed();
     let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
     let mapping_version = shell.accepted_mapping_version_id().unwrap();
@@ -883,6 +896,8 @@ fn transfer_uses_application_authorization_and_displays_publication() {
     let mut seeded = seed();
     let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
     let result = seeded
@@ -919,7 +934,16 @@ fn transfer_uses_application_authorization_and_displays_publication() {
         )
         .unwrap();
     assert_eq!(outcome.kind, TransferOutcomeKind::Published);
+    shell.select_derived_variant_version("pre-existing-derived-A");
     shell.apply_transfer_outcome(&outcome);
+    assert_eq!(
+        shell.selected_derived_variant_version(),
+        Some(outcome.derived_variant_version_id.as_str())
+    );
+    assert_ne!(
+        shell.selected_derived_variant_version(),
+        Some("pre-existing-derived-A")
+    );
     assert_eq!(
         shell.derived_variant_version_id(),
         Some(outcome.derived_variant_version_id.as_str())
@@ -938,6 +962,8 @@ fn qc_fail_displays_publication_denied() {
     let mut seeded = seed();
     let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
     let result = seeded
@@ -972,7 +998,12 @@ fn qc_fail_displays_publication_denied() {
         )
         .unwrap();
     assert_eq!(outcome.kind, TransferOutcomeKind::PublicationDenied);
+    shell.select_derived_variant_version("pre-existing-derived-A");
     shell.apply_transfer_outcome(&outcome);
+    assert_eq!(
+        shell.selected_derived_variant_version(),
+        Some("pre-existing-derived-A")
+    );
     assert_eq!(shell.publication_state(), Some("Publication denied"));
     assert_eq!(shell.qc_verdict(), Some("Fail"));
 }
@@ -1034,9 +1065,13 @@ fn native_draw_source_wires_product_actions() {
     assert!(src.contains("on_evaluate_compatibility_clicked"));
     assert!(src.contains("on_warnings_checkbox_changed"));
     assert!(src.contains("on_transfer_action"));
+    assert!(src.contains("on_register_character_clicked"));
+    assert!(src.contains("on_register_motion_clicked"));
     assert!(src.contains("Propose Mapping"));
     assert!(src.contains("Accept Mapping"));
     assert!(src.contains("Evaluate Compatibility"));
+    assert!(src.contains("Add Character"));
+    assert!(src.contains("Add Motion"));
     assert!(!src.contains("Transfer checkbox/button remain presentation-only"));
 }
 
@@ -1083,6 +1118,8 @@ fn warnings_checkbox_handler_refreshes_authorization() {
     let mut seeded = seed();
     let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
     let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
     shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
     shell.accept_current_mapping(&mut seeded.app).unwrap();
     let mapping_version = shell.accepted_mapping_version_id().unwrap();
@@ -1190,4 +1227,242 @@ fn explicit_policy_selection_binds_compatibility_and_transfer() {
     let run = seeded.app.job_status(&run_id).unwrap();
     let spec = seeded.app.load_job_spec(&run.job_spec_id).unwrap();
     assert_eq!(spec.as_record().policy_version_id().canonical(), extra);
+}
+
+fn seed_source_id(seeded: &Seeded) -> SourceSkeletonReferenceId {
+    seeded
+        .app
+        .catalog()
+        .load_motion_version(&seeded.motion_version)
+        .unwrap()
+        .as_record()
+        .source_skeleton_ref_id()
+}
+
+fn acknowledge_ready_pair(seeded: &mut Seeded, shell: &mut WorkbenchApp) {
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let mapping_version = shell.accepted_mapping_version_id().unwrap();
+    let result = CompatibilityResult::from_preflight(
+        CharacterAssetVersionId::parse(&seeded.character_version).unwrap(),
+        MotionAssetVersionId::parse(&seeded.motion_version).unwrap(),
+        BoneMappingVersionId::parse(mapping_version).unwrap(),
+        RetargetPolicyVersionId::parse(&seeded.policy_version).unwrap(),
+        Judgment::PassWithWarnings,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["pair A warning".into()],
+    )
+    .unwrap();
+    seeded
+        .app
+        .catalog_mut()
+        .put_validated(&Validated::certify(result.clone()).unwrap())
+        .unwrap();
+    shell.apply_compatibility_result(&result);
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    assert!(shell.transfer_requires_acknowledgement());
+    shell
+        .acknowledge_compatibility_warnings(&seeded.app)
+        .unwrap();
+    assert!(shell.warnings_acknowledged());
+    assert!(shell.transfer_available());
+}
+
+#[test]
+fn character_selection_change_invalidates_compatibility_and_rejects_transfer() {
+    let mut seeded = seed();
+    let other = persist_character(&mut seeded.app, "OtherChar", 40);
+    let mut shell = WorkbenchApp::empty();
+    acknowledge_ready_pair(&mut seeded, &mut shell);
+    let jobs_before = seeded.app.catalog().list_job_runs().unwrap().len();
+    shell.select_character_version(other.id().canonical());
+    assert!(shell.compatibility_id().is_none());
+    assert!(shell.transfer_authorization().is_none());
+    assert!(!shell.warnings_acknowledged());
+    assert!(!shell.transfer_available());
+    let err = shell
+        .request_transfer(&mut seeded.app, None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("CompatibilityResult") || err.contains("FAIL CLOSED"),
+        "{err}"
+    );
+    assert_eq!(
+        seeded.app.catalog().list_job_runs().unwrap().len(),
+        jobs_before
+    );
+}
+
+#[test]
+fn motion_selection_change_invalidates_compatibility_and_rejects_transfer() {
+    let mut seeded = seed();
+    let source = seed_source_id(&seeded);
+    let other = persist_motion(&mut seeded.app, "OtherMotion", source, 41);
+    let mut shell = WorkbenchApp::empty();
+    acknowledge_ready_pair(&mut seeded, &mut shell);
+    let jobs_before = seeded.app.catalog().list_job_runs().unwrap().len();
+    shell.select_motion_version(other.id().canonical());
+    assert!(shell.compatibility_id().is_none());
+    assert!(shell.transfer_authorization().is_none());
+    assert!(!shell.warnings_acknowledged());
+    assert!(!shell.transfer_available());
+    let err = shell
+        .request_transfer(&mut seeded.app, None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("CompatibilityResult") || err.contains("FAIL CLOSED"),
+        "{err}"
+    );
+    assert_eq!(
+        seeded.app.catalog().list_job_runs().unwrap().len(),
+        jobs_before
+    );
+}
+
+#[test]
+fn pair_b_ready_with_warnings_requires_fresh_acknowledgement() {
+    let mut seeded = seed();
+    let other = persist_character(&mut seeded.app, "PairBChar", 42);
+    let source = seed_source_id(&seeded);
+    persist_accepted_mapping(
+        &mut seeded.app,
+        "pair-b-map",
+        other.id(),
+        source,
+        backend(),
+    );
+    let mut shell = WorkbenchApp::empty();
+    acknowledge_ready_pair(&mut seeded, &mut shell);
+    assert!(shell.warnings_acknowledged());
+    shell.select_character_version(other.id().canonical());
+    shell.select_motion_version(&seeded.motion_version);
+    shell
+        .bind_published_mapping_for_current_selection(&seeded.app)
+        .unwrap();
+    assert!(shell.mapping_accepted());
+    let mapping_version = shell.accepted_mapping_version_id().unwrap();
+    let result = CompatibilityResult::from_preflight(
+        other.id(),
+        MotionAssetVersionId::parse(&seeded.motion_version).unwrap(),
+        BoneMappingVersionId::parse(mapping_version).unwrap(),
+        RetargetPolicyVersionId::parse(&seeded.policy_version).unwrap(),
+        Judgment::PassWithWarnings,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Pass,
+        Judgment::Unknown,
+        vec!["pair B warning requires a fresh acknowledgement".into()],
+    )
+    .unwrap();
+    seeded
+        .app
+        .catalog_mut()
+        .put_validated(&Validated::certify(result.clone()).unwrap())
+        .unwrap();
+    shell.apply_compatibility_result(&result);
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    assert!(!shell.warnings_acknowledged());
+    assert!(shell.transfer_requires_acknowledgement());
+    assert!(!shell.transfer_available());
+}
+
+#[test]
+fn request_transfer_fails_closed_when_selection_disagrees_with_compatibility_graph() {
+    let mut seeded = seed();
+    let other = persist_character(&mut seeded.app, "MismatchChar", 43);
+    let mut shell = WorkbenchApp::empty();
+    acknowledge_ready_pair(&mut seeded, &mut shell);
+    let jobs_before = seeded.app.catalog().list_job_runs().unwrap().len();
+    shell.force_selection_without_invalidation_for_test(
+        other.id().canonical(),
+        seeded.motion_version.clone(),
+    );
+    let err = shell
+        .request_transfer(&mut seeded.app, None)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("FAIL CLOSED"), "{err}");
+    assert_eq!(
+        seeded.app.catalog().list_job_runs().unwrap().len(),
+        jobs_before
+    );
+}
+
+#[test]
+fn published_derived_becomes_exact_preview_selection() {
+    let mut seeded = seed();
+    let draft = seeded.app.load_mapping_version(&seeded.draft_id).unwrap();
+    let mut shell = WorkbenchApp::empty();
+    shell.select_character_version(&seeded.character_version);
+    shell.select_motion_version(&seeded.motion_version);
+    shell.select_derived_variant_version("pre-existing-derived-A");
+    shell.bind_mapping_draft(&seeded.mapping_id, draft.as_record());
+    shell.accept_current_mapping(&mut seeded.app).unwrap();
+    let result = seeded
+        .app
+        .run_compatibility_preflight(
+            &seeded.character_version,
+            &seeded.motion_version,
+            shell.accepted_mapping_version_id().unwrap(),
+            &seeded.policy_version,
+            &WorkerCapabilityProfile::v1_3_isolated_worker(),
+        )
+        .unwrap();
+    shell.apply_compatibility_result(result.as_record());
+    shell.refresh_transfer_authorization(&seeded.app).unwrap();
+    if shell.transfer_requires_acknowledgement() {
+        shell
+            .acknowledge_compatibility_warnings(&seeded.app)
+            .unwrap();
+    }
+    let run_id = shell.request_transfer(&mut seeded.app, None).unwrap();
+    let staged = complete_shell_success(&mut seeded.app, &run_id, b"wb-derived-b");
+    let outcome = seeded
+        .app
+        .finalize_transfer_for_test(
+            &run_id,
+            &staged,
+            &MemoryArtifactInspector::passing(None).with_joints(vec![
+                "Bone".into(),
+                "Head".into(),
+            ]),
+            &MemoryPersistenceReopener::default(),
+        )
+        .unwrap();
+    assert_eq!(outcome.kind, TransferOutcomeKind::Published);
+    shell.apply_transfer_outcome(&outcome);
+    let published_b = outcome.derived_variant_version_id.clone();
+    assert_eq!(
+        shell.selected_derived_variant_version(),
+        Some(published_b.as_str())
+    );
+    seeded
+        .app
+        .generate_preview_with(
+            &MemoryPreviewGenerator::default(),
+            PreviewGenerationRequest::derived_variant(&published_b),
+        )
+        .unwrap();
+    let session = shell
+        .request_preview(
+            &mut seeded.app,
+            PreviewSubject::DerivedVariant {
+                version_id: published_b.clone(),
+            },
+            true,
+            false,
+        )
+        .unwrap();
+    assert!(session.document.valid);
+    assert_eq!(session.document.selected_product_version_id, published_b);
+    assert_ne!(session.document.selected_product_version_id, "pre-existing-derived-A");
+    assert_ne!(session.document.selected_product_version_id, "latest");
 }

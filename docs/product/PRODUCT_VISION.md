@@ -74,10 +74,15 @@ validated by POC-BLENDER-E2E-01). It is not product authority and is not
 permanently final. Engine-independent derived Preview is
 `VALIDATED_WITH_GUARDS` by POC-PREVIEW-01R
 (`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`). Preview Artifact remains
-derived / rebuildable / non-authoritative. Viewer library and Preview payload
-format are not selected. Preview must not require Unreal, Unity, or Blender
-as the user-facing viewer. Product implementation remains unauthorized until
-W0-RS and IA-1 complete the remaining required gates.
+derived / rebuildable / non-authoritative. At PRODUCT_VISION adoption time,
+viewer library and Preview payload format were not selected. Current
+disposition: ADR-0006 **Accepted** (GLB + `@google/model-viewer` 4.3.1).
+Preview must not require Unreal, Unity, or Blender as the user-facing
+viewer. At adoption time, Product implementation remained unauthorized
+until W0-RS and IA-1 completed the remaining required gates. Current
+disposition: those gates are complete; V1-1 through V1-8 are implemented
+and baselined; Gate D is PASS / CLOSED (independent result:
+`GATE_D_PASS_CANDIDATE`).
 
 ## What survives from earlier research
 

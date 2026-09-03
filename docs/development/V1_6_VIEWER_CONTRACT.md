@@ -32,8 +32,9 @@ Local SHA-256 of `workbench/preview-viewer/vendor/model-viewer.min.js`:
 
 License: package Apache-2.0; the minified bundle also contains Lit
 BSD-3-Clause headers. Recorded in
-[NOTICE.txt](../../workbench/preview-viewer/NOTICE.txt). Legal release
-clearance is V1-8.
+[NOTICE.txt](../../workbench/preview-viewer/NOTICE.txt). V1-8 inventoried
+viewer notices and the pinned digest; it did **not** complete distribution
+legal clearance. Legal release clearance remains open / POST-V1.
 
 This is **not** inferred from ADR-0004 (egui/eframe). The GUI crate is not
 the viewer. `wry` is not selected. `WorkbenchApp::requires_blender()` stays

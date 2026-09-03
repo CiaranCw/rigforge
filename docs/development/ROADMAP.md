@@ -31,7 +31,8 @@ V1-6: COMPLETE / PASS / BASELINED
 V1-7: SKIPPED / OPTIONAL
 NO CONCRETE PRODUCT CONSUMER REQUIREMENT
 V1-8: COMPLETE / PASS / BASELINED
-Gate D: READY / NOT STARTED
+Gate D: PASS / CLOSED
+Final independent Gate D result: GATE_D_PASS_CANDIDATE
 ```
 
 POC-BLENDER-E2E-01 is **COMPLETE / PASS / BASELINED**. Decision:
@@ -55,7 +56,12 @@ V1-6 is **COMPLETE / PASS / BASELINED**. Preview viewer/payload/surface is
 V1-7 is **SKIPPED / OPTIONAL** (no concrete Product consumer for an
 output/export artifact contract; the V1-6 GLB Preview payload is not that
 consumer). V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is
-**READY / NOT STARTED**. Do not start V1-7 export. Do not mark Gate D PASS.
+**PASS / CLOSED**. Final independent result: `GATE_D_PASS_CANDIDATE`.
+Technical V1 release readiness is PASS. Public redistribution is not
+automatically authorized. Blender redistribution / legal remains
+HUMAN / LEGAL REVIEW REQUIRED. Do not start V1-7 export. Do not open
+Gate D2. No additional V1 implementation stage is authorized by the
+current roadmap.
 Storage: SQLite **Accepted**
 ([ADR-0003](../architecture/decisions/ADR-0003-v1-local-catalog-storage.md)).
 GUI: egui/eframe **Accepted**
@@ -113,7 +119,9 @@ COMPLETE / PASS / BASELINED
 Real-asset hardening and release qualification
         ↓
 Gate D
-READY / NOT STARTED
+PASS / CLOSED
+Final independent result: GATE_D_PASS_CANDIDATE
+Technical V1 release readiness: PASS
 ```
 
 ## Historical research — COMPLETE
@@ -190,14 +198,19 @@ OPEN MINOR: 0
 OBSERVATION: 1 (GATE-C-OBS-001, NON-BLOCKING)
 ```
 
-Next fixed independent gate:
+Fixed independent Gate D:
 
 ```text
-Gate D
-READY / NOT STARTED
-Final Release Readiness Audit
-independent GPT-5.6 Sol High Agent
+Gate D:
+PASS / CLOSED
+Purpose: Final Release Readiness Audit
+Independent result: GATE_D_PASS_CANDIDATE
+OPEN MAJOR: 0
+OPEN MINOR: 0
+OBSERVATION: 11 (NON-BLOCKING)
 ```
+
+Project acceptance: **Gate D PASS / CLOSED**. Do not open Gate D2.
 
 ## Deferred Gate B observations
 
@@ -207,13 +220,17 @@ a narrower piece:
 
 ```text
 spawn-to-RUNNING application crash recovery
+  current: addressed in V1-8 (dispatch-intent fail-closed on reopen)
 release worker-script/package integrity
+  current: addressed in V1-8 (relocatable RuntimeLayout + pinned digests)
 process reattachment
 worker pool
 running cancellation / retry policy
 release packaging / installer
 GPL/legal release qualification
+  current: V1-8 inventoried notices/pins; distribution legal clearance remains open / POST-V1
 broader asset coverage
+  current: successful real non-humanoid retarget quality is POST-V1 / not a V1 guarantee
 ```
 
 ## Deferred Gate C observations
@@ -236,12 +253,22 @@ and review evidence. Historical Gate C text stays historical.
 ## Current next step
 
 ```text
-Start Gate D in a NEW clean independent GPT-5.6 Sol High Agent.
+RigForge V1 technical implementation and the fixed independent Gate
+sequence are COMPLETE.
 
-Final Release Readiness Audit.
+Gate D:
+PASS / CLOSED.
 
-Do not use the Main implementation context as the independent Gate.
+No additional V1 implementation stage is authorized by the current
+roadmap.
+
+Public redistribution remains subject to documented external/human
+prerequisites.
 ```
+
+Do not open Gate D2. Do not start V1-7 export. Future work requires a
+separately authorized post-V1 roadmap, release packaging/distribution
+decision, or new Product requirement.
 
 Historical GATE-C-OBS-001 remains historical Gate C evidence. V1-8 owns
 current native Workbench event-wiring disposition.

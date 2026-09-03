@@ -6,6 +6,7 @@
 //! details, not Product authority.
 
 use eframe::egui;
+use std::path::Path;
 use rigforge_app::rigforge_domain::{
     BoneMappingVersion, CompatibilityResult, Lifecycle,
 };
@@ -75,6 +76,16 @@ pub struct WorkbenchApp {
     workflow_status: Option<String>,
     selected_policy_version_id: Option<String>,
     preview_host: Option<preview_host::PreviewHost>,
+    character_name_input: String,
+    character_path_input: String,
+    motion_name_input: String,
+    motion_path_input: String,
+    motion_skeleton_name_input: String,
+    motion_clip_input: String,
+    motion_start_frame_input: String,
+    motion_end_frame_input: String,
+    motion_fps_num_input: String,
+    motion_fps_den_input: String,
 }
 
 impl WorkbenchApp {
@@ -111,6 +122,16 @@ impl WorkbenchApp {
             workflow_status: None,
             selected_policy_version_id: None,
             preview_host: None,
+            character_name_input: String::new(),
+            character_path_input: String::new(),
+            motion_name_input: String::new(),
+            motion_path_input: String::new(),
+            motion_skeleton_name_input: String::new(),
+            motion_clip_input: String::new(),
+            motion_start_frame_input: "1".into(),
+            motion_end_frame_input: "61".into(),
+            motion_fps_num_input: "30".into(),
+            motion_fps_den_input: "1".into(),
         }
     }
 
@@ -203,17 +224,52 @@ impl WorkbenchApp {
 
     pub fn select_character_version(&mut self, version_id: impl Into<String>) {
         self.selected_character_version = Some(version_id.into());
-        self.clear_preview_presentation();
+        self.invalidate_selection_bound_workflow_state();
     }
 
     pub fn select_motion_version(&mut self, version_id: impl Into<String>) {
         self.selected_motion_version = Some(version_id.into());
-        self.clear_preview_presentation();
+        self.invalidate_selection_bound_workflow_state();
     }
 
     pub fn select_derived_variant_version(&mut self, version_id: impl Into<String>) {
         self.selected_derived_variant_version = Some(version_id.into());
         self.clear_preview_presentation();
+    }
+
+    /// Workbench-local derived state for the current Character + Motion pair.
+    /// Does not mutate durable Catalog history.
+    fn invalidate_selection_bound_workflow_state(&mut self) {
+        self.mapping_id = None;
+        self.mapping_version_id = None;
+        self.accepted_mapping_version_id = None;
+        self.mapping_entries.clear();
+        self.unmapped.clear();
+        self.ambiguities.clear();
+        self.compatibility_id = None;
+        self.compatibility_summary = None;
+        self.compatibility_dimensions.clear();
+        self.compatibility_notes.clear();
+        self.warnings_acknowledged = false;
+        self.transfer_auth = None;
+        self.transfer_phase = None;
+        self.derived_variant_id = None;
+        self.derived_variant_version_id = None;
+        self.publication_state = None;
+        self.qc_verdict = None;
+        self.persistence_verification = None;
+        self.clear_preview_presentation();
+    }
+
+    /// Test helper: construct a mismatched selection without clearing retained Compatibility.
+    #[doc(hidden)]
+    pub fn force_selection_without_invalidation_for_test(
+        &mut self,
+        character_version_id: impl Into<String>,
+        motion_version_id: impl Into<String>,
+    ) {
+        self.selected_character_version = Some(character_version_id.into());
+        self.selected_motion_version = Some(motion_version_id.into());
     }
 
     fn clear_preview_presentation(&mut self) {
@@ -430,6 +486,24 @@ impl WorkbenchApp {
                 "Workbench Transfer requires an exact CompatibilityResult".into(),
             )
         })?;
+        let selected_character = self.selected_character_version.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Transfer FAIL CLOSED: no Character version is selected".into(),
+            )
+        })?;
+        let selected_motion = self.selected_motion_version.clone().ok_or_else(|| {
+            rigforge_app::AppError::Catalog(
+                "Transfer FAIL CLOSED: no Motion version is selected".into(),
+            )
+        })?;
+        let retained = app.catalog().load_compatibility_result(&id)?;
+        let graph_character = retained.as_record().character_version_id().canonical();
+        let graph_motion = retained.as_record().motion_version_id().canonical();
+        if graph_character != selected_character || graph_motion != selected_motion {
+            return Err(rigforge_app::AppError::Catalog(
+                "Transfer FAIL CLOSED: CompatibilityResult does not match the current Character/Motion selection".into(),
+            ));
+        }
         self.refresh_transfer_authorization(app)?;
         if !self.transfer_available() {
             return Err(rigforge_app::AppError::Catalog(self.transfer_eligibility_label()));
@@ -572,6 +646,61 @@ impl WorkbenchApp {
         }
     }
 
+    pub fn on_register_character_clicked(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let display_name = parse_required_text(&self.character_name_input, "display name")?;
+        let path = parse_required_text(&self.character_path_input, "local path")?;
+        let inspector = BlenderSkeletonInspector::production()?;
+        let registered = app.register_local_character(&display_name, Path::new(&path), &inspector)?;
+        self.reload_from_application(app)?;
+        self.select_character_version(&registered.version_id);
+        self.bind_published_mapping_for_current_selection(app)?;
+        self.workflow_status = Some(format!(
+            "Registered Character version {}",
+            registered.version_id
+        ));
+        Ok(())
+    }
+
+    pub fn on_register_motion_clicked(
+        &mut self,
+        app: &mut Application,
+    ) -> Result<(), rigforge_app::AppError> {
+        let display_name = parse_required_text(&self.motion_name_input, "display name")?;
+        let path = parse_required_text(&self.motion_path_input, "local path")?;
+        let skeleton = parse_required_text(
+            &self.motion_skeleton_name_input,
+            "Source Skeleton name",
+        )?;
+        let clip = parse_required_text(&self.motion_clip_input, "clip identifier")?;
+        let start = parse_integral_i64(&self.motion_start_frame_input, "start frame")?;
+        let end = parse_integral_i64(&self.motion_end_frame_input, "end frame")?;
+        let fps_num = parse_integral_u32(&self.motion_fps_num_input, "FPS numerator")?;
+        let fps_den = parse_integral_u32(&self.motion_fps_den_input, "FPS denominator")?;
+        let inspector = BlenderSkeletonInspector::production()?;
+        let registered = app.register_local_motion(
+            &display_name,
+            Path::new(&path),
+            &skeleton,
+            &clip,
+            start,
+            end,
+            fps_num,
+            fps_den,
+            &inspector,
+        )?;
+        self.reload_from_application(app)?;
+        self.select_motion_version(&registered.version_id);
+        self.bind_published_mapping_for_current_selection(app)?;
+        self.workflow_status = Some(format!(
+            "Registered Motion version {}",
+            registered.version_id
+        ));
+        Ok(())
+    }
+
     pub fn reload_from_application(
         &mut self,
         app: &Application,
@@ -606,6 +735,12 @@ impl WorkbenchApp {
             TransferOutcomeKind::Published => {
                 self.publication_state = Some("Published".into());
                 self.transfer_phase = Some("published".into());
+                if let Some(version_id) = Some(outcome.derived_variant_version_id.clone())
+                    .filter(|s| !s.is_empty())
+                {
+                    self.selected_derived_variant_version = Some(version_id);
+                    self.clear_preview_presentation();
+                }
             }
             TransferOutcomeKind::PublicationDenied => {
                 self.publication_state = Some("Publication denied".into());
@@ -819,7 +954,7 @@ impl WorkbenchApp {
             });
         });
         egui::SidePanel::left("browser")
-            .default_width(280.0)
+            .default_width(320.0)
             .show(ctx, |ui| {
                 ui.heading("Asset Browser");
                 ui.separator();
@@ -891,6 +1026,55 @@ impl WorkbenchApp {
                     }
                     if self.derived.is_empty() {
                         ui.weak("No Derived Variants");
+                    }
+                });
+                ui.separator();
+                ui.collapsing("Add Character", |ui| {
+                    ui.label("Display name");
+                    ui.text_edit_singleline(&mut self.character_name_input);
+                    ui.label("Local path");
+                    ui.text_edit_singleline(&mut self.character_path_input);
+                    if ui.button("Register").clicked() {
+                        if let Some(app) = app.as_mut() {
+                            if let Err(err) = self.on_register_character_clicked(app) {
+                                self.workflow_status = Some(err.to_string());
+                            }
+                        } else {
+                            self.workflow_status = Some(
+                                "Native Application path is required for Character registration"
+                                    .into(),
+                            );
+                        }
+                    }
+                });
+                ui.collapsing("Add Motion", |ui| {
+                    ui.label("Display name");
+                    ui.text_edit_singleline(&mut self.motion_name_input);
+                    ui.label("Local path");
+                    ui.text_edit_singleline(&mut self.motion_path_input);
+                    ui.label("Source Skeleton name");
+                    ui.text_edit_singleline(&mut self.motion_skeleton_name_input);
+                    ui.label("Clip");
+                    ui.text_edit_singleline(&mut self.motion_clip_input);
+                    ui.label("Start frame");
+                    ui.text_edit_singleline(&mut self.motion_start_frame_input);
+                    ui.label("End frame");
+                    ui.text_edit_singleline(&mut self.motion_end_frame_input);
+                    ui.label("FPS numerator");
+                    ui.text_edit_singleline(&mut self.motion_fps_num_input);
+                    ui.label("FPS denominator");
+                    ui.text_edit_singleline(&mut self.motion_fps_den_input);
+                    if ui.button("Register").clicked() {
+                        if let Some(app) = app.as_mut() {
+                            if let Err(err) = self.on_register_motion_clicked(app) {
+                                self.workflow_status = Some(err.to_string());
+                            }
+                        } else {
+                            self.workflow_status = Some(
+                                "Native Application path is required for Motion registration"
+                                    .into(),
+                            );
+                        }
                     }
                 });
             });
@@ -1163,6 +1347,50 @@ impl eframe::App for WorkbenchHost {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.shell.draw(ctx, Some(&mut self.app));
     }
+}
+
+fn parse_required_text(raw: &str, field: &str) -> Result<String, rigforge_app::AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(rigforge_app::AppError::Catalog(format!(
+            "registration: {field} is required"
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn parse_integral_i64(raw: &str, field: &str) -> Result<i64, rigforge_app::AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(rigforge_app::AppError::Catalog(format!(
+            "registration: {field} is required"
+        )));
+    }
+    if trimmed.contains('.') {
+        return Err(rigforge_app::AppError::Catalog(format!(
+            "registration: {field} must be an integral frame; got {trimmed}"
+        )));
+    }
+    trimmed.parse::<i64>().map_err(|_| {
+        rigforge_app::AppError::Catalog(format!("registration: invalid {field}: {trimmed}"))
+    })
+}
+
+fn parse_integral_u32(raw: &str, field: &str) -> Result<u32, rigforge_app::AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(rigforge_app::AppError::Catalog(format!(
+            "registration: {field} is required"
+        )));
+    }
+    if trimmed.contains('.') {
+        return Err(rigforge_app::AppError::Catalog(format!(
+            "registration: {field} must be an integral value; got {trimmed}"
+        )));
+    }
+    trimmed.parse::<u32>().map_err(|_| {
+        rigforge_app::AppError::Catalog(format!("registration: invalid {field}: {trimmed}"))
+    })
 }
 
 #[cfg(test)]

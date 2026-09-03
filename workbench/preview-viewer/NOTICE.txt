@@ -23,4 +23,5 @@ Local SHA-256 of `vendor/model-viewer.min.js`:
 
 Decoder CDN defaults inside the library are redirected to unused local
 paths by `index.html` so Preview view time does not fetch Draco / KTX2 /
-Lottie from the network. Legal release clearance remains V1-8.
+Lottie from the network. V1-8 inventoried this notice and the pinned viewer
+digest. Distribution legal clearance remains open / POST-V1.

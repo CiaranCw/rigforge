@@ -22,7 +22,8 @@ V1-6 COMPLETE / PASS / BASELINED
 V1-7 SKIPPED / OPTIONAL
 NO CONCRETE PRODUCT CONSUMER REQUIREMENT
 V1-8 COMPLETE / PASS / BASELINED
-Gate D READY / NOT STARTED
+Gate D PASS / CLOSED
+Final independent Gate D result: GATE_D_PASS_CANDIDATE
 ```
 
 W0 research gates are closed. V1-1 Gate A is closed. V1-2 is baselined.
@@ -32,9 +33,12 @@ V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is
 **COMPLETE / PASS / BASELINED**. V1-7 is **SKIPPED / OPTIONAL** (no concrete
 Product consumer for an output/export artifact contract; the V1-6 GLB
 Preview payload is not that consumer). V1-8 is
-**COMPLETE / PASS / BASELINED**. Gate D is **READY / NOT STARTED**.
-Do not start V1-7 export. Do not open Gate C2. Do not mark Gate D PASS.
-Gate D must be a new independent Final Release Readiness Audit.
+**COMPLETE / PASS / BASELINED**. Gate D is **PASS / CLOSED**. Final
+independent result: `GATE_D_PASS_CANDIDATE`. Technical V1 release readiness
+is PASS. Public redistribution is not automatically authorized. Blender
+redistribution / legal remains HUMAN / LEGAL REVIEW REQUIRED.
+Do not start V1-7 export. Do not open Gate C2. Do not open Gate D2.
+No additional V1 implementation stage is authorized by the current roadmap.
 
 ## Source of Truth
 
@@ -114,15 +118,23 @@ If identity or attribution is wrong: **do not push**. Report and fix the local c
 ## Current Next Step
 
 ```text
-Start Gate D in a NEW clean independent GPT-5.6 Sol High Agent.
+RigForge V1 technical implementation and the fixed independent Gate
+sequence are COMPLETE.
 
-Final Release Readiness Audit.
+Gate D:
+PASS / CLOSED.
 
-Do not use the Main implementation context as the independent Gate.
+No additional V1 implementation stage is authorized by the current
+roadmap.
+
+Public redistribution remains subject to documented external/human
+prerequisites.
 ```
 
 Do not start V1-7 export. Do not open Gate C2.
-Do not open a post-Gate-C or V1-5 release audit. Do not mark Gate D PASS.
+Do not open a post-Gate-C or V1-5 release audit. Do not open Gate D2.
+Future work requires a separately authorized post-V1 roadmap, release
+packaging/distribution decision, or new Product requirement.
 
 GUI is **Accepted: egui/eframe** (ADR-0004). Catalog storage is **Accepted:
 SQLite / rusqlite bundled** (ADR-0003). Blender worker process packaging is
@@ -138,6 +150,20 @@ Independent result remains `GATE_C_PASS_CANDIDATE`. Project acceptance is
 **Gate C PASS / CLOSED**. `GATE-C-OBS-001` remains historical non-blocking
 Gate C evidence. V1-8 owns current native Workbench event-wiring disposition
 without rewriting Gate C reports.
+
+Gate D independent audit (immutable historical evidence):
+[docs/development/audits/GATE_D_RELEASE_READINESS_AUDIT.md](docs/development/audits/GATE_D_RELEASE_READINESS_AUDIT.md),
+[docs/development/audits/GATE_D_FINDINGS.md](docs/development/audits/GATE_D_FINDINGS.md),
+[docs/development/audits/GATE_D_COVERAGE_MATRIX.md](docs/development/audits/GATE_D_COVERAGE_MATRIX.md),
+[docs/development/audits/GATE_D_CLOSURE_REVIEW.md](docs/development/audits/GATE_D_CLOSURE_REVIEW.md),
+[docs/development/audits/GATE_D_CLOSURE_MATRIX.md](docs/development/audits/GATE_D_CLOSURE_MATRIX.md),
+[docs/development/audits/GATE_D_FINAL_CLOSURE.md](docs/development/audits/GATE_D_FINAL_CLOSURE.md),
+[docs/development/audits/GATE_D_FINAL_CLOSURE_MATRIX.md](docs/development/audits/GATE_D_FINAL_CLOSURE_MATRIX.md).
+Independent final result remains `GATE_D_PASS_CANDIDATE`. Project acceptance
+is **Gate D PASS / CLOSED**:
+[docs/development/audits/GATE_D_PROJECT_ACCEPTANCE.md](docs/development/audits/GATE_D_PROJECT_ACCEPTANCE.md).
+OBSERVATION count remains 11 and non-blocking. Do not rewrite independent
+Gate D reports.
 
 V1-6 contracts:
 [docs/development/V1_6_IMPLEMENTATION_PLAN.md](docs/development/V1_6_IMPLEMENTATION_PLAN.md),
@@ -196,9 +222,8 @@ Do not use GPT-5.6 Sol 1M High unless the user explicitly re-authorizes it.
 
 Gate B is **PASS / CLOSED**. Gate C is **PASS / CLOSED**. Do not open Gate
 B2, Gate C2, or another independent review of V1-3, V1-4, or V1-5. V1-6
-did not get a default independent Gate. Next fixed independent gate is
-Gate D (**READY / NOT STARTED**; Final Release Readiness Audit). The Main
-Agent must not audit its own V1-8 work as Gate D.
+did not get a default independent Gate. Gate D is **PASS / CLOSED**.
+Final independent result: `GATE_D_PASS_CANDIDATE`. Do not open Gate D2.
 
 IA-1 closeout:
 [docs/research/audits/IA_1_INDEPENDENT_AUDIT.md](docs/research/audits/IA_1_INDEPENDENT_AUDIT.md),

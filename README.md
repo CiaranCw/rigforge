@@ -61,7 +61,8 @@ Gate C: PASS / CLOSED
 V1-6: COMPLETE / PASS / BASELINED
 V1-7: SKIPPED / OPTIONAL
 V1-8: COMPLETE / PASS / BASELINED
-Gate D: READY / NOT STARTED
+Gate D: PASS / CLOSED
+Final independent Gate D result: GATE_D_PASS_CANDIDATE
 ```
 
 W0-SR is **COMPLETE / ADOPTED / BASELINED**. POC-BLENDER-E2E-01 is
@@ -89,8 +90,12 @@ V1-4 is **COMPLETE / PASS / BASELINED**. V1-5 is
 V1-7 is `SKIPPED / OPTIONAL` (no concrete Product consumer for an
 output/export artifact contract; the V1-6 GLB Preview payload is not that
 consumer). V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is
-**READY / NOT STARTED**. Do not start V1-7 export. Do not mark Gate D PASS.
-Do not open Gate C2.
+**PASS / CLOSED**. Final independent result: `GATE_D_PASS_CANDIDATE`.
+Technical V1 release readiness is PASS. Public redistribution is **not**
+automatically authorized. Blender redistribution / legal remains
+**HUMAN / LEGAL REVIEW REQUIRED**. No additional V1 implementation stage is
+authorized by the current roadmap. Do not start V1-7 export. Do not open
+Gate C2 or Gate D2.
 
 Historical W0.1–W0.4, POC-CORE-01, and POC-FBX-01 remain accepted research
 evidence. They are not a mandate to ship a heavy Canonical runtime or a
@@ -117,7 +122,9 @@ POC-BLENDER-E2E-01 with guards. It is not product authority. V1 work
 proceeds only under the currently authorized dedicated implementation
 stage. V1-5 is **COMPLETE / PASS / BASELINED**. Gate C is **PASS / CLOSED**.
 V1-6 is **COMPLETE / PASS / BASELINED**. V1-7 is `SKIPPED / OPTIONAL`.
-V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is **READY / NOT STARTED**.
+V1-8 is **COMPLETE / PASS / BASELINED**. Gate D is **PASS / CLOSED**.
+RigForge V1 technical implementation and the fixed independent Gate
+sequence are **COMPLETE**.
 
 ## Roadmap
 

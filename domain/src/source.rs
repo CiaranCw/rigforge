@@ -50,6 +50,10 @@ impl SourceArtifactEvidence {
         self.size_bytes
     }
 
+    pub fn observed_media_type(&self) -> &str {
+        &self.observed_media_type
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         self.location.validate()?;
         self.digest.validate()?;

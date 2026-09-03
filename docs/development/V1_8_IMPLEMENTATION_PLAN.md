@@ -5,7 +5,15 @@ hardening, and release qualification.
 
 Status: `COMPLETE / PASS / BASELINED`
 
-Gate D is **READY / NOT STARTED**. This plan is not a Gate D report.
+This plan is not a Gate D report. Historical V1-8 stage baseline HEAD is
+`9002a2d65b461faaac9f4cda956429ccd84bd1c9`. Historical V1-8
+release-qualification closeout HEAD is
+`ecbbb28d2ae59cdd5c38abbd1db1cdf0f0a26a8a`. Current Gate D lifecycle:
+
+```text
+Gate D: PASS / CLOSED
+Final independent result: GATE_D_PASS_CANDIDATE
+```
 
 Related:
 
@@ -21,7 +29,7 @@ branch: main
 HEAD:   9002a2d65b461faaac9f4cda956429ccd84bd1c9
 ```
 
-Accepted lifecycle at closeout:
+Accepted lifecycle at V1-8 closeout (historical):
 
 ```text
 V1-5: COMPLETE / PASS / BASELINED
@@ -31,6 +39,9 @@ V1-7: SKIPPED / OPTIONAL
 V1-8: COMPLETE / PASS / BASELINED
 Gate D: READY / NOT STARTED
 ```
+
+Current Gate D lifecycle: **PASS / CLOSED**. Final independent result:
+`GATE_D_PASS_CANDIDATE`.
 
 ## V1-7 decision
 

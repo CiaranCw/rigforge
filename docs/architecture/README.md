@@ -81,7 +81,7 @@ implementation stage. V1-4 is `COMPLETE / PASS / BASELINED`. V1-5 is
 `COMPLETE / PASS / BASELINED`. Gate C is `PASS / CLOSED`. V1-6 is
 `COMPLETE / PASS / BASELINED`. V1-7 is `SKIPPED / OPTIONAL`.
 V1-8 is **COMPLETE / PASS / BASELINED**.
-Gate D is **READY / NOT STARTED**.
+Gate D is **PASS / CLOSED**. Final independent result: `GATE_D_PASS_CANDIDATE`.
 
 ## Decisions
 

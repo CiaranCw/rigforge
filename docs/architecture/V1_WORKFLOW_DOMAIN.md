@@ -7,9 +7,15 @@ the tested vertical slice ran the product path without leaking Blender
 semantics into durable Job / Mapping / Policy / QC / Derived Variant state.
 Derived Preview is **`VALIDATED_WITH_GUARDS` by POC-PREVIEW-01R**.
 
-Exact production schema remains **OPEN**. Future worker replaceability is
-architecturally preserved but not multi-backend-demonstrated. Non-humanoid
-coverage is not yet real-E2E validated.
+At adoption time, exact production schema remained OPEN, future worker
+replaceability was architecturally preserved but not multi-backend-
+demonstrated, and non-humanoid coverage was not yet real-E2E validated.
+
+Current disposition: Domain schema version 1 is implemented in `domain/`.
+Worker replaceability remains architecturally preserved; V1 ships one
+pinned Blender worker (ADR-0005). Non-humanoid input is not prohibited;
+unsupported pairs fail closed; successful real non-humanoid retarget
+quality is not a V1 release guarantee.
 
 Decision: [ADR-0001](decisions/ADR-0001-v1-scope-and-blender-backed-execution.md).
 Worker: [V1_BLENDER_BACKED_ARCHITECTURE.md](V1_BLENDER_BACKED_ARCHITECTURE.md).
@@ -34,7 +40,9 @@ Blender scene / evaluated poses  -->   ephemeral execution state
 Preview / export files           -->   rebuildable derivatives
 ```
 
-Exact names, fields, and storage remain open.
+Exact names, fields, and storage were open at adoption time. Current:
+Domain schema version 1 is implemented; catalog storage is ADR-0003
+Accepted. This document is still not a frozen serialization standard.
 
 ## Concepts
 
@@ -166,8 +174,9 @@ payload path
 ```
 
 POC-PREVIEW-01R validated these properties for one research Character /
-Motion / Derived Variant set. Exact production schema remains **OPEN**. This
-is not a glTF / GLB schema and not a viewer-library selection. Does not own
+Motion / Derived Variant set. At adoption time, exact production schema
+remained OPEN. Current Preview payload/viewer is ADR-0006 **Accepted**.
+This is not a glTF / GLB schema as Product authority. Does not own
 identity, Mapping, QC thresholds, or source truth.
 
 ### ExportArtifact (optional)
@@ -203,4 +212,7 @@ fact**. Do not default back to a universal DCC clone.
 8. A future worker must implement the Job Spec without pretending to be Blender.
 9. AI cannot silently accept Mapping, mutate Derived Variant lineage, or
    declare a result acceptable.
-10. Exact storage technology and production schema remain deferred.
+10. At adoption time, exact storage technology and production schema remained
+    deferred. Current disposition: catalog storage is ADR-0003 **Accepted**
+    (SQLite / rusqlite bundled). Domain schema version 1 is implemented.
+    Serialization format is not frozen as Product authority.

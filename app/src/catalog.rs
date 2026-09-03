@@ -56,6 +56,8 @@ pub struct SqliteCatalog {
     preview_root: PathBuf,
     #[cfg(test)]
     fail_candidate_after_writes: bool,
+    #[cfg(test)]
+    fail_registration_after_writes: bool,
 }
 
 impl fmt::Debug for SqliteCatalog {
@@ -92,6 +94,8 @@ impl SqliteCatalog {
             preview_root,
             #[cfg(test)]
             fail_candidate_after_writes: false,
+            #[cfg(test)]
+            fail_registration_after_writes: false,
         };
         catalog.configure()?;
         catalog.reconcile_interrupted_runtime()?;
@@ -116,6 +120,8 @@ impl SqliteCatalog {
             preview_root,
             #[cfg(test)]
             fail_candidate_after_writes: false,
+            #[cfg(test)]
+            fail_registration_after_writes: false,
         };
         catalog.configure()?;
         catalog.reconcile_interrupted_runtime()?;
@@ -370,6 +376,66 @@ impl SqliteCatalog {
     #[cfg(test)]
     pub(crate) fn fail_next_candidate_transaction(&mut self) {
         self.fail_candidate_after_writes = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_registration_transaction(&mut self) {
+        self.fail_registration_after_writes = true;
+    }
+
+    pub(crate) fn persist_character_registration(
+        &mut self,
+        asset: &Validated<CharacterAsset>,
+        version: &Validated<CharacterAssetVersion>,
+    ) -> Result<(), AppError> {
+        #[cfg(test)]
+        let fail_after_writes = {
+            let fail = self.fail_registration_after_writes;
+            self.fail_registration_after_writes = false;
+            fail
+        };
+        self.in_transaction(|tx| {
+            reject_public_authority_bypass(&*tx, asset)?;
+            reject_public_authority_bypass(&*tx, version)?;
+            put_validated_on(&*tx, asset)?;
+            #[cfg(test)]
+            if fail_after_writes {
+                return Err(AppError::Catalog(
+                    "forced registration transaction failure".into(),
+                ));
+            }
+            put_validated_on(&*tx, version)?;
+            Ok(())
+        })
+    }
+
+    pub(crate) fn persist_motion_registration(
+        &mut self,
+        source_skeleton: &Validated<SourceSkeletonReference>,
+        asset: &Validated<MotionAsset>,
+        version: &Validated<MotionAssetVersion>,
+    ) -> Result<(), AppError> {
+        #[cfg(test)]
+        let fail_after_writes = {
+            let fail = self.fail_registration_after_writes;
+            self.fail_registration_after_writes = false;
+            fail
+        };
+        self.in_transaction(|tx| {
+            reject_public_authority_bypass(&*tx, source_skeleton)?;
+            reject_public_authority_bypass(&*tx, asset)?;
+            reject_public_authority_bypass(&*tx, version)?;
+            put_validated_on(&*tx, source_skeleton)?;
+            #[cfg(test)]
+            if fail_after_writes {
+                return Err(AppError::Catalog(
+                    "forced registration transaction failure".into(),
+                ));
+            }
+            put_validated_on(&*tx, asset)?;
+            put_validated_on(&*tx, version)?;
+            Ok(())
+        })
     }
 
     pub(crate) fn persist_candidate_graph(

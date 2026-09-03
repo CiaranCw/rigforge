@@ -75,9 +75,12 @@ Native format parsers are not mandatory V1 infrastructure. POC-FBX-01 remains
 `COMPLETE / PASS` with `KEEP_UFBX_WITH_GUARDS`; ufbx placement (inspector,
 optimization, specialized adapter, or unused in V1) is **not decided**.
 
-Core language remains **not selected**. POC-CORE-01 remains `INCONCLUSIVE`.
-This architecture makes that selection less urgent. C++ is not silently
-selected.
+At ADR-0001 adoption time: Core language had not yet been selected.
+POC-CORE-01 remains `INCONCLUSIVE` historical evidence. C++ was not silently
+selected. This architecture made that selection less urgent at the time.
+
+Current disposition: superseded for this question by
+[ADR-0002](ADR-0002-v1-core-language.md) **Accepted** (Rust) at V1-1 Gate A.
 
 ## Alternatives considered
 
@@ -146,10 +149,27 @@ Risks:
 - Accepted W0-SR proposal package under `*_PROPOSAL.md` and
   [W0P_REPLAN_PROPOSAL.md](../../research/poc/W0P_REPLAN_PROPOSAL.md).
 
-This is a W0 research/architecture validation result. Product implementation
-remains unauthorized until W0-RS and IA-1 complete the remaining required
-gates. Blender is not product authority and is not permanently final. Viewer
-library and Preview payload format are not selected.
+This is a W0 research/architecture validation result. At ADR-0001 adoption
+time, Product implementation remained unauthorized until W0-RS and IA-1
+completed the remaining required gates.
+
+Current disposition: W0-RS and IA-1 are complete. V1-1 through V1-8 are
+implemented and baselined. Implementation is authorized for those completed
+stages. Gate D is **PASS / CLOSED**. Final independent result:
+`GATE_D_PASS_CANDIDATE`. Blender is not product authority and is not
+permanently final.
+
+At ADR-0001 adoption time: viewer library and Preview payload format were
+not selected. Current disposition: superseded for this question by
+[ADR-0006](ADR-0006-v1-engine-independent-preview.md) **Accepted**
+(GLB + `@google/model-viewer` 4.3.1).
+
+Database / catalog storage: at adoption time not selected; current
+disposition superseded by [ADR-0003](ADR-0003-v1-local-catalog-storage.md)
+**Accepted** (SQLite / rusqlite bundled). GUI: superseded by
+[ADR-0004](ADR-0004-v1-workbench-gui.md) **Accepted** (egui/eframe).
+Blender worker process packaging: superseded by
+[ADR-0005](ADR-0005-v1-blender-worker-process.md) **Accepted**.
 
 ```text
 POC-BLENDER-E2E-01:
@@ -165,22 +185,47 @@ Decision Impact:
 ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS
 ```
 
-## Open questions
+## Open questions (historical at ADR-0001 adoption; current dispositions)
 
 1. Preview Artifact / viewer path: is a generated Preview Artifact
    sufficient for click-to-preview, or is another payload required?
    **YES, WITH GUARDS**, for the tested Character / Motion / Derived Variant
-   vertical slice (POC-PREVIEW-01R). Viewer technology, production payload
-   choice, non-humanoid coverage, material fidelity, and browser/platform
-   qualification remain open.
+   vertical slice (POC-PREVIEW-01R). At adoption time, viewer technology and
+   production payload remained open. Current disposition: ADR-0006 **Accepted**
+   (GLB + `@google/model-viewer` 4.3.1). Material fidelity and broader
+   browser/platform qualification remain later hardening.
 2. Is the thin Skeleton Summary sufficient beyond the tested humanoid pair
    for Mapping, Compatibility, QC, Preview, and backend replacement?
-3. Non-humanoid hardening: real E2E remains later mandatory validation.
+   Current: architecture does not assume humanoid-only roles; sufficiency
+   for arbitrary real pairs remains an evidence question, not a Product
+   prohibition of non-humanoid input.
+3. Non-humanoid hardening: at adoption time, real E2E remained later
+   mandatory validation. Current V1 technical release requirement is
+   backend-neutral/general Product semantics, no mandatory humanoid role
+   table, and honest fail-closed Compatibility for unsupported pairs.
+   Successful real non-humanoid retarget quality is **not** a V1 release
+   guarantee (`POST-V1 HARDENING / FUTURE QUALIFICATION`).
 4. Auto-Mapping quality remains later validation.
-5. Worker reliability hardening (crash/timeout/cancel/pools) remains later.
+5. Worker reliability hardening (timeout/cancel/pools) remains later.
+   Spawn-to-RUNNING crash recovery and runtime worker-package integrity
+   were implemented in V1-8.
 6. Can Blender packaging and worker-script licensing be cleared?
+   V1-8 inventoried notices and pins; distribution legal clearance remains
+   open / POST-V1.
 7. Does a concrete downstream consumer require Export Artifacts or versioned
-   Export Profiles in V1?
+   Export Profiles in V1? V1-7 remains `SKIPPED / OPTIONAL`.
 
-Viewer technology, production Preview payload, Core language, database, and
-exact schemas remain `OPEN` or `DEFER`.
+At ADR-0001 adoption time, viewer technology, production Preview payload,
+Core language, database, and exact schemas remained `OPEN` or `DEFER`.
+Those questions are **not** current truth. Current dispositions:
+
+```text
+Core language:     ADR-0002 Accepted (Rust)
+Catalog:           ADR-0003 Accepted (SQLite / rusqlite bundled)
+GUI:               ADR-0004 Accepted (egui / eframe)
+Blender worker:    ADR-0005 Accepted
+Preview:           ADR-0006 Accepted (GLB + @google/model-viewer 4.3.1)
+V1-1 through V1-8: implemented / baselined
+Gate D:            PASS / CLOSED
+Independent result: GATE_D_PASS_CANDIDATE
+```

@@ -12,9 +12,17 @@ Architecture: [../architecture/README.md](../architecture/README.md).
 Blender as execution backend is **`ACCEPT_BLENDER_BACKEND_WITH_GUARDS`**,
 validated by POC-BLENDER-E2E-01. Derived Preview is
 **`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`**, validated by POC-PREVIEW-01R.
-These are W0 research/architecture validation results. Product implementation
-remains unauthorized until W0-RS and IA-1 complete the remaining required
-gates.
+These are W0 research/architecture validation results. At the time this
+scope file first recorded that statement, Product implementation remained
+unauthorized until W0-RS and IA-1 completed the remaining required gates.
+
+Current disposition: W0-RS and IA-1 are complete. V1-1 through V1-8 are
+implemented and baselined. Core language is **Rust** (ADR-0002 Accepted).
+Catalog is **SQLite / rusqlite bundled** (ADR-0003 Accepted). GUI is
+**egui/eframe** (ADR-0004 Accepted). Blender worker process is **Accepted**
+(ADR-0005). Preview is **GLB + `@google/model-viewer` 4.3.1** (ADR-0006
+Accepted). Gate D is **PASS / CLOSED**. Final independent result:
+`GATE_D_PASS_CANDIDATE`.
 
 ## In scope
 
@@ -30,15 +38,19 @@ gates.
 | Mapping | First-class; automatic preflight; editor only when needed |
 | Compatibility | First-class gate; not a single boolean |
 | Retarget Policy | Product-owned intent; worker may execute |
-| Blender-backed transfer | Hidden worker: **IN V1 DIRECTION / ACCEPTED WITH GUARDS**; subject to remaining W0-RS / IA-1 gates before implementation |
+| Blender-backed transfer | Hidden worker: **IN V1 DIRECTION / ACCEPTED WITH GUARDS**; implemented through V1-8 |
 | Derived Variant | First-class result with versions and provenance |
 | Version / provenance | Inputs, Mapping, policy, backend, QC, artifacts |
 | Basic structural QC | First-class; must not silently mutate the subject |
-| Engine-independent Preview | **IN V1 DIRECTION / VALIDATED WITH GUARDS** by POC-PREVIEW-01R; GLB/browser path candidate only; viewer library OPEN |
+| Engine-independent Preview | **Accepted** (ADR-0006): GLB payload + `@google/model-viewer` 4.3.1 sidecar viewer. GLB is a Preview payload only, not a Product format and not a V1-7 export. |
 
 Happy path:
 
 ```text
+register local Character + Motion (FBX ingest evidence; FBX is not Product authority)
+        ↓
+Asset Browser lists exact Published versions
+        ↓
 select Character + select Motion
         ↓
 automatic Mapping / Compatibility preflight
@@ -52,8 +64,9 @@ Derived Variant
 Preview / Version
 ```
 
-Exact field schemas, enum names, UI toolkit, database, and viewer library
-remain implementation work.
+Exact Domain field schemas are implemented in `domain/`. UI toolkit, catalog
+storage, Blender worker packaging, and Preview viewer/payload are Accepted
+in ADR-0002 through ADR-0006. They are not reopened by this scope file.
 
 ## Out of scope / deferred
 
@@ -76,7 +89,7 @@ remain implementation work.
 | Advanced production QC (foot contact, sliding, artistic acceptance) | later hardening |
 | AI as mandatory authority | `DEFER`; suggestions cannot silently accept Mapping |
 | MCP as V1 shaping requirement | `DEFER` |
-| Core language selection | `DEFER` (POC-CORE-01 remains `INCONCLUSIVE`) |
+| Core language selection | Historical `DEFER` at scope adoption. Current: ADR-0002 **Accepted** (Rust). POC-CORE-01 remains `INCONCLUSIVE` evidence. |
 
 Export Artifact is an **optional derived concept**. Direct engine integration
 is out of V1. One practical output artifact may still be used for
@@ -145,13 +158,36 @@ engine-independent Viewer
 
 Derived Preview architecture is `VALIDATED_WITH_GUARDS` by POC-PREVIEW-01R
 for one research Character / Motion / Derived Variant set. Decision:
-`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. A GLB/browser path is a candidate,
-not a frozen technology choice. Viewer library remains OPEN. The research
-Motion hierarchy proxy is not a production-mandatory Canonical model.
-Preview must not require Unreal, Unity, or Blender as the user-facing viewer.
+`ACCEPT_DERIVED_PREVIEW_PATH_WITH_GUARDS`. Current production Preview payload
+and viewer are **Accepted** in ADR-0006: GLB + `@google/model-viewer` 4.3.1.
+GLB is a Preview payload only, not a Product format and not a V1-7 export.
+The research Motion hierarchy proxy is not a production-mandatory Canonical
+model. Preview must not require Unreal, Unity, or Blender as the user-facing
+viewer.
 
 ## Non-humanoid
 
-Non-humanoid Characters are **not prohibited**. Contracts must not assume
-humanoid-only slots. Real non-humanoid E2E remains a release hardening
-requirement, not the first architecture PoC.
+Non-humanoid Characters are **not prohibited** by Product. Contracts must
+not assume humanoid-only slots. Non-humanoid input may be assessed by
+Mapping and Compatibility. Unsupported pairs must fail closed honestly.
+
+V1 technical release requirement:
+
+```text
+backend-neutral / general Product semantics
+no mandatory humanoid role table
+non-humanoid input may be assessed by Mapping / Compatibility
+unsupported pairs must fail closed honestly
+```
+
+Not a V1 release guarantee:
+
+```text
+successful Retarget / QC / Preview for arbitrary real non-humanoid pairs
+```
+
+Current accepted evidence: generic non-humanoid architecture is supported;
+the real Horse + UAL2 pair is Unsupported / honest reject; successful real
+non-humanoid retarget quality is **not proven**. Broader successful
+non-humanoid retarget quality is **POST-V1 HARDENING / FUTURE QUALIFICATION**.
+Do not read this as "non-humanoid unsupported by Product".
