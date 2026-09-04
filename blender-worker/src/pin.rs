@@ -11,7 +11,7 @@ pub const BLENDER_BUILD: &str = "9e2066aef7ef";
 pub const BLENDER_ARCHIVE_NAME: &str = "blender-5.2.1-windows-x64.zip";
 pub const BLENDER_ARCHIVE_SHA256: &str =
     "0e631dad7d0cad6d5d18abdd2e2550f6c0213215334eda00ddbd3d22b96ecb2c";
-pub const ADAPTER_VERSION: &str = "rigforge-blender-worker/0.1.0";
+pub const ADAPTER_VERSION: &str = "rigforge-blender-worker/0.1.2";
 pub const EXECUTION_POLICY_VERSION: &str = "v1-1-proven-unexecuted";
 pub const BACKEND_KIND: &str = "Blender";
 pub use rigforge_app::runtime::{PREVIEW_GEN_SCRIPT_SHA256, WORKER_SCRIPT_SHA256};

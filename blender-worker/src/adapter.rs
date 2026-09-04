@@ -955,6 +955,9 @@ fn class_from_envelope(envelope: &WorkerEnvelope) -> WorkerFailureClass {
         Some("adapter_version_mismatch") => WorkerFailureClass::AdapterVersionMismatch,
         Some("source_digest_mismatch") => WorkerFailureClass::SourceDigestMismatch,
         Some("unsupported_policy") => WorkerFailureClass::UnsupportedPolicy,
+        Some("body_frame_alignment_unresolved") => {
+            WorkerFailureClass::BodyFrameAlignmentUnresolved
+        }
         Some("reopen_failure") => WorkerFailureClass::ReopenFailure,
         Some(other) => WorkerFailureClass::Other(other.to_string()),
         None => WorkerFailureClass::StructuredWorkerFail,

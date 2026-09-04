@@ -164,6 +164,46 @@ def action_inventory():
     return out
 
 
+def principled_base_color_image(mat):
+    if not mat.use_nodes or mat.node_tree is None:
+        return None
+    for node in mat.node_tree.nodes:
+        if node.type != "BSDF_PRINCIPLED":
+            continue
+        sock = node.inputs.get("Base Color")
+        if sock is None:
+            continue
+        for link in sock.links:
+            source = link.from_node
+            if source.type == "TEX_IMAGE" and getattr(source, "image", None) is not None:
+                return source.image
+    return None
+
+
+def force_preview_opaque(mat) -> None:
+    if hasattr(mat, "blend_method"):
+        try:
+            mat.blend_method = "OPAQUE"
+        except Exception:
+            pass
+    if hasattr(mat, "surface_render_method"):
+        try:
+            mat.surface_render_method = "DITHERED"
+        except Exception:
+            pass
+    if not mat.use_nodes or mat.node_tree is None:
+        return
+    for node in mat.node_tree.nodes:
+        if node.type != "BSDF_PRINCIPLED":
+            continue
+        sock = node.inputs.get("Alpha")
+        if sock is None:
+            continue
+        for link in list(sock.links):
+            mat.node_tree.links.remove(link)
+        sock.default_value = 1.0
+
+
 def preview_make_visible_materials() -> dict:
     preview_albedo = {
         "Skin": (0.72, 0.52, 0.40, 1.0),
@@ -172,46 +212,50 @@ def preview_make_visible_materials() -> dict:
         "Detail": (0.50, 0.32, 0.16, 1.0),
         "Red": (0.62, 0.10, 0.08, 1.0),
     }
-    touched = []
+    preserved = []
+    simplified = []
     for mat in bpy.data.materials:
         if mat.name == "proxy_mat":
             continue
+        force_preview_opaque(mat)
+        if principled_base_color_image(mat) is not None:
+            preserved.append(mat.name)
+            continue
         rgb = preview_albedo.get(mat.name, (0.55, 0.55, 0.58, 1.0))
-        if hasattr(mat, "blend_method"):
-            try:
-                mat.blend_method = "OPAQUE"
-            except Exception:
-                pass
-        if hasattr(mat, "surface_render_method"):
-            try:
-                mat.surface_render_method = "DITHERED"
-            except Exception:
-                pass
         mat.diffuse_color = rgb
         if mat.use_nodes and mat.node_tree:
             for node in mat.node_tree.nodes:
                 if node.type != "BSDF_PRINCIPLED":
                     continue
-                for sock_name in ("Alpha", "Base Color"):
-                    sock = node.inputs.get(sock_name)
-                    if sock is None:
-                        continue
+                sock = node.inputs.get("Base Color")
+                if sock is not None:
                     for link in list(sock.links):
                         mat.node_tree.links.remove(link)
-                if "Alpha" in node.inputs:
-                    node.inputs["Alpha"].default_value = 1.0
-                if "Base Color" in node.inputs:
-                    node.inputs["Base Color"].default_value = rgb
+                    sock.default_value = rgb
                 if "Metallic" in node.inputs:
                     node.inputs["Metallic"].default_value = 0.0
                 if "Roughness" in node.inputs:
                     node.inputs["Roughness"].default_value = 0.55
-        touched.append(mat.name)
+        simplified.append(mat.name)
     return {
         "forced_opaque": True,
-        "simplified_albedo": True,
-        "materials": touched[:24],
+        "simplified_albedo": len(simplified) > 0,
+        "preserved_image_albedo": len(preserved) > 0,
+        "materials": (preserved + simplified)[:24],
+        "preserved_materials": preserved[:24],
+        "simplified_materials": simplified[:24],
     }
+
+
+def material_preview_warnings(mat_fix: dict) -> list[str]:
+    warnings = ["source MASK/clip alpha forced opaque for preview visibility"]
+    if mat_fix.get("preserved_image_albedo"):
+        warnings.append("existing Base Color image textures preserved")
+    else:
+        warnings.append(
+            "source textures not present on this FBX import; simplified opaque albedo"
+        )
+    return warnings
 
 
 def export_glb(path: Path, animations: bool) -> None:
@@ -388,8 +432,7 @@ def generate_character(job: dict) -> dict:
         "warnings": [
             "source Character clip library not played",
             "FBX pivot/layer recipes not preserved",
-            "source MASK/clip alpha forced opaque for preview visibility",
-            "source textures not present on this FBX import; simplified opaque albedo",
+            *material_preview_warnings(mat_fix),
         ],
     }
 
@@ -608,8 +651,7 @@ def generate_derived(job: dict) -> dict:
         "warnings": [
             "Preview of accepted Derived Variant bake; not Mapping/QC authority",
             "GLB may drop FBX pivot/layer semantics",
-            "source MASK/clip alpha forced opaque for preview visibility",
-            "source textures not present on this FBX import; simplified opaque albedo",
+            *material_preview_warnings(mat_fix),
         ],
     }
 

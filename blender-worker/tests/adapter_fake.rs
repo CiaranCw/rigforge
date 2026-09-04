@@ -53,7 +53,7 @@ fn pin_parser_accepts_official_version_text() {
     assert!(version.contains("5.2.1"));
     assert_eq!(build, BLENDER_BUILD);
     assert_eq!(BLENDER_VERSION, "5.2.1 LTS");
-    assert_eq!(ADAPTER_VERSION, "rigforge-blender-worker/0.1.0");
+    assert_eq!(ADAPTER_VERSION, "rigforge-blender-worker/0.1.2");
 }
 
 #[test]

@@ -1,5 +1,5 @@
 [workspace]
-members = ["domain", "app", "workbench", "blender-worker"]
+members = ["domain", "app", "workbench", "blender-worker", "machine"]
 resolver = "2"
 
 # Compact workspace:

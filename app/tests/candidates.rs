@@ -306,3 +306,67 @@ fn non_humanoid_mapping_without_humanoid_slots() {
     assert!(proposal.entries.iter().any(|e| e.source_key == "segment_a"));
     assert!(proposal.entries.iter().all(|e| e.role_profile.is_none()));
 }
+
+#[test]
+fn elbow_aliases_to_lower_arm() {
+    let src = summary_source(
+        SourceSkeletonReferenceId::generate(),
+        vec![
+            j("root", None, true, "deforming"),
+            j("lowerarm_l", Some("root"), false, "deforming"),
+        ],
+    );
+    let dst = summary_target(
+        CharacterAssetVersionId::generate(),
+        vec![
+            j("Root", None, true, "deforming"),
+            j("Elbow_L", Some("Root"), false, "deforming"),
+        ],
+    );
+    let proposal =
+        generate_mapping_proposal(&src, &dst, MappingAssistProfile::OptionalHumanoid).unwrap();
+    assert!(
+        proposal
+            .entries
+            .iter()
+            .any(|entry| entry.source_key == "lowerarm_l" && entry.target_key == "Elbow_L"),
+        "{proposal:?}"
+    );
+    assert!(!proposal
+        .unmapped_source
+        .iter()
+        .any(|joint| joint.disposition() == UnmappedDisposition::Blocking));
+    assert!(!proposal
+        .unmapped_target
+        .iter()
+        .any(|joint| joint.disposition() == UnmappedDisposition::Blocking));
+}
+
+#[test]
+fn unnamed_finger_and_face_joints_are_optional() {
+    let src = summary_source(
+        SourceSkeletonReferenceId::generate(),
+        vec![j("root", None, true, "deforming")],
+    );
+    let dst = summary_target(
+        CharacterAssetVersionId::generate(),
+        vec![
+            j("Root", None, true, "deforming"),
+            j("Finger_01", Some("Root"), false, "deforming"),
+            j("Eyes", Some("Root"), false, "deforming"),
+            j("Eyebrows", Some("Root"), false, "deforming"),
+            j("Jaw", Some("Root"), false, "deforming"),
+        ],
+    );
+    let proposal =
+        generate_mapping_proposal(&src, &dst, MappingAssistProfile::OptionalHumanoid).unwrap();
+    for key in ["Finger_01", "Eyes", "Eyebrows", "Jaw"] {
+        let joint = proposal
+            .unmapped_target
+            .iter()
+            .find(|item| item.joint_key().as_str() == key)
+            .unwrap_or_else(|| panic!("missing {key}"));
+        assert_eq!(joint.disposition(), UnmappedDisposition::Optional, "{key}");
+    }
+    assert!(!proposal.confirmation_required);
+}

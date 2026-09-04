@@ -16,7 +16,7 @@ from pathlib import Path
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-WORKER_VERSION = "rigforge-blender-worker/0.1.0"
+WORKER_VERSION = "rigforge-blender-worker/0.1.2"
 ENVELOPE_SCHEMA = "rigforge.blender_worker.envelope.v1"
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -161,11 +161,430 @@ def loc_rot_without_scale(mat: Matrix) -> Matrix:
     return Matrix.LocRotScale(loc, rot, Vector((1.0, 1.0, 1.0)))
 
 
-def apply_root_keep_target_rest_scale(target, tpb, src_rest, src_now, tgt_rest) -> bool:
-    """Transfer root translation/rotation without propagating source scale."""
-    src_delta = loc_rot_without_scale(src_rest).inverted() @ loc_rot_without_scale(src_now)
+def finite_quat(q) -> bool:
+    return all(math.isfinite(float(v)) for v in (q.w, q.x, q.y, q.z))
+
+
+class BodyFrameError(RuntimeError):
+    """Fail-closed body-semantic frame / alignment construction."""
+
+    def __init__(self, reason: str, details: dict | None = None):
+        super().__init__(reason)
+        self.reason = reason
+        self.details = details or {}
+
+
+BODY_FRAME_COLLAPSE = 1e-5
+BODY_FRAME_COLLINEAR = 0.995
+BODY_FRAME_DET_TOL = 1e-3
+BILATERAL_ROLES = ("thigh", "upper_arm", "clavicle")
+UP_LOWER_ROLES = ("pelvis", "pelvis_central", "spine_01")
+UP_UPPER_ROLES = ("spine_03", "neck", "head", "spine_02")
+TORSO_CHAIN_ROLES = {
+    "spine",
+    "spine_01",
+    "spine_02",
+    "spine_03",
+    "neck",
+    "head",
+}
+
+
+def identity_quat() -> Quaternion:
+    return Quaternion((1.0, 0.0, 0.0, 0.0))
+
+
+def _as_vector(value) -> Vector:
+    if isinstance(value, Vector):
+        return Vector((float(value.x), float(value.y), float(value.z)))
+    return Vector((float(value[0]), float(value[1]), float(value[2])))
+
+
+def _finite_vec(v: Vector) -> bool:
+    return all(math.isfinite(float(c)) for c in (v.x, v.y, v.z))
+
+
+def _normalize(v: Vector) -> Vector | None:
+    if not _finite_vec(v) or float(v.length) < BODY_FRAME_COLLAPSE:
+        return None
+    return v.normalized()
+
+
+def rest_translation(mat: Matrix) -> Vector:
+    loc, _rot, _scl = mat.decompose()
+    return Vector((float(loc.x), float(loc.y), float(loc.z)))
+
+
+def entries_with_role(mapping_entries, role: str) -> list:
+    return [e for e in mapping_entries if e.get("role") == role]
+
+
+def unique_role_entry(mapping_entries, role: str):
+    found = entries_with_role(mapping_entries, role)
+    if not found:
+        return None
+    if len(found) != 1:
+        raise BodyFrameError(
+            f"role {role!r} is not unique ({len(found)} entries)",
+            {"role": role, "count": len(found)},
+        )
+    return found[0]
+
+
+def _lex_key(v: Vector) -> tuple:
+    return (round(float(v.x), 8), round(float(v.y), 8), round(float(v.z), 8))
+
+
+def paired_laterality_vector(mapping_entries, role: str, src_rest: dict, tgt_rest: dict):
+    """Map two same-role joints to a signed laterality vector without bone names.
+
+    The source rest positions are ordered lexicographically. The mapped target
+    joints follow that pairing so source and target share one laterality sign.
+    Swapping the order on both skeletons leaves A invariant.
+    """
+    found = entries_with_role(mapping_entries, role)
+    if len(found) != 2:
+        return None
+    a, b = found[0], found[1]
+    sa, sb = a["source"], b["source"]
+    ta, tb = a["target"], b["target"]
+    if sa not in src_rest or sb not in src_rest or ta not in tgt_rest or tb not in tgt_rest:
+        raise BodyFrameError(
+            f"missing rest matrices for bilateral role {role!r}",
+            {"role": role},
+        )
+    pa = rest_translation(src_rest[sa])
+    pb = rest_translation(src_rest[sb])
+    if _lex_key(pa) == _lex_key(pb):
+        raise BodyFrameError(
+            "left/right landmarks collapse to the same point",
+            {"role": role},
+        )
+    if _lex_key(pa) > _lex_key(pb):
+        src_plus, src_minus = pa, pb
+        tgt_plus = rest_translation(tgt_rest[ta])
+        tgt_minus = rest_translation(tgt_rest[tb])
+    else:
+        src_plus, src_minus = pb, pa
+        tgt_plus = rest_translation(tgt_rest[tb])
+        tgt_minus = rest_translation(tgt_rest[ta])
+    src_raw = src_plus - src_minus
+    tgt_raw = tgt_plus - tgt_minus
+    src_n = _normalize(src_raw)
+    tgt_n = _normalize(tgt_raw)
+    if src_n is None or tgt_n is None:
+        raise BodyFrameError(
+            "left/right landmarks collapse to the same point",
+            {"role": role},
+        )
+    return {
+        "role": role,
+        "source": src_n,
+        "target": tgt_n,
+    }
+
+
+def combine_laterality(parts: list) -> tuple[Vector, Vector, list[str]]:
+    if not parts:
+        raise BodyFrameError(
+            "required semantic landmarks are missing",
+            {"missing": "bilateral_pair"},
+        )
+    src_ref = parts[0]["source"]
+    tgt_ref = parts[0]["target"]
+    for part in parts[1:]:
+        src_dot = float(src_ref.dot(part["source"]))
+        tgt_dot = float(tgt_ref.dot(part["target"]))
+        if src_dot < 0.0 or tgt_dot < 0.0:
+            raise BodyFrameError(
+                "bilateral landmark axes disagree; reflection/mirror is unsupported",
+                {
+                    "roles": [p["role"] for p in parts],
+                    "source_dot": src_dot,
+                    "target_dot": tgt_dot,
+                    "reflection_detected": True,
+                },
+            )
+    src_sum = Vector((0.0, 0.0, 0.0))
+    tgt_sum = Vector((0.0, 0.0, 0.0))
+    for part in parts:
+        src_sum += part["source"]
+        tgt_sum += part["target"]
+    src_n = _normalize(src_sum)
+    tgt_n = _normalize(tgt_sum)
+    if src_n is None or tgt_n is None:
+        raise BodyFrameError("combined laterality vector is degenerate")
+    return src_n, tgt_n, [p["role"] for p in parts]
+
+
+def central_up_vector(mapping_entries, rest: dict, side: str) -> tuple[Vector, str, str]:
+    lower = None
+    lower_role = None
+    for role in UP_LOWER_ROLES:
+        entry = unique_role_entry(mapping_entries, role)
+        if entry is not None:
+            lower = entry
+            lower_role = role
+            break
+    if lower is None:
+        raise BodyFrameError(
+            "required semantic landmarks are missing",
+            {"missing": "central_up_lower"},
+        )
+    upper = None
+    upper_role = None
+    for role in UP_UPPER_ROLES:
+        entry = unique_role_entry(mapping_entries, role)
+        if entry is not None and entry[side] != lower[side]:
+            upper = entry
+            upper_role = role
+            break
+    if upper is None:
+        candidates = [
+            e
+            for e in mapping_entries
+            if e.get("role") in TORSO_CHAIN_ROLES and e[side] != lower[side]
+        ]
+        if not candidates:
+            raise BodyFrameError(
+                "required semantic landmarks are missing",
+                {"missing": "central_up_upper", "lower": lower_role},
+            )
+        lower_pos = rest_translation(rest[lower[side]])
+
+        def height_key(entry):
+            return float((rest_translation(rest[entry[side]]) - lower_pos).length)
+
+        upper = max(candidates, key=height_key)
+        upper_role = str(upper.get("role") or "torso")
+    p0 = rest_translation(rest[lower[side]])
+    p1 = rest_translation(rest[upper[side]])
+    raw = p1 - p0
+    if not _finite_vec(raw):
+        raise BodyFrameError("up vector is non-finite")
+    return raw, lower_role, upper_role
+
+
+def frame_from_right_up(right: Vector, up_raw: Vector, forward_mode: str = "up_cross_right") -> Matrix:
+    right_n = _normalize(right)
+    if right_n is None:
+        raise BodyFrameError("laterality vector is degenerate")
+    up_ortho = up_raw - right_n * float(up_raw.dot(right_n))
+    up_n = _normalize(up_ortho)
+    if up_n is None:
+        raise BodyFrameError("up vector is degenerate after removing the laterality component")
+    if abs(float(right_n.dot(up_n))) > BODY_FRAME_COLLINEAR:
+        raise BodyFrameError("up and right are nearly collinear")
+    if forward_mode == "up_cross_right":
+        forward = _normalize(up_n.cross(right_n))
+        if forward is None:
+            raise BodyFrameError("forward vector is degenerate")
+        columns = (right_n, forward, up_n)
+    elif forward_mode == "right_cross_up":
+        forward = _normalize(right_n.cross(up_n))
+        if forward is None:
+            raise BodyFrameError("forward vector is degenerate")
+        columns = (right_n, up_n, forward)
+    else:
+        raise BodyFrameError(f"unknown forward_mode {forward_mode!r}")
+    mat = Matrix(
+        (
+            (columns[0].x, columns[1].x, columns[2].x),
+            (columns[0].y, columns[1].y, columns[2].y),
+            (columns[0].z, columns[1].z, columns[2].z),
+        )
+    )
+    if not finite_matrix(mat):
+        raise BodyFrameError("body frame is non-finite")
+    det = float(mat.determinant())
+    if det < 0.0:
+        raise BodyFrameError(
+            "body frame determinant is negative; reflection is unsupported",
+            {"determinant": det, "reflection_detected": True},
+        )
+    if abs(det - 1.0) > BODY_FRAME_DET_TOL:
+        raise BodyFrameError(
+            "body frame determinant is invalid",
+            {"determinant": det},
+        )
+    return mat
+
+
+def alignment_from_frames(source_frame: Matrix, target_frame: Matrix) -> Matrix:
+    a = target_frame @ source_frame.inverted()
+    if not finite_matrix(a):
+        raise BodyFrameError("alignment A is non-finite")
+    det = float(a.determinant())
+    if det < 0.0:
+        raise BodyFrameError(
+            "alignment A is an improper rotation / reflection",
+            {"determinant": det, "reflection_detected": True},
+        )
+    if abs(det - 1.0) > BODY_FRAME_DET_TOL:
+        raise BodyFrameError(
+            "alignment A is not a proper rotation",
+            {"determinant": det},
+        )
+    return a
+
+
+def resolve_body_alignment(
+    mapping_entries,
+    src_rest: dict,
+    tgt_rest: dict,
+    *,
+    forward_mode: str = "up_cross_right",
+) -> dict:
+    """Rest body frames from Mapping roles + rest world positions. No clip, no names."""
+    parts = []
+    used = []
+    for role in BILATERAL_ROLES:
+        part = paired_laterality_vector(mapping_entries, role, src_rest, tgt_rest)
+        if part is not None:
+            parts.append(part)
+            used.append(role)
+    src_right, tgt_right, laterality_roles = combine_laterality(parts)
+    src_up_raw, src_lower, src_upper = central_up_vector(mapping_entries, src_rest, "source")
+    tgt_up_raw, tgt_lower, tgt_upper = central_up_vector(mapping_entries, tgt_rest, "target")
+    source_frame = frame_from_right_up(src_right, src_up_raw, forward_mode)
+    target_frame = frame_from_right_up(tgt_right, tgt_up_raw, forward_mode)
+    a = alignment_from_frames(source_frame, target_frame)
+    aq = a.to_quaternion().normalized()
+    if not finite_quat(aq):
+        raise BodyFrameError("alignment quaternion is non-finite")
+    axis, angle = aq.to_axis_angle()
+    src_det = float(source_frame.determinant())
+    tgt_det = float(target_frame.determinant())
+    a_det = float(a.determinant())
+    return {
+        "status": "resolved",
+        "landmark_resolution": "mapping_roles_rest_world_positions",
+        "laterality_roles": laterality_roles,
+        "source_up_roles": [src_lower, src_upper],
+        "target_up_roles": [tgt_lower, tgt_upper],
+        "forward_mode": forward_mode,
+        "source_frame": source_frame,
+        "target_frame": target_frame,
+        "source_determinant": src_det,
+        "target_determinant": tgt_det,
+        "alignment": a,
+        "alignment_determinant": a_det,
+        "alignment_quat": aq,
+        "alignment_angle_deg": math.degrees(float(angle)),
+        "alignment_axis": [float(axis.x), float(axis.y), float(axis.z)],
+        "reflection_detected": False,
+        "finite": True,
+        "motion_used": False,
+        "name_heuristics_used": False,
+    }
+
+
+def body_alignment_measurements(resolved: dict) -> list:
+    q = resolved["alignment_quat"]
+    return [
+        {"name": "body_frame_alignment_status", "value": resolved["status"]},
+        {"name": "body_frame_landmark_resolution", "value": resolved["landmark_resolution"]},
+        {"name": "body_frame_laterality_roles", "value": ",".join(resolved["laterality_roles"])},
+        {
+            "name": "body_frame_source_up_roles",
+            "value": ",".join(resolved["source_up_roles"]),
+        },
+        {
+            "name": "body_frame_target_up_roles",
+            "value": ",".join(resolved["target_up_roles"]),
+        },
+        {"name": "body_frame_source_determinant", "value": f"{resolved['source_determinant']:.6f}"},
+        {"name": "body_frame_target_determinant", "value": f"{resolved['target_determinant']:.6f}"},
+        {
+            "name": "body_frame_alignment_determinant",
+            "value": f"{resolved['alignment_determinant']:.6f}",
+        },
+        {
+            "name": "body_frame_alignment_angle_deg",
+            "value": f"{resolved['alignment_angle_deg']:.4f}",
+        },
+        {
+            "name": "body_frame_alignment_quat",
+            "value": ",".join(f"{float(c):.8f}" for c in (q.w, q.x, q.y, q.z)),
+        },
+        {"name": "body_frame_finite", "value": "YES" if resolved["finite"] else "NO"},
+        {
+            "name": "body_frame_reflection_detected",
+            "value": "YES" if resolved["reflection_detected"] else "NO",
+        },
+        {"name": "body_frame_motion_used", "value": "NO"},
+        {"name": "body_frame_name_heuristics_used", "value": "NO"},
+    ]
+
+
+def rest_relative_world_delta_quat(src_rest_q, src_now_q, tgt_rest_q, body_a=None) -> Quaternion:
+    """RestRelativeWorldDelta in a shared source→target semantic body frame.
+
+    `Dsrc = Rsa * inverse(Rsr)` is the source joint's rest-relative world
+    rotation. `Dtgt = A * Dsrc * inverse(A)` expresses that delta in the
+    target body-semantic world. Then `Rt = Dtgt * Rtr`.
+    `A` is identity when source and target rest body frames already match.
+    """
+    src_r = src_rest_q.normalized()
+    src_n = src_now_q.normalized()
+    tgt_r = tgt_rest_q.normalized()
+    a = (body_a or identity_quat()).normalized()
+    dsrc = src_n @ src_r.inverted()
+    dtgt = a @ dsrc @ a.inverted()
+    return (dtgt @ tgt_r).normalized()
+
+
+def apply_desired_world_rotation(target, tpb, desired_q) -> bool:
+    """Write a desired world rotation as a pose-local quaternion.
+
+    `world0` is this bone's world orientation with identity pose (rest local
+    under the *current* parent world). Parent joints must already be applied.
+    """
+    if not finite_quat(desired_q):
+        return False
+    tpb.location = Vector((0.0, 0.0, 0.0))
+    tpb.scale = Vector((1.0, 1.0, 1.0))
+    tpb.rotation_quaternion = Quaternion((1.0, 0.0, 0.0, 0.0))
+    bpy.context.view_layer.update()
+    world0 = world_pose_matrix(target, tpb).to_quaternion()
+    pose_q = world0.inverted() @ desired_q
+    if not finite_quat(pose_q):
+        return False
+    tpb.rotation_quaternion = pose_q.normalized()
+    tpb.location = Vector((0.0, 0.0, 0.0))
+    tpb.scale = Vector((1.0, 1.0, 1.0))
+    return True
+
+
+def apply_rest_relative_world_rotation(
+    target, tpb, src_rest, src_now, tgt_rest, body_a=None
+) -> bool:
+    """Non-root mapped joint: body-aligned world-space rest-relative rotation."""
+    desired_q = rest_relative_world_delta_quat(
+        src_rest.to_quaternion(),
+        src_now.to_quaternion(),
+        tgt_rest.to_quaternion(),
+        body_a,
+    )
+    return apply_desired_world_rotation(target, tpb, desired_q)
+
+
+def apply_root_keep_target_rest_scale(
+    target, tpb, src_rest, src_now, tgt_rest, body_a=None
+) -> bool:
+    """Transfer root translation/rotation as a body-aligned rest-relative delta.
+
+    `Dsrc = LocRot(src_now) * inverse(LocRot(src_rest))` with source scale removed.
+    `Dtgt = A4 * Dsrc * inverse(A4)` maps that rigid delta into the target
+    body-semantic world. `M_desired = Dtgt * LocRot(tgt_rest)` then restores
+    target rest scale. Identity `A` preserves the previous world-delta path.
+    """
+    src_delta = loc_rot_without_scale(src_now) @ loc_rot_without_scale(src_rest).inverted()
+    a = (body_a or identity_quat()).normalized()
+    a4 = a.to_matrix().to_4x4()
+    tgt_delta = a4 @ src_delta @ a4.inverted()
     tgt_rest_ns = loc_rot_without_scale(tgt_rest)
-    desired_ns = tgt_rest_ns @ src_delta
+    desired_ns = tgt_delta @ tgt_rest_ns
     loc, rot, _ = desired_ns.decompose()
     _tloc, _trot, tgt_rest_scl = tgt_rest.decompose()
     desired = Matrix.LocRotScale(loc, rot, tgt_rest_scl)
@@ -485,6 +904,23 @@ def execute(job: dict) -> dict:
         if e["target"] not in target.pose.bones:
             raise RuntimeError(f"missing required target joint: {e['target']}")
 
+    try:
+        body_alignment = resolve_body_alignment(mapping_entries, src_rest, tgt_rest)
+    except BodyFrameError as exc:
+        payload = fail_envelope(job, "body_frame_alignment_unresolved", [str(exc)])
+        extra = []
+        if isinstance(exc.details, dict):
+            for key, value in exc.details.items():
+                extra.append({"name": f"body_frame_{key}", "value": str(value)})
+        extra.append({"name": "body_frame_alignment_status", "value": "unresolved"})
+        extra.append({"name": "body_frame_reflection_detected", "value": "YES" if exc.details.get("reflection_detected") else "NO"})
+        extra.append({"name": "body_frame_motion_used", "value": "NO"})
+        extra.append({"name": "body_frame_name_heuristics_used", "value": "NO"})
+        payload["measurements"] = extra
+        write_envelope(job, payload)
+        raise SystemExit(1)
+    body_a = body_alignment["alignment_quat"]
+
     assign_action(source, clip)
     if target.animation_data:
         target.animation_data.action = None
@@ -506,6 +942,11 @@ def execute(job: dict) -> dict:
 
     def apply_entries() -> None:
         nonlocal nan_count
+        # Parent-first, one pass. Each mapped joint's desired *world* rotation
+        # is independent of siblings. After the parent pose is written and the
+        # view layer is updated, world0 for the child is rest-local under the
+        # already-animated parent, so pose_q = inverse(world0) * desired_world
+        # is the exact local key. A second pass is not a mathematical solver.
         for e in ordered:
             if e["source"] not in source.pose.bones or e["target"] not in target.pose.bones:
                 continue
@@ -516,31 +957,21 @@ def execute(job: dict) -> dict:
             tgt_r = tgt_rest[e["target"]]
             if e.get("role") == "root":
                 ok = apply_root_keep_target_rest_scale(
-                    target, tpb, src_r, src_now, tgt_r
+                    target, tpb, src_r, src_now, tgt_r, body_a
                 )
-                if not ok:
-                    nan_count += 1
-                    continue
             else:
-                src_dq = src_r.to_quaternion().inverted() @ src_now.to_quaternion()
-                desired_q = tgt_r.to_quaternion() @ src_dq
-                tpb.location = Vector((0.0, 0.0, 0.0))
-                tpb.scale = Vector((1.0, 1.0, 1.0))
-                tpb.rotation_quaternion = Quaternion((1.0, 0.0, 0.0, 0.0))
-                bpy.context.view_layer.update()
-                world0 = world_pose_matrix(target, tpb).to_quaternion()
-                pose_q = world0.inverted() @ desired_q
-                tpb.rotation_quaternion = pose_q.normalized()
-                tpb.location = Vector((0.0, 0.0, 0.0))
-                tpb.scale = Vector((1.0, 1.0, 1.0))
+                ok = apply_rest_relative_world_rotation(
+                    target, tpb, src_r, src_now, tgt_r, body_a
+                )
+            if not ok:
+                nan_count += 1
+                continue
             bpy.context.view_layer.update()
 
     for frame in range(f0, f1 + 1):
         scene.frame_set(frame)
         bpy.context.view_layer.update()
         reset_pose_to_rest(target)
-        bpy.context.view_layer.update()
-        apply_entries()
         bpy.context.view_layer.update()
         apply_entries()
         bpy.context.view_layer.update()
@@ -693,9 +1124,11 @@ def execute(job: dict) -> dict:
                 "name": "quaternion_keys_checked",
                 "value": str(quat_audit["samples_or_keys_checked"]),
             },
-        ],
+        ]
+        + body_alignment_measurements(body_alignment),
         "diagnostics": [
-            "per-frame rest reset; rest-relative world rotation delta; "
+            "per-frame rest reset; rest-relative world rotation delta conjugated "
+            "through rest body-semantic alignment A; "
             "ROTATION_ONLY local location=0; root loc/rot without source scale; "
             "KeepTargetRestScale; no root scale FCurves; "
             "NORMALIZE_BEFORE_KEY + CONSECUTIVE_HEMISPHERE before key insertion; "

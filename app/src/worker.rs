@@ -33,6 +33,7 @@ pub enum WorkerFailureClass {
     AdapterVersionMismatch,
     SourceDigestMismatch,
     UnsupportedPolicy,
+    BodyFrameAlignmentUnresolved,
     ReopenFailure,
     Other(String),
 }
@@ -51,6 +52,7 @@ impl WorkerFailureClass {
             Self::AdapterVersionMismatch => "adapter_version_mismatch",
             Self::SourceDigestMismatch => "source_digest_mismatch",
             Self::UnsupportedPolicy => "unsupported_policy",
+            Self::BodyFrameAlignmentUnresolved => "body_frame_alignment_unresolved",
             Self::ReopenFailure => "reopen_failure",
             Self::Other(value) => value,
         }

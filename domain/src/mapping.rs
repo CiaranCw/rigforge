@@ -932,6 +932,18 @@ pub enum TimeBakePolicy {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RestAlignmentPolicy {
+    /// Apply the source joint's rest-relative *world-space* motion delta to the
+    /// target rest orientation after a backend has placed both imported
+    /// graphics worlds into a shared source→target semantic body frame:
+    /// `D = R_source_now * inverse(R_source_rest)`,
+    /// `R_target = (A * D * inverse(A)) * R_target_rest`.
+    /// `A` is the rest body-frame change of basis; it is identity when the
+    /// two rest body frames already coincide. This is not a reuse of
+    /// source-rest local quaternion components in the target-rest bone basis,
+    /// and it is not a comparison of raw importer graphics worlds. The
+    /// serialized tag is stable; a worker that right-multiplies a source-local
+    /// delta, or that treats importer worlds as already semantically aligned,
+    /// is an implementation defect.
     RestRelativeWorldDelta,
 }
 

@@ -151,11 +151,11 @@ fn optional_humanoid_role(stem: &str) -> Option<&'static str> {
         "head" => Some("head"),
         "clavicle" | "shoulder" | "collar" => Some("clavicle"),
         "upperarm" | "upper_arm" | "uparm" => Some("upper_arm"),
-        "lowerarm" | "lower_arm" | "forearm" => Some("lower_arm"),
+        "lowerarm" | "lower_arm" | "forearm" | "elbow" => Some("lower_arm"),
         "hand" | "fist" | "wrist" => Some("hand"),
         "thigh" | "upperleg" | "upper_leg" | "upleg" => Some("thigh"),
         "calf" | "lowerleg" | "lower_leg" | "shin" => Some("shin"),
-        "foot" => Some("foot"),
+        "foot" | "ankle" => Some("foot"),
         "ball" | "toe" | "toebase" => Some("ball"),
         _ => None,
     }
@@ -163,7 +163,10 @@ fn optional_humanoid_role(stem: &str) -> Option<&'static str> {
 
 fn is_optional_extremity(stem: &str, display: &str) -> bool {
     let d = display.to_ascii_lowercase();
-    ["thumb", "index", "middle", "ring", "pinky", "leaf", "ball", "toe"]
+    [
+        "thumb", "index", "middle", "ring", "pinky", "finger", "leaf", "ball", "toe",
+        "eye", "eyebrow", "jaw",
+    ]
         .iter()
         .any(|n| stem.contains(n) || d.contains(n))
 }

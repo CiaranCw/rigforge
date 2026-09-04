@@ -18,10 +18,10 @@ pub const BLENDER_DISTRO_DIR_NAME: &str = "blender-5.2.1-windows-x64";
 
 /// Package integrity pin for `worker.py`. Not Product identity.
 pub const WORKER_SCRIPT_SHA256: &str =
-    "08399c38f834c0613e1f9d0c641672610f77ee2182bb9a28ef613ee3b9ee484f";
+    "0cc7f693cd4826742101afd45502c8b8d9fba9607652a32bf85d1d70a8a23c6e";
 /// Package integrity pin for `preview_gen.py`. Not Product identity.
 pub const PREVIEW_GEN_SCRIPT_SHA256: &str =
-    "c84aada5a3785dfc5a6c7114dce270616c1fe0640a4fa390dda39d4b8b3db795";
+    "e3a797c6a93ff40217acc08c60f09a815894d7ca3aa647f9a4cb2692fc08b1a4";
 
 thread_local! {
     static THREAD_ROOT: RefCell<Option<PathBuf>> = const { RefCell::new(None) };

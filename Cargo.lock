@@ -2613,6 +2613,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rigforge_machine"
+version = "0.1.0"
+dependencies = [
+ "rigforge_app",
+ "rigforge_blender_worker",
+ "rigforge_domain",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rigforge_workbench"
 version = "0.1.0"
 dependencies = [

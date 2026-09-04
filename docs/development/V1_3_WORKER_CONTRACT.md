@@ -103,7 +103,7 @@ Every real result records:
 backend kind: Blender
 version:        5.2.1 LTS
 build:          9e2066aef7ef
-adapter:        rigforge-blender-worker/0.1.0
+adapter:        rigforge-blender-worker/0.1.2
 ```
 
 Successful envelopes must match those identities. A mismatched envelope
@@ -140,6 +140,7 @@ backend_version_mismatch
 adapter_version_mismatch
 source_digest_mismatch
 unsupported_policy
+body_frame_alignment_unresolved
 reopen_failure
 ```
 

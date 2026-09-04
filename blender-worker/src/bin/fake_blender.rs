@@ -43,7 +43,7 @@ fn main() {
         .unwrap_or("9e2066aef7ef");
     let expected_adapter = job["expected_backend"]["adapter_version"]
         .as_str()
-        .unwrap_or("rigforge-blender-worker/0.1.0");
+        .unwrap_or("rigforge-blender-worker/0.1.2");
 
     if mode != "reopen" && behavior == "unicode_stderr" {
         eprint!("{}", "é漢".repeat(900));

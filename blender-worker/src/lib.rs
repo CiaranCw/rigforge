@@ -25,7 +25,7 @@ pub use pin::{
     default_blender_executable, enforce_pin, parse_blender_version_output,
     sha256_bytes, sha256_file, verify_archive_sha256, verify_worker_package_integrity, BlenderPin,
     ADAPTER_VERSION, BACKEND_KIND, BLENDER_ARCHIVE_NAME, BLENDER_ARCHIVE_SHA256, BLENDER_BUILD,
-    BLENDER_VERSION, PREVIEW_GEN_SCRIPT_SHA256, WORKER_SCRIPT_SHA256,
+    BLENDER_VERSION, EXECUTION_POLICY_VERSION, PREVIEW_GEN_SCRIPT_SHA256, WORKER_SCRIPT_SHA256,
 };
 pub use policy::{project_supported_policy, PolicyProjection};
 pub use projection::{job_document, project_mapping, SOURCE_REST_ACTION_CANDIDATES};
